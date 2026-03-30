@@ -20,6 +20,15 @@ class DriveFileModel {
   bool get isImage => type.startsWith('image/');
   bool get isVideo => type.startsWith('video/');
 
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'type': type,
+    'url': url,
+    'thumbnailUrl': thumbnailUrl,
+    'size': size,
+  };
+
   factory DriveFileModel.fromJson(Map<String, dynamic> json) {
     return DriveFileModel(
       id: json['id'] as String,

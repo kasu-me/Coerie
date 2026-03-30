@@ -11,6 +11,7 @@ import '../../../shared/providers/account_provider.dart';
 import '../../../shared/providers/misskey_api_provider.dart';
 import '../../../shared/providers/settings_provider.dart';
 import '../../compose/emoji_picker_sheet.dart';
+import '../ogp_provider.dart';
 import '../timeline_provider.dart';
 
 // ---- カスタム絵文字URLマップ（name → url） ----
@@ -31,7 +32,8 @@ final _emojiUrlMapProvider = Provider<Map<String, String>>((ref) {
 // ---- NoteCard ----
 class NoteCard extends ConsumerStatefulWidget {
   final NoteModel note;
-  const NoteCard({super.key, required this.note});
+  final bool navigatable;
+  const NoteCard({super.key, required this.note, this.navigatable = true});
 
   @override
   ConsumerState<NoteCard> createState() => _NoteCardState();
@@ -142,12 +144,12 @@ class _NoteCardState extends ConsumerState<NoteCard> {
               ],
             ),
           ),
-          NoteCard(note: note.renote!),
+          NoteCard(note: note.renote!, navigatable: widget.navigatable),
         ],
       );
     }
 
-    return Card(
+    final card = Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -228,6 +230,20 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                 child: _LinkedText(text: note.text!),
               ),
 
+            // OGPカード（本文にURLが含まれる場合）
+            if (note.text != null)
+              Builder(
+                builder: (_) {
+                  final match = _LinkedText._urlRegex.firstMatch(note.text!);
+                  if (match == null) return const SizedBox.shrink();
+                  final url = match.group(0)!;
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: OgpCard(url: url),
+                  );
+                },
+              ),
+
             // 添付メディア
             if (note.files.isNotEmpty)
               Padding(
@@ -261,6 +277,12 @@ class _NoteCardState extends ConsumerState<NoteCard> {
           ],
         ),
       ),
+    );
+
+    if (!widget.navigatable) return card;
+    return GestureDetector(
+      onTap: () => context.push('/note/${note.id}', extra: note),
+      child: card,
     );
   }
 
@@ -407,6 +429,20 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                     ),
                   );
                 }
+              },
+            ),
+            // ブラウザで開く（全員）
+            ListTile(
+              leading: const Icon(Icons.open_in_browser),
+              title: const Text('ブラウザで開く'),
+              onTap: () async {
+                Navigator.pop(sheetCtx);
+                final account = ref.read(activeAccountProvider);
+                if (account == null) return;
+                final uri = Uri.parse(
+                  'https://${account.host}/notes/${widget.note.id}',
+                );
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
               },
             ),
             // 削除（自分の投稿のみ）

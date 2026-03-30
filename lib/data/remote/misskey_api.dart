@@ -218,7 +218,25 @@ class MisskeyApi {
 
   // ---- ノート操作 ----
 
+  Future<NoteModel> getNote(String noteId) async {
+    final res = await _dio.post('notes/show', data: _body({'noteId': noteId}));
+    return NoteModel.fromJson(res.data as Map<String, dynamic>, host: host);
+  }
+
   Future<void> deleteNote(String noteId) async {
     await _dio.post('notes/delete', data: _body({'noteId': noteId}));
+  }
+
+  Future<List<NoteModel>> getNoteReplies(
+    String noteId, {
+    int limit = 50,
+  }) async {
+    final res = await _dio.post(
+      'notes/replies',
+      data: _body({'noteId': noteId, 'limit': limit}),
+    );
+    return (res.data as List<dynamic>)
+        .map((e) => NoteModel.fromJson(e as Map<String, dynamic>, host: host))
+        .toList();
   }
 }

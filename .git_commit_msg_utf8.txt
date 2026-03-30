@@ -1,0 +1,5 @@
+﻿feat: タイムラインでリスト・アンテナを扱えるよう対応
+
+- MisskeyApi に getLists / getAntennas を追加。
+- TimelineProvider を list:id と antenna:id 形式で扱えるようにし、extraParams を API に渡すよう変更。
+- HomeScreen と TabsSettingsScreen を更新してタブ選択・表示に対応。

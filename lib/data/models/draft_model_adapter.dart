@@ -6,11 +6,34 @@ class DraftModelAdapter extends TypeAdapter<DraftModel> {
 
   @override
   DraftModel read(BinaryReader reader) {
+    final id = reader.readString();
+    final text = reader.readString();
+    final visibility = reader.readString();
+    final savedAt = DateTime.fromMillisecondsSinceEpoch(reader.readInt());
+
+    List<DriveFileModel> files = [];
+    if (reader.availableBytes > 0) {
+      final fileStrings = reader.readStringList();
+      files = fileStrings
+          .map((s) {
+            try {
+              return DriveFileModel.fromJson(
+                jsonDecode(s) as Map<String, dynamic>,
+              );
+            } catch (_) {
+              return null;
+            }
+          })
+          .whereType<DriveFileModel>()
+          .toList();
+    }
+
     return DraftModel(
-      id: reader.readString(),
-      text: reader.readString(),
-      visibility: reader.readString(),
-      savedAt: DateTime.fromMillisecondsSinceEpoch(reader.readInt()),
+      id: id,
+      text: text,
+      visibility: visibility,
+      savedAt: savedAt,
+      files: files,
     );
   }
 
@@ -20,5 +43,8 @@ class DraftModelAdapter extends TypeAdapter<DraftModel> {
     writer.writeString(obj.text);
     writer.writeString(obj.visibility);
     writer.writeInt(obj.savedAt.millisecondsSinceEpoch);
+    writer.writeStringList(
+      obj.files.map((f) => jsonEncode(f.toJson())).toList(),
+    );
   }
 }

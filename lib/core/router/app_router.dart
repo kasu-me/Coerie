@@ -11,6 +11,7 @@ import '../../features/settings/settings_screen.dart';
 import '../../features/settings/tabs_settings_screen.dart';
 import '../../features/notifications/notification_screen.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../features/timeline/note_detail_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final accountState = ref.watch(accountProvider);
@@ -83,6 +84,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final userId = state.pathParameters['userId']!;
           return ProfileScreen(userId: userId);
+        },
+      ),
+      GoRoute(
+        path: '/note/:noteId',
+        builder: (context, state) {
+          final note = state.extra as NoteModel;
+          return NoteDetailScreen(note: note);
         },
       ),
     ],

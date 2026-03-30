@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../data/models/draft_model.dart';
+import '../../data/models/note_model.dart';
 import '../../data/local/hive_service.dart';
 import '../../core/constants/app_constants.dart';
 
@@ -24,6 +25,7 @@ class DraftNotifier extends StateNotifier<List<DraftModel>> {
     required String text,
     String visibility = AppConstants.visibilityPublic,
     String? existingId,
+    List<DriveFileModel> files = const [],
   }) async {
     final box = HiveService.draftsBox;
     final id = existingId ?? const Uuid().v4();
@@ -32,6 +34,7 @@ class DraftNotifier extends StateNotifier<List<DraftModel>> {
       text: text,
       visibility: visibility,
       savedAt: DateTime.now(),
+      files: files,
     );
     await box.put(id, draft);
     _load();

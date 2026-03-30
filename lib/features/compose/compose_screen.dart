@@ -81,7 +81,12 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
             .getDraft(widget.draftId!);
         if (draft != null) {
           _textController.text = draft.text;
-          setState(() => _visibility = draft.visibility);
+          setState(() {
+            _visibility = draft.visibility;
+            if (draft.files.isNotEmpty) {
+              _attachedMedia.addAll(draft.files.map(_DriveMedia.new));
+            }
+          });
         }
       });
     }
@@ -102,12 +107,17 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       context.pop();
       return;
     }
+    final driveFiles = _attachedMedia
+        .whereType<_DriveMedia>()
+        .map((m) => m.driveFile)
+        .toList();
     _currentDraftId = await ref
         .read(draftProvider.notifier)
         .saveDraft(
           text: _textController.text,
           visibility: _visibility,
           existingId: _currentDraftId,
+          files: driveFiles,
         );
     if (mounted) context.pop();
   }
