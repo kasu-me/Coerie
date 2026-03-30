@@ -37,12 +37,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           final replyToNote = extra?['replyToNote'] as NoteModel?;
           final initialText = extra?['initialText'] as String?;
           final initialVisibility = extra?['visibility'] as String?;
+          final initialFiles = extra?['initialFiles'] as List<DriveFileModel>?;
           return ComposeScreen(
             draftId: draftId,
             replyId: replyId,
             replyToNote: replyToNote,
             initialText: initialText,
             initialVisibility: initialVisibility,
+            initialFiles: initialFiles,
           );
         },
       ),

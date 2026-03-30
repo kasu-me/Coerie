@@ -183,9 +183,8 @@ class _ProfileBody extends ConsumerWidget {
             Center(child: Text(e.toString().replaceFirst('Exception: ', ''))),
         data: (notes) => notes.isEmpty
             ? const Center(child: Text('投稿がありません'))
-            : ListView.separated(
+            : ListView.builder(
                 itemCount: notes.length,
-                separatorBuilder: (context, index) => const Divider(height: 1),
                 itemBuilder: (context, i) => NoteCard(note: notes[i]),
               ),
       ),

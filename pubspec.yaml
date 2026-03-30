@@ -54,6 +54,7 @@ dependencies:
   app_links: ^7.0.0
   webview_flutter: ^4.13.1
   image_picker: ^1.2.1
+  google_fonts: ^8.0.2
 
 dev_dependencies:
   flutter_test:

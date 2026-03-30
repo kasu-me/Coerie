@@ -497,6 +497,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
           extra: {
             'initialText': note.text ?? '',
             'visibility': note.visibility,
+            'initialFiles': note.files,
           },
         );
       }
@@ -548,6 +549,10 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final activeAccount = ref.read(activeAccountProvider);
+    final canRenote =
+        !(widget.note.visibility == AppConstants.visibilityFollowers &&
+            widget.note.user.id != activeAccount?.userId);
     return Row(
       children: [
         _ActionButton(
@@ -562,8 +567,10 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
         _ActionButton(
           icon: _isRenoting ? Icons.hourglass_empty : Icons.repeat,
           count: widget.note.renoteCount,
-          onTap: _renote,
-          color: theme.colorScheme.tertiary,
+          onTap: canRenote ? _renote : null,
+          color: canRenote
+              ? theme.colorScheme.tertiary
+              : theme.colorScheme.onSurface.withValues(alpha: 0.3),
         ),
         const SizedBox(width: 16),
         _ActionButton(
@@ -585,13 +592,13 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final int count;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final Color? color;
 
   const _ActionButton({
     required this.icon,
     required this.count,
-    required this.onTap,
+    this.onTap,
     this.color,
   });
 

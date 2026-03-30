@@ -48,6 +48,7 @@ class App extends ConsumerWidget {
 
     return MaterialApp.router(
       title: 'Coerie',
+      locale: const Locale('ja', 'JP'),
       theme: AppTheme.light.copyWith(
         textTheme: _applyFontScale(AppTheme.light.textTheme, factor),
       ),

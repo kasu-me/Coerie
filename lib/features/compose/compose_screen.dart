@@ -32,6 +32,7 @@ class ComposeScreen extends ConsumerStatefulWidget {
   final NoteModel? replyToNote;
   final String? initialText;
   final String? initialVisibility;
+  final List<DriveFileModel>? initialFiles;
 
   const ComposeScreen({
     super.key,
@@ -40,6 +41,7 @@ class ComposeScreen extends ConsumerStatefulWidget {
     this.replyToNote,
     this.initialText,
     this.initialVisibility,
+    this.initialFiles,
   });
 
   @override
@@ -66,6 +68,10 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
     if (widget.initialText != null) {
       _textController.text = widget.initialText!;
+    }
+
+    if (widget.initialFiles != null && widget.initialFiles!.isNotEmpty) {
+      _attachedMedia.addAll(widget.initialFiles!.map((f) => _DriveMedia(f)));
     }
 
     if (widget.draftId != null) {
