@@ -42,6 +42,7 @@ class NoteModel {
   final int repliesCount;
   final int renoteCount;
   final Map<String, int> reactions;
+  final String? myReaction;
   final NoteModel? reply;
   final NoteModel? renote;
 
@@ -55,6 +56,7 @@ class NoteModel {
     this.repliesCount = 0,
     this.renoteCount = 0,
     this.reactions = const {},
+    this.myReaction,
     this.reply,
     this.renote,
   });
@@ -78,6 +80,7 @@ class NoteModel {
       repliesCount: json['repliesCount'] as int? ?? 0,
       renoteCount: json['renoteCount'] as int? ?? 0,
       reactions: reactionsJson.map((k, v) => MapEntry(k, v as int)),
+      myReaction: json['myReaction'] as String?,
       reply: json['reply'] != null
           ? NoteModel.fromJson(
               json['reply'] as Map<String, dynamic>,

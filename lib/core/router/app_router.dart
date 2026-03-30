@@ -1,3 +1,4 @@
+import '../../data/models/note_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/providers/account_provider.dart';
@@ -7,6 +8,7 @@ import '../../features/compose/compose_screen.dart';
 import '../../features/draft/draft_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/settings/tabs_settings_screen.dart';
+import '../../features/notifications/notification_screen.dart';
 import '../../features/profile/profile_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -29,7 +31,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/compose',
         builder: (context, state) {
           final draftId = state.uri.queryParameters['draftId'];
-          return ComposeScreen(draftId: draftId);
+          final extra = state.extra as Map<String, dynamic>?;
+          final replyId = extra?['replyId'] as String?;
+          final replyToNote = extra?['replyToNote'] as NoteModel?;
+          return ComposeScreen(
+            draftId: draftId,
+            replyId: replyId,
+            replyToNote: replyToNote,
+          );
         },
       ),
       GoRoute(
@@ -45,6 +54,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const TabsSettingsScreen(),
           ),
         ],
+      ),
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationScreen(),
       ),
       GoRoute(
         path: '/profile/:userId',

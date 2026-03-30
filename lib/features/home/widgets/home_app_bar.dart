@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:go_router/go_router.dart';
 import '../../../shared/providers/account_provider.dart';
 
 class HomeAppBar extends ConsumerWidget implements PreferredSizeWidget {
@@ -34,6 +35,13 @@ class HomeAppBar extends ConsumerWidget implements PreferredSizeWidget {
         'Coerie',
         style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2),
       ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.notifications_outlined),
+          tooltip: '通知',
+          onPressed: () => context.push('/notifications'),
+        ),
+      ],
     );
   }
 }

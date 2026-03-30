@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
 import '../../data/models/note_model.dart';
+import '../../data/models/notification_model.dart';
 import '../../data/models/user_model.dart';
 
 class MisskeyApi {
@@ -114,6 +116,29 @@ class MisskeyApi {
         .toList();
   }
 
+  // ---- ドライブ ----
+
+  /// ファイルをDriveにアップロードし、ファイルIDを返す。
+  Future<String> uploadFile(File file, {String? name}) async {
+    final fileName = name ?? file.path.split('/').last.split('\\').last;
+    final formData = FormData.fromMap({
+      'i': token,
+      'file': await MultipartFile.fromFile(file.path, filename: fileName),
+      if (name != null) 'name': name,
+    });
+
+    // Drive upload は multipart/form-data を使用
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: 'https://$host/api/',
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 60),
+      ),
+    );
+    final res = await dio.post('drive/files/create', data: formData);
+    return (res.data as Map<String, dynamic>)['id'] as String;
+  }
+
   // ---- カスタム絵文字 ----
 
   Future<List<Map<String, dynamic>>> getEmojis() async {
@@ -122,5 +147,34 @@ class MisskeyApi {
     return List<Map<String, dynamic>>.from(
       data['emojis'] as List<dynamic>? ?? [],
     );
+  }
+
+  // ---- 通知 ----
+
+  Future<List<NotificationModel>> getNotifications({
+    int limit = 20,
+    String? untilId,
+    String? sinceId,
+  }) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    if (sinceId != null) params['sinceId'] = sinceId;
+    final res = await _dio.post(
+      'i/notifications',
+      data: _body(params),
+    );
+    final list = res.data as List<dynamic>;
+    return list
+        .map(
+          (n) => NotificationModel.fromJson(
+            n as Map<String, dynamic>,
+            host: host,
+          ),
+        )
+        .toList();
+  }
+
+  Future<void> markNotificationsRead() async {
+    await _dio.post('notifications/mark-all-as-read', data: _body({}));
   }
 }

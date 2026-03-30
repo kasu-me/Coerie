@@ -1,16 +1,22 @@
+﻿import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../core/constants/app_constants.dart';
+import '../../data/models/note_model.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
-import '../../core/constants/app_constants.dart';
 import '../draft/draft_provider.dart';
+import 'emoji_picker_sheet.dart';
 
 class ComposeScreen extends ConsumerStatefulWidget {
   final String? draftId;
+  final String? replyId;
+  final NoteModel? replyToNote;
 
-  const ComposeScreen({super.key, this.draftId});
+  const ComposeScreen({super.key, this.draftId, this.replyId, this.replyToNote});
 
   @override
   ConsumerState<ComposeScreen> createState() => _ComposeScreenState();
@@ -20,6 +26,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   late final TextEditingController _textController;
   String _visibility = AppConstants.visibilityPublic;
   String? _currentDraftId;
+  final List<XFile> _attachedFiles = [];
+  bool _isPosting = false;
+  bool _isUploadingMedia = false;
 
   @override
   void initState() {
@@ -65,12 +74,56 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     if (mounted) context.pop();
   }
 
-  bool _isPosting = false;
-
-  Future<void> _post() async {
-    if (_textController.text.trim().isEmpty || _isOverLimit || _isPosting) {
+  Future<void> _pickMedia() async {
+    if (_attachedFiles.length >= 4) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('添付できるファイルは最大4件です')));
       return;
     }
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: const Text('ギャラリーから選択'),
+            onTap: () => Navigator.pop(context, ImageSource.gallery),
+          ),
+          ListTile(
+            leading: const Icon(Icons.camera_alt_outlined),
+            title: const Text('カメラで撮影'),
+            onTap: () => Navigator.pop(context, ImageSource.camera),
+          ),
+        ],
+      ),
+    );
+    if (source == null) return;
+
+    final picker = ImagePicker();
+    if (source == ImageSource.gallery) {
+      final remaining = 4 - _attachedFiles.length;
+      final files = await picker.pickMultiImage(limit: remaining);
+      if (files.isNotEmpty) {
+        setState(() => _attachedFiles.addAll(files));
+      }
+    } else {
+      final file = await picker.pickImage(source: ImageSource.camera);
+      if (file != null) {
+        setState(() => _attachedFiles.add(file));
+      }
+    }
+  }
+
+  void _removeMedia(int index) {
+    setState(() => _attachedFiles.removeAt(index));
+  }
+
+  Future<void> _post() async {
+    if (_textController.text.trim().isEmpty && _attachedFiles.isEmpty) return;
+    if (_isOverLimit || _isPosting) return;
 
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
@@ -78,13 +131,34 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     setState(() => _isPosting = true);
 
     try {
-      await api.createNote(text: _textController.text, visibility: _visibility);
+      // メディアを先にアップロード
+      final fileIds = <String>[];
+      if (_attachedFiles.isNotEmpty) {
+        setState(() => _isUploadingMedia = true);
+        for (final xfile in _attachedFiles) {
+          final id = await api.uploadFile(File(xfile.path));
+          fileIds.add(id);
+        }
+        setState(() => _isUploadingMedia = false);
+      }
+
+      await api.createNote(
+        text: _textController.text,
+        visibility: _visibility,
+        fileIds: fileIds,
+        replyId: widget.replyId,
+      );
+
       if (_currentDraftId != null) {
         await ref.read(draftProvider.notifier).deleteDraft(_currentDraftId!);
       }
       if (mounted) context.pop();
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _isPosting = false;
+          _isUploadingMedia = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -130,15 +204,41 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     );
   }
 
-  void _showEmojiPicker() {
-    // TODO: サーバーのカスタム絵文字を取得して表示
+  void _showAccountSwitcher(BuildContext context, WidgetRef ref) {
+    final accounts = ref.read(accountProvider);
+    if (accounts.length <= 1) return; // 1アカウントのみなら何もしない
     showModalBottomSheet(
       context: context,
-      builder: (_) => const Center(
-        child: Padding(
-          padding: EdgeInsets.all(32),
-          child: Text('絵文字ピッカーは今後実装予定です'),
-        ),
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              '投稿アカウントを切り替え',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+          ),
+          ...accounts.map(
+            (a) => ListTile(
+              leading: a.avatarUrl != null
+                  ? CircleAvatar(
+                      backgroundImage:
+                          CachedNetworkImageProvider(a.avatarUrl!),
+                    )
+                  : const CircleAvatar(child: Icon(Icons.person)),
+              title: Text(a.name),
+              subtitle: Text(a.acct),
+              trailing: a.isActive
+                  ? const Icon(Icons.check, color: Colors.green)
+                  : null,
+              onTap: () {
+                ref.read(accountProvider.notifier).switchAccount(a.id);
+                Navigator.pop(context);
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -168,20 +268,116 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         children: [
           // テキスト入力エリア
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: TextField(
-                controller: _textController,
-                maxLines: null,
-                expands: true,
-                decoration: const InputDecoration(
-                  hintText: '何かつぶやく...',
-                  border: InputBorder.none,
-                ),
-                onChanged: (_) => setState(() {}),
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  // リプライ先プレビュー
+                  if (widget.replyToNote != null)
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.replyToNote!.user.acct,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (widget.replyToNote!.text != null)
+                            Text(
+                              widget.replyToNote!.text!,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.outline,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: TextField(
+                      controller: _textController,
+                      maxLines: null,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText: widget.replyToNote != null
+                            ? '${widget.replyToNote!.user.name} に返信...'
+                            : '何かつぶやく...',
+                        border: InputBorder.none,
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                  // 添付画像プレビュー
+                  if (_attachedFiles.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                      child: SizedBox(
+                        height: 100,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _attachedFiles.length,
+                          separatorBuilder: (context, i) => const SizedBox(width: 8),
+                          itemBuilder: (_, i) => Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(
+                                  File(_attachedFiles[i].path),
+                                  width: 100,
+                                  height: 100,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              Positioned(
+                                top: -6,
+                                right: -6,
+                                child: GestureDetector(
+                                  onTap: () => _removeMedia(i),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.error,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    padding: const EdgeInsets.all(2),
+                                    child: Icon(
+                                      Icons.close,
+                                      size: 14,
+                                      color: theme.colorScheme.onError,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
+
+          // アップロード中インジケーター
+          if (_isUploadingMedia)
+            LinearProgressIndicator(
+              backgroundColor: theme.colorScheme.surfaceContainerHighest,
+            ),
 
           // フッター上段
           Container(
@@ -193,11 +389,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
             ),
             child: Row(
               children: [
-                // アカウントアイコン
+                // アカウントアイコン（タップで切り替え）
                 GestureDetector(
-                  onTap: () {
-                    // TODO: アカウント切り替え
-                  },
+                  onTap: () => _showAccountSwitcher(context, ref),
                   child: account?.avatarUrl != null
                       ? CircleAvatar(
                           radius: 16,
@@ -235,9 +429,10 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                 // 投稿ボタン
                 FilledButton(
                   onPressed:
-                      _textController.text.trim().isEmpty ||
+                      ((_textController.text.trim().isEmpty &&
+                              _attachedFiles.isEmpty) ||
                           _isOverLimit ||
-                          _isPosting
+                          _isPosting)
                       ? null
                       : _post,
                   child: _isPosting
@@ -262,13 +457,16 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
             ),
             child: Row(
               children: [
-                // メディア添付
+                // メディア添付（最大4件）
                 IconButton(
-                  icon: const Icon(Icons.image_outlined),
-                  tooltip: 'メディアを添付',
-                  onPressed: () {
-                    // TODO: image_picker で画像選択
-                  },
+                  icon: _attachedFiles.isNotEmpty
+                      ? Badge(
+                          label: Text('${_attachedFiles.length}'),
+                          child: const Icon(Icons.image_outlined),
+                        )
+                      : const Icon(Icons.image_outlined),
+                  tooltip: 'メディアを添付（最大4件）',
+                  onPressed: _isPosting ? null : _pickMedia,
                 ),
 
                 // 下書き一覧
@@ -282,7 +480,30 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                 IconButton(
                   icon: const Icon(Icons.emoji_emotions_outlined),
                   tooltip: '絵文字',
-                  onPressed: _showEmojiPicker,
+                  onPressed: () async {
+                    final name = await showModalBottomSheet<String>(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) => const EmojiPickerSheet(),
+                    );
+                    if (name != null && mounted) {
+                      final pos = _textController.selection.baseOffset;
+                      final text = _textController.text;
+                      final insert = ':$name:';
+                      final newText = pos < 0
+                          ? text + insert
+                          : text.substring(0, pos) +
+                                insert +
+                                text.substring(pos);
+                      _textController.value = TextEditingValue(
+                        text: newText,
+                        selection: TextSelection.collapsed(
+                          offset: (pos < 0 ? text.length : pos) + insert.length,
+                        ),
+                      );
+                      setState(() {});
+                    }
+                  },
                 ),
               ],
             ),
