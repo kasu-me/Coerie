@@ -68,8 +68,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   bool _isPosting = false;
 
   Future<void> _post() async {
-    if (_textController.text.trim().isEmpty || _isOverLimit || _isPosting)
+    if (_textController.text.trim().isEmpty || _isOverLimit || _isPosting) {
       return;
+    }
 
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;

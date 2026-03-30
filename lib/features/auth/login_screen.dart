@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../data/models/account_model.dart';
-import '../../core/auth/miauth_service.dart';
+import 'miauth_webview_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -32,17 +32,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         .replaceAll(RegExp(r'/$'), '');
   }
 
-  Future<void> _startMiAuth() async {
+  Future<void> _startLogin() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final host = _normalizeHost(_hostController.text);
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
-    final host = _normalizeHost(_hostController.text);
-
     try {
-      final result = await MiAuthService.authenticate(host);
+      // アプリ内 WebView で MiAuth 認証を行う（外部ブラウザ不要）
+      final result = await Navigator.of(context).push<({String token, dynamic user})>(
+        MaterialPageRoute(
+          builder: (_) => MiAuthWebViewScreen(host: host),
+        ),
+      );
+
+      if (result == null) {
+        // ユーザーがキャンセル
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
 
       await ref.read(accountProvider.notifier).addAccount(
             AccountModel(
@@ -104,7 +115,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   keyboardType: TextInputType.url,
                   textInputAction: TextInputAction.go,
-                  onFieldSubmitted: (_) => _startMiAuth(),
+                  onFieldSubmitted: (_) => _startLogin(),
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) {
                       return 'サーバーのURLを入力してください';
@@ -123,14 +134,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.error_outline,
-                          color: Theme.of(context).colorScheme.error),
+                      Icon(
+                        Icons.error_outline,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _errorMessage!,
                           style: TextStyle(
-                              color: Theme.of(context).colorScheme.error),
+                            color: Theme.of(context).colorScheme.error,
+                          ),
                         ),
                       ),
                     ],
@@ -141,19 +155,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _isLoading ? null : _startMiAuth,
+                  onPressed: _isLoading ? null : _startLogin,
                   child: _isLoading
                       ? const SizedBox(
                           height: 18,
                           width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('ブラウザでログイン'),
+                      : const Text('ログイン'),
                 ),
               ),
               const SizedBox(height: 16),
               Text(
-                'ブラウザでサーバーの認証ページが開きます。\n認証後、自動的にアプリに戻ります。',
+                'サーバーの認証ページをアプリ内で開きます。',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.outline,

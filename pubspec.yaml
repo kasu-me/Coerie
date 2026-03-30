@@ -52,6 +52,7 @@ dependencies:
   # URLランチャー（MiAuth用）
   url_launcher: ^6.3.1
   app_links: ^7.0.0
+  webview_flutter: ^4.13.1
 
 dev_dependencies:
   flutter_test:
