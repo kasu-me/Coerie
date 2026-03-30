@@ -149,6 +149,17 @@ class MisskeyApi {
         .toList();
   }
 
+  /// ドライブファイルを削除する。
+  Future<void> deleteFile(String fileId) async {
+    await _dio.post('drive/files/delete', data: _body({'fileId': fileId}));
+  }
+
+  /// ドライブファイルを指定フォルダに移動する（nullでルートに移動）。
+  Future<void> moveFile(String fileId, {String? folderId}) async {
+    final params = <String, dynamic>{'fileId': fileId, 'folderId': folderId};
+    await _dio.post('drive/files/update', data: _body(params));
+  }
+
   /// ファイルをDriveにアップロードし、ファイルIDを返す。
   Future<String> uploadFile(File file, {String? name}) async {
     final fileName = name ?? file.path.split('/').last.split('\\').last;

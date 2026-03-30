@@ -2,8 +2,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/widgets/media_player_screen.dart';
 
 /// ドライブフォルダの簡易モデル
 class _DriveFolder {
@@ -45,6 +47,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
   String? _error;
   final _scrollController = ScrollController();
   final Set<String> _selectedIds = {};
+  bool _managingMode = false;
 
   String? get _currentFolderId => _breadcrumbs.last.id;
 
@@ -127,6 +130,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     setState(() {
       _breadcrumbs.add((id: folder.id, name: folder.name));
       _selectedIds.clear();
+      _managingMode = false;
     });
     _load();
   }
@@ -136,28 +140,196 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     setState(() {
       _breadcrumbs.removeRange(index + 1, _breadcrumbs.length);
       _selectedIds.clear();
+      _managingMode = false;
     });
     _load();
   }
 
   void _onFileTap(DriveFileModel file) {
-    if (!widget.selectionMode) return;
-    setState(() {
-      if (_selectedIds.contains(file.id)) {
-        _selectedIds.remove(file.id);
-      } else {
-        if (_selectedIds.length >= widget.maxSelection) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('最大${widget.maxSelection}件まで選択できます'),
-              duration: const Duration(seconds: 1),
-            ),
-          );
-          return;
+    if (widget.selectionMode) {
+      setState(() {
+        if (_selectedIds.contains(file.id)) {
+          _selectedIds.remove(file.id);
+        } else {
+          if (_selectedIds.length >= widget.maxSelection) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('最大${widget.maxSelection}件まで選択できます'),
+                duration: const Duration(seconds: 1),
+              ),
+            );
+            return;
+          }
+          _selectedIds.add(file.id);
         }
-        _selectedIds.add(file.id);
-      }
+      });
+    } else if (_managingMode) {
+      setState(() {
+        if (_selectedIds.contains(file.id)) {
+          _selectedIds.remove(file.id);
+          if (_selectedIds.isEmpty) _managingMode = false;
+        } else {
+          _selectedIds.add(file.id);
+        }
+      });
+    } else {
+      _previewFile(file);
+    }
+  }
+
+  void _enterManagingMode(DriveFileModel file) {
+    setState(() {
+      _managingMode = true;
+      _selectedIds.add(file.id);
     });
+  }
+
+  void _exitManagingMode() {
+    setState(() {
+      _managingMode = false;
+      _selectedIds.clear();
+    });
+  }
+
+  void _previewFile(DriveFileModel file) {
+    if (file.isImage) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => _DriveImagePreviewScreen(file: file),
+        ),
+      );
+    } else if (file.isVideo || file.isAudio) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => MediaPlayerScreen(
+            url: file.url,
+            title: file.name,
+            isAudio: file.isAudio,
+          ),
+        ),
+      );
+    } else {
+      launchUrl(Uri.parse(file.url), mode: LaunchMode.externalApplication);
+    }
+  }
+
+  void _createNoteFromFile(DriveFileModel file) {
+    context.push(
+      '/compose',
+      extra: {
+        'initialFiles': [file],
+      },
+    );
+  }
+
+  void _showFileMenu(DriveFileModel file) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.visibility_outlined),
+              title: const Text('プレビュー'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _previewFile(file);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('ノートを作成'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _createNoteFromFile(file);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.drive_file_move_outlined),
+              title: const Text('フォルダに移動'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _moveSingleFile(file);
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.delete_outline,
+                color: Theme.of(ctx).colorScheme.error,
+              ),
+              title: Text(
+                '削除',
+                style: TextStyle(color: Theme.of(ctx).colorScheme.error),
+              ),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _deleteSingleFile(file);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _moveSingleFile(DriveFileModel file) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _FolderPickerSheet(
+        currentFolderId: _currentFolderId,
+        onFolderSelected: (selectedFolderId) async {
+          Navigator.of(ctx).pop();
+          final api = ref.read(misskeyApiProvider);
+          if (api == null) return;
+          try {
+            await api.moveFile(file.id, folderId: selectedFolderId);
+            _load();
+          } catch (e) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('移動に失敗しました: $e')));
+          }
+        },
+      ),
+    );
+  }
+
+  Future<void> _deleteSingleFile(DriveFileModel file) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ファイルの削除'),
+        content: Text('「${file.name}」を削除しますか？\nこの操作は取り消せません。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+    try {
+      await api.deleteFile(file.id);
+      setState(() => _files.remove(file));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
+    }
   }
 
   void _confirmSelection() {
@@ -165,36 +337,142 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     context.pop(selected);
   }
 
+  Future<void> _moveSelectedFiles() async {
+    final ids = Set<String>.from(_selectedIds);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _FolderPickerSheet(
+        currentFolderId: _currentFolderId,
+        onFolderSelected: (selectedFolderId) async {
+          Navigator.of(ctx).pop();
+          final api = ref.read(misskeyApiProvider);
+          if (api == null) return;
+          try {
+            await Future.wait(
+              ids.map((id) => api.moveFile(id, folderId: selectedFolderId)),
+            );
+            _exitManagingMode();
+            _load();
+          } catch (e) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('移動に失敗しました: $e')));
+          }
+        },
+      ),
+    );
+  }
+
+  Future<void> _deleteSelectedFiles() async {
+    final ids = Set<String>.from(_selectedIds);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ファイルの削除'),
+        content: ids.length == 1
+            ? Text(
+                '「${_files.firstWhere((f) => f.id == ids.first).name}」を削除しますか？\nこの操作は取り消せません。',
+              )
+            : Text('選択した${ids.length}件のファイルを削除しますか？\nこの操作は取り消せません。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+    try {
+      await Future.wait(ids.map((id) => api.deleteFile(id)));
+      setState(() => _files.removeWhere((f) => ids.contains(f.id)));
+      _exitManagingMode();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isRoot = _breadcrumbs.length == 1;
     return PopScope(
-      canPop: isRoot,
+      canPop: isRoot && !_managingMode,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && !isRoot) {
-          _navigateToBreadcrumb(_breadcrumbs.length - 2);
+        if (!didPop) {
+          if (_managingMode) {
+            _exitManagingMode();
+          } else {
+            _navigateToBreadcrumb(_breadcrumbs.length - 2);
+          }
         }
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: _buildBreadcrumb(context),
-          leading: isRoot
-              ? null
-              : IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () =>
-                      _navigateToBreadcrumb(_breadcrumbs.length - 2),
+        appBar: _managingMode
+            ? AppBar(
+                leading: IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: _exitManagingMode,
                 ),
-          actions: [
-            if (widget.selectionMode)
-              TextButton(
-                onPressed: _selectedIds.isNotEmpty ? _confirmSelection : null,
-                child: Text(
-                  _selectedIds.isEmpty ? '確定' : '確定 (${_selectedIds.length})',
-                ),
+                title: Text('${_selectedIds.length}件選択中'),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.drive_file_move_outlined),
+                    tooltip: 'フォルダに移動',
+                    onPressed: _selectedIds.isNotEmpty
+                        ? _moveSelectedFiles
+                        : null,
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.delete_outline,
+                      color: _selectedIds.isNotEmpty
+                          ? Theme.of(context).colorScheme.error
+                          : null,
+                    ),
+                    tooltip: '削除',
+                    onPressed: _selectedIds.isNotEmpty
+                        ? _deleteSelectedFiles
+                        : null,
+                  ),
+                ],
+              )
+            : AppBar(
+                title: _buildBreadcrumb(context),
+                leading: isRoot
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () =>
+                            _navigateToBreadcrumb(_breadcrumbs.length - 2),
+                      ),
+                actions: [
+                  if (widget.selectionMode)
+                    TextButton(
+                      onPressed: _selectedIds.isNotEmpty
+                          ? _confirmSelection
+                          : null,
+                      child: Text(
+                        _selectedIds.isEmpty
+                            ? '確定'
+                            : '確定 (${_selectedIds.length})',
+                      ),
+                    ),
+                ],
               ),
-          ],
-        ),
         body: RefreshIndicator(onRefresh: _load, child: _buildBody(context)),
       ),
     );
@@ -280,9 +558,15 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
         final file = _files[fileIndex];
         return _DriveFileTile(
           file: file,
-          selectionMode: widget.selectionMode,
+          selectionMode: widget.selectionMode || _managingMode,
           isSelected: _selectedIds.contains(file.id),
           onTap: () => _onFileTap(file),
+          onLongPress: (widget.selectionMode || _managingMode)
+              ? null
+              : () => _enterManagingMode(file),
+          onMenuTap: (widget.selectionMode || _managingMode)
+              ? null
+              : () => _showFileMenu(file),
         );
       },
     );
@@ -333,12 +617,16 @@ class _DriveFileTile extends StatelessWidget {
   final bool selectionMode;
   final bool isSelected;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onMenuTap;
 
   const _DriveFileTile({
     required this.file,
     required this.selectionMode,
     required this.isSelected,
     required this.onTap,
+    this.onLongPress,
+    this.onMenuTap,
   });
 
   @override
@@ -350,9 +638,9 @@ class _DriveFileTile extends StatelessWidget {
       content = CachedNetworkImage(
         imageUrl: file.thumbnailUrl ?? file.url,
         fit: BoxFit.cover,
-        placeholder: (_, __) =>
+        placeholder: (_, _) =>
             Container(color: theme.colorScheme.surfaceContainerHighest),
-        errorWidget: (_, __, ___) =>
+        errorWidget: (_, _, _) =>
             Icon(Icons.broken_image_outlined, color: theme.colorScheme.outline),
       );
     } else {
@@ -384,6 +672,7 @@ class _DriveFileTile extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -423,7 +712,235 @@ class _DriveFileTile extends StatelessWidget {
                 border: Border.all(color: theme.colorScheme.primary, width: 2),
               ),
             ),
+          if (onMenuTap != null)
+            Positioned(
+              bottom: 2,
+              right: 2,
+              child: GestureDetector(
+                onTap: onMenuTap,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.more_vert,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
         ],
+      ),
+    );
+  }
+}
+
+// ---- フォルダ選択ボトムシート ----
+
+class _FolderPickerSheet extends ConsumerStatefulWidget {
+  final String? currentFolderId;
+  final void Function(String? folderId) onFolderSelected;
+
+  const _FolderPickerSheet({
+    required this.currentFolderId,
+    required this.onFolderSelected,
+  });
+
+  @override
+  ConsumerState<_FolderPickerSheet> createState() => _FolderPickerSheetState();
+}
+
+class _FolderPickerSheetState extends ConsumerState<_FolderPickerSheet> {
+  final List<({String? id, String name})> _breadcrumbs = [
+    (id: null, name: 'ドライブ'),
+  ];
+  List<_DriveFolder> _folders = [];
+  bool _isLoading = true;
+  String? _error;
+
+  String? get _currentFolderId => _breadcrumbs.last.id;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFolders();
+  }
+
+  Future<void> _loadFolders() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+    try {
+      final maps = await api.getDriveFolders(folderId: _currentFolderId);
+      setState(() {
+        _folders = maps.map(_DriveFolder.fromJson).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _openFolder(_DriveFolder folder) {
+    setState(() => _breadcrumbs.add((id: folder.id, name: folder.name)));
+    _loadFolders();
+  }
+
+  void _navigateTo(int index) {
+    if (index == _breadcrumbs.length - 1) return;
+    setState(() => _breadcrumbs.removeRange(index + 1, _breadcrumbs.length));
+    _loadFolders();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (ctx, scrollController) {
+        return Column(
+          children: [
+            // ヘッダー
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  if (_breadcrumbs.length > 1)
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: () => _navigateTo(_breadcrumbs.length - 2),
+                    ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (int i = 0; i < _breadcrumbs.length; i++) ...[
+                            if (i > 0)
+                              const Icon(Icons.chevron_right, size: 16),
+                            GestureDetector(
+                              onTap: () => _navigateTo(i),
+                              child: Text(
+                                _breadcrumbs[i].name,
+                                style: TextStyle(
+                                  fontWeight: i == _breadcrumbs.length - 1
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // 「ここに移動」ボタン（現在フォルダと同じなら無効）
+            ListTile(
+              leading: const Icon(Icons.drive_file_move),
+              title: Text(
+                _currentFolderId == null
+                    ? 'ルートに移動'
+                    : '「${_breadcrumbs.last.name}」に移動',
+              ),
+              enabled: _currentFolderId != widget.currentFolderId,
+              onTap: _currentFolderId != widget.currentFolderId
+                  ? () => widget.onFolderSelected(_currentFolderId)
+                  : null,
+              tileColor: _currentFolderId != widget.currentFolderId
+                  ? theme.colorScheme.primaryContainer.withAlpha(80)
+                  : null,
+            ),
+            const Divider(height: 1),
+            // フォルダ一覧
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                  ? Center(child: Text('読み込みに失敗: $_error'))
+                  : _folders.isEmpty
+                  ? const Center(child: Text('サブフォルダがありません'))
+                  : ListView.builder(
+                      controller: scrollController,
+                      itemCount: _folders.length,
+                      itemBuilder: (_, i) {
+                        final f = _folders[i];
+                        return ListTile(
+                          leading: Icon(
+                            Icons.folder,
+                            color: theme.colorScheme.primary,
+                          ),
+                          title: Text(f.name),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => _openFolder(f),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ---- 画像プレビュー画面 ----
+
+class _DriveImagePreviewScreen extends StatelessWidget {
+  final DriveFileModel file;
+
+  const _DriveImagePreviewScreen({required this.file});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Text(file.name, style: const TextStyle(color: Colors.white)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.open_in_browser, color: Colors.white),
+            tooltip: 'ブラウザで開く',
+            onPressed: () => launchUrl(
+              Uri.parse(file.url),
+              mode: LaunchMode.externalApplication,
+            ),
+          ),
+        ],
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 8,
+          child: CachedNetworkImage(
+            imageUrl: file.url,
+            placeholder: (_, _) =>
+                const CircularProgressIndicator(color: Colors.white),
+            errorWidget: (_, _, _) => const Icon(
+              Icons.broken_image_outlined,
+              color: Colors.white54,
+              size: 64,
+            ),
+          ),
+        ),
       ),
     );
   }

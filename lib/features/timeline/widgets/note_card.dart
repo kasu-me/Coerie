@@ -1,13 +1,12 @@
 ﻿import 'package:cached_network_image/cached_network_image.dart';
-import 'package:chewie/chewie.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:video_player/video_player.dart';
 import '../../../data/models/note_model.dart';
+import '../../../shared/widgets/media_player_screen.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/providers/account_provider.dart';
 import '../../../shared/providers/misskey_api_provider.dart';
@@ -720,7 +719,7 @@ class _MediaGrid extends StatelessWidget {
                     context,
                     MaterialPageRoute<void>(
                       builder: (_) =>
-                          _VideoPlayerScreen(url: f.url, title: f.name),
+                          MediaPlayerScreen(url: f.url, title: f.name),
                     ),
                   ),
                   child: ClipRRect(
@@ -734,7 +733,7 @@ class _MediaGrid extends StatelessWidget {
                             CachedNetworkImage(
                               imageUrl: f.thumbnailUrl!,
                               fit: BoxFit.cover,
-                              errorWidget: (_, __, ___) =>
+                              errorWidget: (_, _, _) =>
                                   Container(color: Colors.black),
                             )
                           else
@@ -767,15 +766,16 @@ class _MediaGrid extends StatelessWidget {
                 child: _FileTile(
                   icon: Icons.audiotrack_outlined,
                   label: f.name,
-                  onTap: () async {
-                    final uri = Uri.tryParse(f.url);
-                    if (uri != null) {
-                      await launchUrl(
-                        uri,
-                        mode: LaunchMode.externalApplication,
-                      );
-                    }
-                  },
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => MediaPlayerScreen(
+                        url: f.url,
+                        title: f.name,
+                        isAudio: true,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -849,67 +849,6 @@ class _FileTile extends StatelessWidget {
   }
 }
 
-// ---- 動画プレーヤー画面 ----
-class _VideoPlayerScreen extends StatefulWidget {
-  final String url;
-  final String title;
-
-  const _VideoPlayerScreen({required this.url, required this.title});
-
-  @override
-  State<_VideoPlayerScreen> createState() => _VideoPlayerScreenState();
-}
-
-class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
-  late VideoPlayerController _vpc;
-  ChewieController? _chewieController;
-
-  @override
-  void initState() {
-    super.initState();
-    _vpc = VideoPlayerController.networkUrl(Uri.parse(widget.url));
-    _vpc.initialize().then((_) {
-      if (!mounted) return;
-      setState(() {
-        _chewieController = ChewieController(
-          videoPlayerController: _vpc,
-          autoPlay: true,
-          looping: false,
-          aspectRatio: _vpc.value.aspectRatio,
-        );
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _chewieController?.dispose();
-    _vpc.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        iconTheme: const IconThemeData(color: Colors.white),
-        title: Text(
-          widget.title,
-          style: const TextStyle(color: Colors.white, fontSize: 14),
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-      body: Center(
-        child: _chewieController != null
-            ? Chewie(controller: _chewieController!)
-            : const CircularProgressIndicator(color: Colors.white),
-      ),
-    );
-  }
-}
-
 // ---- フルサイズ画像ビューア ----
 class _FullscreenImageViewer extends StatefulWidget {
   final List<String> urls;
@@ -958,9 +897,9 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
             child: CachedNetworkImage(
               imageUrl: widget.urls[i],
               fit: BoxFit.contain,
-              placeholder: (_, __) =>
+              placeholder: (_, _) =>
                   const CircularProgressIndicator(color: Colors.white),
-              errorWidget: (_, __, ___) => const Icon(
+              errorWidget: (_, _, _) => const Icon(
                 Icons.broken_image_outlined,
                 color: Colors.white,
                 size: 64,
