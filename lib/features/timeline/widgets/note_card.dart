@@ -1,7 +1,9 @@
 ﻿import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/note_model.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/providers/misskey_api_provider.dart';
@@ -216,11 +218,11 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                 ),
               ),
 
-            // 本文
+            // 本文（URLをタップ可能リンクとして表示）
             if (note.text != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text(note.text!),
+                child: _LinkedText(text: note.text!),
               ),
 
             // 添付メディア
@@ -501,6 +503,57 @@ class _MediaGrid extends StatelessWidget {
           fit: BoxFit.cover,
         ),
       ),
+    );
+  }
+}
+
+// ---- URLをタップ可能リンクとして表示するウィジェット ----
+class _LinkedText extends StatelessWidget {
+  final String text;
+  static final _urlRegex = RegExp(
+    r'https?://[^\s\u3000\u300c\u300d\uff08\uff09\u300e\u300f]+',
+    caseSensitive: false,
+  );
+
+  const _LinkedText({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spans = <InlineSpan>[];
+    int lastEnd = 0;
+
+    for (final match in _urlRegex.allMatches(text)) {
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
+      }
+      final url = match.group(0)!;
+      spans.add(
+        TextSpan(
+          text: url,
+          style: TextStyle(
+            color: theme.colorScheme.primary,
+            decoration: TextDecoration.underline,
+            decorationColor: theme.colorScheme.primary,
+          ),
+          recognizer: TapGestureRecognizer()
+            ..onTap = () async {
+              final uri = Uri.tryParse(url);
+              if (uri != null) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
+        ),
+      );
+      lastEnd = match.end;
+    }
+
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(text: text.substring(lastEnd)));
+    }
+
+    return RichText(
+      text: TextSpan(style: theme.textTheme.bodyMedium, children: spans),
     );
   }
 }
