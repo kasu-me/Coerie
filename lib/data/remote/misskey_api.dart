@@ -119,6 +119,22 @@ class MisskeyApi {
 
   // ---- ドライブ ----
 
+  /// ドライブのファイル一覧を取得する。
+  Future<List<DriveFileModel>> getDriveFiles({
+    int limit = 40,
+    String? untilId,
+    String? type,
+  }) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    if (type != null) params['type'] = type;
+    final res = await _dio.post('drive/files', data: _body(params));
+    final list = res.data as List<dynamic>;
+    return list
+        .map((f) => DriveFileModel.fromJson(f as Map<String, dynamic>))
+        .toList();
+  }
+
   /// ファイルをDriveにアップロードし、ファイルIDを返す。
   Future<String> uploadFile(File file, {String? name}) async {
     final fileName = name ?? file.path.split('/').last.split('\\').last;

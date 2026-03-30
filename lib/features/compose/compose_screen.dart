@@ -11,6 +11,20 @@ import '../../shared/providers/misskey_api_provider.dart';
 import '../draft/draft_provider.dart';
 import 'emoji_picker_sheet.dart';
 
+sealed class _AttachedMedia {}
+
+final class _LocalMedia extends _AttachedMedia {
+  final XFile file;
+  _LocalMedia(this.file);
+}
+
+final class _DriveMedia extends _AttachedMedia {
+  final DriveFileModel driveFile;
+  _DriveMedia(this.driveFile);
+}
+
+enum _MediaSource { gallery, camera, drive }
+
 class ComposeScreen extends ConsumerStatefulWidget {
   final String? draftId;
   final String? replyId;
@@ -31,7 +45,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   late final TextEditingController _textController;
   String _visibility = AppConstants.visibilityPublic;
   String? _currentDraftId;
-  final List<XFile> _attachedFiles = [];
+  final List<_AttachedMedia> _attachedMedia = [];
   bool _isPosting = false;
   bool _isUploadingMedia = false;
 
@@ -80,14 +94,14 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   }
 
   Future<void> _pickMedia() async {
-    if (_attachedFiles.length >= 4) {
+    if (_attachedMedia.length >= 4) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('添付できるファイルは最大4件です')));
       return;
     }
 
-    final source = await showModalBottomSheet<ImageSource>(
+    final source = await showModalBottomSheet<_MediaSource>(
       context: context,
       builder: (_) => Column(
         mainAxisSize: MainAxisSize.min,
@@ -95,39 +109,61 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           ListTile(
             leading: const Icon(Icons.photo_library_outlined),
             title: const Text('ギャラリーから選択'),
-            onTap: () => Navigator.pop(context, ImageSource.gallery),
+            onTap: () => Navigator.pop(context, _MediaSource.gallery),
           ),
           ListTile(
             leading: const Icon(Icons.camera_alt_outlined),
             title: const Text('カメラで撮影'),
-            onTap: () => Navigator.pop(context, ImageSource.camera),
+            onTap: () => Navigator.pop(context, _MediaSource.camera),
+          ),
+          ListTile(
+            leading: const Icon(Icons.cloud_outlined),
+            title: const Text('Misskeyドライブから選択'),
+            onTap: () => Navigator.pop(context, _MediaSource.drive),
           ),
         ],
       ),
     );
     if (source == null) return;
 
+    if (source == _MediaSource.drive) {
+      final remaining = 4 - _attachedMedia.length;
+      if (!mounted) return;
+      final selected = await context.push<List<DriveFileModel>>(
+        '/drive',
+        extra: {'selectionMode': true, 'maxSelection': remaining},
+      );
+      if (selected != null && selected.isNotEmpty && mounted) {
+        setState(() {
+          for (final f in selected) {
+            _attachedMedia.add(_DriveMedia(f));
+          }
+        });
+      }
+      return;
+    }
+
     final picker = ImagePicker();
-    if (source == ImageSource.gallery) {
-      final remaining = 4 - _attachedFiles.length;
+    if (source == _MediaSource.gallery) {
+      final remaining = 4 - _attachedMedia.length;
       final files = await picker.pickMultiImage(limit: remaining);
       if (files.isNotEmpty) {
-        setState(() => _attachedFiles.addAll(files));
+        setState(() => _attachedMedia.addAll(files.map(_LocalMedia.new)));
       }
     } else {
       final file = await picker.pickImage(source: ImageSource.camera);
       if (file != null) {
-        setState(() => _attachedFiles.add(file));
+        setState(() => _attachedMedia.add(_LocalMedia(file)));
       }
     }
   }
 
   void _removeMedia(int index) {
-    setState(() => _attachedFiles.removeAt(index));
+    setState(() => _attachedMedia.removeAt(index));
   }
 
   Future<void> _post() async {
-    if (_textController.text.trim().isEmpty && _attachedFiles.isEmpty) return;
+    if (_textController.text.trim().isEmpty && _attachedMedia.isEmpty) return;
     if (_isOverLimit || _isPosting) return;
 
     final api = ref.read(misskeyApiProvider);
@@ -136,13 +172,17 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     setState(() => _isPosting = true);
 
     try {
-      // メディアを先にアップロード
+      // メディアを先にアップロード（端末のファイルのみアップロード、ドライブはIDをそのまま使用）
       final fileIds = <String>[];
-      if (_attachedFiles.isNotEmpty) {
+      if (_attachedMedia.isNotEmpty) {
         setState(() => _isUploadingMedia = true);
-        for (final xfile in _attachedFiles) {
-          final id = await api.uploadFile(File(xfile.path));
-          fileIds.add(id);
+        for (final media in _attachedMedia) {
+          if (media is _LocalMedia) {
+            final id = await api.uploadFile(File(media.file.path));
+            fileIds.add(id);
+          } else if (media is _DriveMedia) {
+            fileIds.add(media.driveFile.id);
+          }
         }
         setState(() => _isUploadingMedia = false);
       }
@@ -327,49 +367,101 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                     ),
                   ),
                   // 添付画像プレビュー
-                  if (_attachedFiles.isNotEmpty)
+                  if (_attachedMedia.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                       child: SizedBox(
                         height: 100,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
-                          itemCount: _attachedFiles.length,
+                          itemCount: _attachedMedia.length,
                           separatorBuilder: (context, i) =>
                               const SizedBox(width: 8),
-                          itemBuilder: (_, i) => Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.file(
-                                  File(_attachedFiles[i].path),
-                                  width: 100,
-                                  height: 100,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                              Positioned(
-                                top: -6,
-                                right: -6,
-                                child: GestureDetector(
-                                  onTap: () => _removeMedia(i),
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: theme.colorScheme.error,
-                                      shape: BoxShape.circle,
+                          itemBuilder: (_, i) {
+                            final media = _attachedMedia[i];
+                            return Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: switch (media) {
+                                    _LocalMedia m => Image.file(
+                                      File(m.file.path),
+                                      width: 100,
+                                      height: 100,
+                                      fit: BoxFit.cover,
                                     ),
-                                    padding: const EdgeInsets.all(2),
-                                    child: Icon(
-                                      Icons.close,
-                                      size: 14,
-                                      color: theme.colorScheme.onError,
+                                    _DriveMedia m =>
+                                      m.driveFile.isImage
+                                          ? CachedNetworkImage(
+                                              imageUrl:
+                                                  m.driveFile.thumbnailUrl ??
+                                                  m.driveFile.url,
+                                              width: 100,
+                                              height: 100,
+                                              fit: BoxFit.cover,
+                                            )
+                                          : Container(
+                                              width: 100,
+                                              height: 100,
+                                              color: theme
+                                                  .colorScheme
+                                                  .surfaceContainerHighest,
+                                              child: Column(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  Icon(
+                                                    Icons
+                                                        .insert_drive_file_outlined,
+                                                    color: theme
+                                                        .colorScheme
+                                                        .primary,
+                                                  ),
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 4,
+                                                        ),
+                                                    child: Text(
+                                                      m.driveFile.name,
+                                                      style: theme
+                                                          .textTheme
+                                                          .labelSmall,
+                                                      maxLines: 2,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                  },
+                                ),
+                                Positioned(
+                                  top: -6,
+                                  right: -6,
+                                  child: GestureDetector(
+                                    onTap: () => _removeMedia(i),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.error,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      padding: const EdgeInsets.all(2),
+                                      child: Icon(
+                                        Icons.close,
+                                        size: 14,
+                                        color: theme.colorScheme.onError,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
+                              ],
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -435,7 +527,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                 FilledButton(
                   onPressed:
                       ((_textController.text.trim().isEmpty &&
-                              _attachedFiles.isEmpty) ||
+                              _attachedMedia.isEmpty) ||
                           _isOverLimit ||
                           _isPosting)
                       ? null
@@ -464,9 +556,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               children: [
                 // メディア添付（最大4件）
                 IconButton(
-                  icon: _attachedFiles.isNotEmpty
+                  icon: _attachedMedia.isNotEmpty
                       ? Badge(
-                          label: Text('${_attachedFiles.length}'),
+                          label: Text('${_attachedMedia.length}'),
                           child: const Icon(Icons.image_outlined),
                         )
                       : const Icon(Icons.image_outlined),

@@ -29,7 +29,7 @@ class HomeDrawer extends ConsumerWidget {
               title: const Text('ドライブ'),
               onTap: () {
                 Navigator.of(context).pop();
-                // TODO: ドライブ画面へ遷移
+                context.push('/drive');
               },
             ),
             ListTile(

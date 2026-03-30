@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../features/auth/login_screen.dart';
+import '../../features/drive/drive_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/compose/compose_screen.dart';
 import '../../features/draft/draft_screen.dart';
@@ -44,6 +45,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/drafts',
         builder: (context, state) => const DraftScreen(),
+      ),
+      GoRoute(
+        path: '/drive',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          final selectionMode = extra?['selectionMode'] as bool? ?? false;
+          final maxSelection = extra?['maxSelection'] as int? ?? 4;
+          return DriveScreen(
+            selectionMode: selectionMode,
+            maxSelection: maxSelection,
+          );
+        },
       ),
       GoRoute(
         path: '/settings',
