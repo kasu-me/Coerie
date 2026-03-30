@@ -125,4 +125,10 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
       return [];
     }
   }
+
+  void removeNote(String noteId) {
+    state = state.copyWith(
+      notes: state.notes.where((n) => n.id != noteId).toList(),
+    );
+  }
 }

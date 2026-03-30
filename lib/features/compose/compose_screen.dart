@@ -30,12 +30,16 @@ class ComposeScreen extends ConsumerStatefulWidget {
   final String? draftId;
   final String? replyId;
   final NoteModel? replyToNote;
+  final String? initialText;
+  final String? initialVisibility;
 
   const ComposeScreen({
     super.key,
     this.draftId,
     this.replyId,
     this.replyToNote,
+    this.initialText,
+    this.initialVisibility,
   });
 
   @override
@@ -56,7 +60,11 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     _textController = TextEditingController();
     _currentDraftId = widget.draftId;
     // 保存済みのデフォルト公開範囲で初期化
-    _visibility = ref.read(settingsProvider).defaultVisibility;
+    _visibility = widget.initialVisibility ?? ref.read(settingsProvider).defaultVisibility;
+
+    if (widget.initialText != null) {
+      _textController.text = widget.initialText!;
+    }
 
     if (widget.draftId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {

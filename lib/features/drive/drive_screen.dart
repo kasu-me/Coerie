@@ -5,6 +5,18 @@ import 'package:go_router/go_router.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 
+/// ドライブフォルダの簡易モデル
+class _DriveFolder {
+  final String id;
+  final String name;
+  const _DriveFolder({required this.id, required this.name});
+
+  factory _DriveFolder.fromJson(Map<String, dynamic> json) => _DriveFolder(
+    id: json['id'] as String,
+    name: json['name'] as String,
+  );
+}
+
 class DriveScreen extends ConsumerStatefulWidget {
   /// trueのとき選択モード（投稿画面からの呼び出し）
   final bool selectionMode;
@@ -23,17 +35,25 @@ class DriveScreen extends ConsumerStatefulWidget {
 }
 
 class _DriveScreenState extends ConsumerState<DriveScreen> {
-  final List<DriveFileModel> _files = [];
+  // パンくずスタック（最初はルート）
+  final List<({String? id, String name})> _breadcrumbs = [
+    (id: null, name: 'ドライブ'),
+  ];
+
+  List<_DriveFolder> _folders = [];
+  List<DriveFileModel> _files = [];
   bool _isLoading = false;
   bool _hasMore = true;
   String? _error;
   final _scrollController = ScrollController();
   final Set<String> _selectedIds = {};
 
+  String? get _currentFolderId => _breadcrumbs.last.id;
+
   @override
   void initState() {
     super.initState();
-    _loadMore();
+    _load();
     _scrollController.addListener(_onScroll);
   }
 
@@ -48,24 +68,31 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
         _hasMore &&
         _scrollController.position.pixels >=
             _scrollController.position.maxScrollExtent - 300) {
-      _loadMore();
+      _loadMoreFiles();
     }
   }
 
-  Future<void> _loadMore() async {
-    if (_isLoading || !_hasMore) return;
+  /// 現在のフォルダの内容（フォルダ + ファイル）を最初から取得
+  Future<void> _load() async {
     setState(() {
-      _isLoading = true;
+      _folders = [];
+      _files = [];
+      _hasMore = true;
       _error = null;
+      _isLoading = true;
     });
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
     try {
-      final api = ref.read(misskeyApiProvider);
-      if (api == null) return;
-      final untilId = _files.isNotEmpty ? _files.last.id : null;
-      final newFiles = await api.getDriveFiles(limit: 40, untilId: untilId);
+      final folderMaps = await api.getDriveFolders(folderId: _currentFolderId);
+      final files = await api.getDriveFiles(
+        limit: 40,
+        folderId: _currentFolderId,
+      );
       setState(() {
-        _files.addAll(newFiles);
-        _hasMore = newFiles.length >= 40;
+        _folders = folderMaps.map(_DriveFolder.fromJson).toList();
+        _files = files;
+        _hasMore = files.length >= 40;
         _isLoading = false;
       });
     } catch (e) {
@@ -76,14 +103,43 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     }
   }
 
-  Future<void> _refresh() async {
+  /// ファイルの追加読み込み
+  Future<void> _loadMoreFiles() async {
+    if (_isLoading || !_hasMore) return;
+    setState(() => _isLoading = true);
+    try {
+      final api = ref.read(misskeyApiProvider);
+      if (api == null) return;
+      final more = await api.getDriveFiles(
+        limit: 40,
+        untilId: _files.isNotEmpty ? _files.last.id : null,
+        folderId: _currentFolderId,
+      );
+      setState(() {
+        _files.addAll(more);
+        _hasMore = more.length >= 40;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _openFolder(_DriveFolder folder) {
     setState(() {
-      _files.clear();
-      _hasMore = true;
-      _error = null;
+      _breadcrumbs.add((id: folder.id, name: folder.name));
       _selectedIds.clear();
     });
-    await _loadMore();
+    _load();
+  }
+
+  void _navigateToBreadcrumb(int index) {
+    if (index == _breadcrumbs.length - 1) return;
+    setState(() {
+      _breadcrumbs.removeRange(index + 1, _breadcrumbs.length);
+      _selectedIds.clear();
+    });
+    _load();
   }
 
   void _onFileTap(DriveFileModel file) {
@@ -113,25 +169,67 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('ドライブ'),
-        actions: [
-          if (widget.selectionMode)
-            TextButton(
-              onPressed: _selectedIds.isNotEmpty ? _confirmSelection : null,
+    final isRoot = _breadcrumbs.length == 1;
+    return PopScope(
+      canPop: isRoot,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !isRoot) {
+          _navigateToBreadcrumb(_breadcrumbs.length - 2);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: _buildBreadcrumb(context),
+          leading: isRoot
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => _navigateToBreadcrumb(_breadcrumbs.length - 2),
+                ),
+          actions: [
+            if (widget.selectionMode)
+              TextButton(
+                onPressed: _selectedIds.isNotEmpty ? _confirmSelection : null,
+                child: Text(
+                  _selectedIds.isEmpty ? '確定' : '確定 (${_selectedIds.length})',
+                ),
+              ),
+          ],
+        ),
+        body: RefreshIndicator(onRefresh: _load, child: _buildBody(context)),
+      ),
+    );
+  }
+
+  Widget _buildBreadcrumb(BuildContext context) {
+    if (_breadcrumbs.length == 1) return const Text('ドライブ');
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (int i = 0; i < _breadcrumbs.length; i++) ...[
+            if (i > 0)
+              const Icon(Icons.chevron_right, size: 16),
+            GestureDetector(
+              onTap: () => _navigateToBreadcrumb(i),
               child: Text(
-                _selectedIds.isEmpty ? '確定' : '確定 (${_selectedIds.length})',
+                _breadcrumbs[i].name,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: i == _breadcrumbs.length - 1
+                      ? FontWeight.bold
+                      : FontWeight.normal,
+                ),
               ),
             ),
+          ],
         ],
       ),
-      body: RefreshIndicator(onRefresh: _refresh, child: _buildBody(context)),
     );
   }
 
   Widget _buildBody(BuildContext context) {
-    if (_error != null && _files.isEmpty) {
+    if (_error != null && _folders.isEmpty && _files.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -144,19 +242,21 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
             const SizedBox(height: 16),
             const Text('読み込みに失敗しました'),
             const SizedBox(height: 8),
-            FilledButton(onPressed: _refresh, child: const Text('再試行')),
+            FilledButton(onPressed: _load, child: const Text('再試行')),
           ],
         ),
       );
     }
 
-    if (_files.isEmpty && _isLoading) {
+    if (_isLoading && _folders.isEmpty && _files.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_files.isEmpty) {
+    if (!_isLoading && _folders.isEmpty && _files.isEmpty) {
       return const Center(child: Text('ファイルがありません'));
     }
+
+    final itemCount = _folders.length + _files.length + (_isLoading ? 1 : 0);
 
     return GridView.builder(
       controller: _scrollController,
@@ -166,12 +266,20 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
         crossAxisSpacing: 4,
         mainAxisSpacing: 4,
       ),
-      itemCount: _files.length + (_isLoading ? 1 : 0),
+      itemCount: itemCount,
       itemBuilder: (context, index) {
-        if (index >= _files.length) {
+        // フォルダを先頭に表示
+        if (index < _folders.length) {
+          return _FolderTile(
+            folder: _folders[index],
+            onTap: () => _openFolder(_folders[index]),
+          );
+        }
+        final fileIndex = index - _folders.length;
+        if (fileIndex >= _files.length) {
           return const Center(child: CircularProgressIndicator());
         }
-        final file = _files[index];
+        final file = _files[fileIndex];
         return _DriveFileTile(
           file: file,
           selectionMode: widget.selectionMode,
@@ -179,6 +287,45 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
           onTap: () => _onFileTap(file),
         );
       },
+    );
+  }
+}
+
+// ---- フォルダタイル ----
+class _FolderTile extends StatelessWidget {
+  final _DriveFolder folder;
+  final VoidCallback onTap;
+
+  const _FolderTile({required this.folder, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.folder, size: 36, color: theme.colorScheme.primary),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                folder.name,
+                style: theme.textTheme.labelSmall,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

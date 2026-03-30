@@ -35,10 +35,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           final extra = state.extra as Map<String, dynamic>?;
           final replyId = extra?['replyId'] as String?;
           final replyToNote = extra?['replyToNote'] as NoteModel?;
+          final initialText = extra?['initialText'] as String?;
+          final initialVisibility = extra?['visibility'] as String?;
           return ComposeScreen(
             draftId: draftId,
             replyId: replyId,
             replyToNote: replyToNote,
+            initialText: initialText,
+            initialVisibility: initialVisibility,
           );
         },
       ),

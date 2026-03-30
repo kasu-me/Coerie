@@ -119,15 +119,28 @@ class MisskeyApi {
 
   // ---- ドライブ ----
 
+  /// ドライブのフォルダ一覧を取得する。
+  Future<List<Map<String, dynamic>>> getDriveFolders({
+    String? folderId,
+  }) async {
+    final params = <String, dynamic>{};
+    if (folderId != null) params['folderId'] = folderId;
+    final res = await _dio.post('drive/folders', data: _body(params));
+    final list = res.data as List<dynamic>;
+    return list.cast<Map<String, dynamic>>();
+  }
+
   /// ドライブのファイル一覧を取得する。
   Future<List<DriveFileModel>> getDriveFiles({
     int limit = 40,
     String? untilId,
     String? type,
+    String? folderId,
   }) async {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
     if (type != null) params['type'] = type;
+    if (folderId != null) params['folderId'] = folderId;
     final res = await _dio.post('drive/files', data: _body(params));
     final list = res.data as List<dynamic>;
     return list
@@ -188,5 +201,11 @@ class MisskeyApi {
 
   Future<void> markNotificationsRead() async {
     await _dio.post('notifications/mark-all-as-read', data: _body({}));
+  }
+
+  // ---- ノート操作 ----
+
+  Future<void> deleteNote(String noteId) async {
+    await _dio.post('notes/delete', data: _body({'noteId': noteId}));
   }
 }

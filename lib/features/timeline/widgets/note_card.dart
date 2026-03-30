@@ -1,14 +1,17 @@
 ﻿import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/note_model.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../shared/providers/account_provider.dart';
 import '../../../shared/providers/misskey_api_provider.dart';
 import '../../../shared/providers/settings_provider.dart';
 import '../../compose/emoji_picker_sheet.dart';
+import '../timeline_provider.dart';
 
 // ---- カスタム絵文字URLマップ（name → url） ----
 final _emojiUrlMapProvider = Provider<Map<String, String>>((ref) {
@@ -374,6 +377,122 @@ class _ActionBar extends ConsumerStatefulWidget {
 class _ActionBarState extends ConsumerState<_ActionBar> {
   bool _isRenoting = false;
 
+  Future<void> _showNoteMenu(BuildContext context) async {
+    final activeAccount = ref.read(activeAccountProvider);
+    final isOwn = activeAccount?.userId == widget.note.user.id;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // テキストコピー（全員）
+            ListTile(
+              leading: const Icon(Icons.copy),
+              title: const Text('\u30c6\u30ad\u30b9\u30c8\u3092\u30b3\u30d4\u30fc'),
+              onTap: () async {
+                Navigator.pop(sheetCtx);
+                final text = widget.note.text ?? '';
+                await Clipboard.setData(ClipboardData(text: text));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('\u30c6\u30ad\u30b9\u30c8\u3092\u30b3\u30d4\u30fc\u3057\u307e\u3057\u305f'),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+                }
+              },
+            ),
+            // 削除（自分の投稿のみ）
+            if (isOwn) ...[
+              ListTile(
+                leading: Icon(Icons.delete_outline,
+                    color: Theme.of(context).colorScheme.error),
+                title: Text('\u524a\u9664',
+                    style: TextStyle(
+                        color: Theme.of(context).colorScheme.error)),
+                onTap: () async {
+                  Navigator.pop(sheetCtx);
+                  await _deleteNote(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('\u524a\u9664\u3057\u3066\u518d\u7de8\u96c6'),
+                onTap: () async {
+                  Navigator.pop(sheetCtx);
+                  await _deleteAndEdit(context);
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteNote(BuildContext context) async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+    try {
+      await api.deleteNote(widget.note.id);
+      // 全タイムラインから该当ノートを削除
+      for (final type in [
+        AppConstants.tabTypeHome,
+        AppConstants.tabTypeLocal,
+        AppConstants.tabTypeSocial,
+        AppConstants.tabTypeGlobal,
+      ]) {
+        ref.read(timelineProvider(type).notifier).removeNote(widget.note.id);
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('\u6295\u7a3f\u3092\u524a\u9664\u3057\u307e\u3057\u305f'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('\u524a\u9664\u306b\u5931\u6557\u3057\u307e\u3057\u305f: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteAndEdit(BuildContext context) async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+    final note = widget.note;
+    try {
+      await api.deleteNote(note.id);
+      for (final type in [
+        AppConstants.tabTypeHome,
+        AppConstants.tabTypeLocal,
+        AppConstants.tabTypeSocial,
+        AppConstants.tabTypeGlobal,
+      ]) {
+        ref.read(timelineProvider(type).notifier).removeNote(note.id);
+      }
+      if (context.mounted) {
+        context.push('/compose', extra: {
+          'initialText': note.text ?? '',
+          'visibility': note.visibility,
+        });
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('\u524a\u9664\u306b\u5931\u6557\u3057\u307e\u3057\u305f: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _renote() async {
     final api = ref.read(misskeyApiProvider);
     if (api == null || _isRenoting) return;
@@ -435,7 +554,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
         const Spacer(),
         IconButton(
           icon: const Icon(Icons.more_horiz, size: 18),
-          onPressed: () {},
+          onPressed: () => _showNoteMenu(context),
           style: IconButton.styleFrom(padding: EdgeInsets.zero),
         ),
       ],
@@ -496,11 +615,86 @@ class _MediaGrid extends StatelessWidget {
         childAspectRatio: count == 1 ? 16 / 9 : 1,
       ),
       itemCount: count,
-      itemBuilder: (_, i) => ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: CachedNetworkImage(
-          imageUrl: imageFiles[i].thumbnailUrl ?? imageFiles[i].url,
-          fit: BoxFit.cover,
+      itemBuilder: (_, i) => GestureDetector(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => _FullscreenImageViewer(
+              urls: imageFiles.map((f) => f.url).toList(),
+              initialIndex: i,
+            ),
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: CachedNetworkImage(
+            imageUrl: imageFiles[i].thumbnailUrl ?? imageFiles[i].url,
+            fit: BoxFit.cover,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---- フルサイズ画像ビューア ----
+class _FullscreenImageViewer extends StatefulWidget {
+  final List<String> urls;
+  final int initialIndex;
+
+  const _FullscreenImageViewer({
+    required this.urls,
+    required this.initialIndex,
+  });
+
+  @override
+  State<_FullscreenImageViewer> createState() => _FullscreenImageViewerState();
+}
+
+class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
+  late int _current;
+
+  @override
+  void initState() {
+    super.initState();
+    _current = widget.initialIndex;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: widget.urls.length > 1
+            ? Text(
+                '${_current + 1} / ${widget.urls.length}',
+                style: const TextStyle(color: Colors.white),
+              )
+            : null,
+      ),
+      body: PageView.builder(
+        controller: PageController(initialPage: widget.initialIndex),
+        itemCount: widget.urls.length,
+        onPageChanged: (i) => setState(() => _current = i),
+        itemBuilder: (_, i) => InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 5.0,
+          child: Center(
+            child: CachedNetworkImage(
+              imageUrl: widget.urls[i],
+              fit: BoxFit.contain,
+              placeholder: (_, __) => const CircularProgressIndicator(
+                color: Colors.white,
+              ),
+              errorWidget: (_, __, ___) => const Icon(
+                Icons.broken_image_outlined,
+                color: Colors.white,
+                size: 64,
+              ),
+            ),
+          ),
         ),
       ),
     );
