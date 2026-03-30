@@ -67,6 +67,15 @@ class SettingsScreen extends ConsumerWidget {
             onChanged: (v) =>
                 ref.read(settingsProvider.notifier).setRealtimeUpdate(v),
           ),
+          SwitchListTile(
+            title: const Text('投稿日時を相対表示'),
+            subtitle: Text(
+              settings.dateTimeRelative ? '例: 3分前、2時間前' : '例: 2026/03/30 12:34',
+            ),
+            value: settings.dateTimeRelative,
+            onChanged: (v) =>
+                ref.read(settingsProvider.notifier).setDateTimeRelative(v),
+          ),
 
           // --- タブ設定 ---
           _SectionHeader('タブ'),

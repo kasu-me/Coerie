@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../data/models/note_model.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/providers/misskey_api_provider.dart';
+import '../../../shared/providers/settings_provider.dart';
 import '../../compose/emoji_picker_sheet.dart';
 
 // ---- カスタム絵文字URLマップ（name → url） ----
@@ -185,7 +186,10 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                   ),
                 ),
                 Text(
-                  _formatDateTime(note.createdAt),
+                  _formatDateTime(
+                    note.createdAt,
+                    ref.watch(settingsProvider).dateTimeRelative,
+                  ),
                   style: theme.textTheme.bodySmall,
                 ),
                 if (note.visibility != AppConstants.visibilityPublic)
@@ -255,13 +259,18 @@ class _NoteCardState extends ConsumerState<NoteCard> {
     );
   }
 
-  String _formatDateTime(DateTime dt) {
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inSeconds < 60) return '${diff.inSeconds}秒前';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}分前';
-    if (diff.inHours < 24) return '${diff.inHours}時間前';
-    return '${dt.month}/${dt.day}';
+  String _formatDateTime(DateTime dt, bool relative) {
+    if (relative) {
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+      if (diff.inSeconds < 60) return '${diff.inSeconds}秒前';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}分前';
+      if (diff.inHours < 24) return '${diff.inHours}時間前';
+      return '${dt.month}/${dt.day}';
+    } else {
+      return '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')} '
+          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:${dt.second.toString().padLeft(2, '0')}';
+    }
   }
 
   IconData _visibilityIcon(String visibility) {

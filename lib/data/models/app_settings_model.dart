@@ -36,6 +36,7 @@ class AppSettingsModel {
   final bool notifyReply;
   final bool notifyFollow;
   final bool notifyReaction;
+  final bool dateTimeRelative; // true=相対表示, false=絶対表示
 
   const AppSettingsModel({
     this.theme = 'system',
@@ -46,6 +47,7 @@ class AppSettingsModel {
     this.notifyReply = true,
     this.notifyFollow = true,
     this.notifyReaction = true,
+    this.dateTimeRelative = true,
   });
 
   AppSettingsModel copyWith({
@@ -57,6 +59,7 @@ class AppSettingsModel {
     bool? notifyReply,
     bool? notifyFollow,
     bool? notifyReaction,
+    bool? dateTimeRelative,
   }) => AppSettingsModel(
     theme: theme ?? this.theme,
     fontSize: fontSize ?? this.fontSize,
@@ -66,6 +69,7 @@ class AppSettingsModel {
     notifyReply: notifyReply ?? this.notifyReply,
     notifyFollow: notifyFollow ?? this.notifyFollow,
     notifyReaction: notifyReaction ?? this.notifyReaction,
+    dateTimeRelative: dateTimeRelative ?? this.dateTimeRelative,
   );
 
   Map<String, dynamic> toJson() => {
@@ -77,6 +81,7 @@ class AppSettingsModel {
     'notifyReply': notifyReply,
     'notifyFollow': notifyFollow,
     'notifyReaction': notifyReaction,
+    'dateTimeRelative': dateTimeRelative,
   };
 
   factory AppSettingsModel.fromJson(Map<String, dynamic> json) =>
@@ -91,6 +96,7 @@ class AppSettingsModel {
         notifyReply: json['notifyReply'] as bool? ?? true,
         notifyFollow: json['notifyFollow'] as bool? ?? true,
         notifyReaction: json['notifyReaction'] as bool? ?? true,
+        dateTimeRelative: json['dateTimeRelative'] as bool? ?? true,
       );
 
   factory AppSettingsModel.fromJsonString(String jsonString) =>

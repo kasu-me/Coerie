@@ -148,7 +148,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       }
 
       await api.createNote(
-        text: _textController.text,
+        text: _textController.text.trim().isEmpty ? null : _textController.text,
         visibility: _visibility,
         fileIds: fileIds,
         replyId: widget.replyId,

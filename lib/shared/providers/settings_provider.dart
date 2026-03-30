@@ -65,4 +65,9 @@ class SettingsNotifier extends StateNotifier<AppSettingsModel> {
     state = state.copyWith(notifyReaction: value);
     await _save();
   }
+
+  Future<void> setDateTimeRelative(bool value) async {
+    state = state.copyWith(dateTimeRelative: value);
+    await _save();
+  }
 }

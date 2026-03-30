@@ -53,12 +53,13 @@ class MisskeyApi {
   // ---- 投稿 ----
 
   Future<NoteModel> createNote({
-    required String text,
+    String? text,
     String visibility = 'public',
     String? replyId,
     List<String> fileIds = const [],
   }) async {
-    final params = <String, dynamic>{'text': text, 'visibility': visibility};
+    final params = <String, dynamic>{'visibility': visibility};
+    if (text != null && text.isNotEmpty) params['text'] = text;
     if (replyId != null) params['replyId'] = replyId;
     if (fileIds.isNotEmpty) params['fileIds'] = fileIds;
 
