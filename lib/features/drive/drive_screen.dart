@@ -11,10 +11,8 @@ class _DriveFolder {
   final String name;
   const _DriveFolder({required this.id, required this.name});
 
-  factory _DriveFolder.fromJson(Map<String, dynamic> json) => _DriveFolder(
-    id: json['id'] as String,
-    name: json['name'] as String,
-  );
+  factory _DriveFolder.fromJson(Map<String, dynamic> json) =>
+      _DriveFolder(id: json['id'] as String, name: json['name'] as String);
 }
 
 class DriveScreen extends ConsumerStatefulWidget {
@@ -184,7 +182,8 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
               ? null
               : IconButton(
                   icon: const Icon(Icons.arrow_back),
-                  onPressed: () => _navigateToBreadcrumb(_breadcrumbs.length - 2),
+                  onPressed: () =>
+                      _navigateToBreadcrumb(_breadcrumbs.length - 2),
                 ),
           actions: [
             if (widget.selectionMode)
@@ -208,8 +207,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       child: Row(
         children: [
           for (int i = 0; i < _breadcrumbs.length; i++) ...[
-            if (i > 0)
-              const Icon(Icons.chevron_right, size: 16),
+            if (i > 0) const Icon(Icons.chevron_right, size: 16),
             GestureDetector(
               onTap: () => _navigateToBreadcrumb(i),
               child: Text(

@@ -120,9 +120,7 @@ class MisskeyApi {
   // ---- ドライブ ----
 
   /// ドライブのフォルダ一覧を取得する。
-  Future<List<Map<String, dynamic>>> getDriveFolders({
-    String? folderId,
-  }) async {
+  Future<List<Map<String, dynamic>>> getDriveFolders({String? folderId}) async {
     final params = <String, dynamic>{};
     if (folderId != null) params['folderId'] = folderId;
     final res = await _dio.post('drive/folders', data: _body(params));

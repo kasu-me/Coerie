@@ -390,7 +390,9 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
             // テキストコピー（全員）
             ListTile(
               leading: const Icon(Icons.copy),
-              title: const Text('\u30c6\u30ad\u30b9\u30c8\u3092\u30b3\u30d4\u30fc'),
+              title: const Text(
+                '\u30c6\u30ad\u30b9\u30c8\u3092\u30b3\u30d4\u30fc',
+              ),
               onTap: () async {
                 Navigator.pop(sheetCtx);
                 final text = widget.note.text ?? '';
@@ -398,7 +400,9 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('\u30c6\u30ad\u30b9\u30c8\u3092\u30b3\u30d4\u30fc\u3057\u307e\u3057\u305f'),
+                      content: Text(
+                        '\u30c6\u30ad\u30b9\u30c8\u3092\u30b3\u30d4\u30fc\u3057\u307e\u3057\u305f',
+                      ),
                       duration: Duration(seconds: 1),
                     ),
                   );
@@ -408,11 +412,14 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
             // 削除（自分の投稿のみ）
             if (isOwn) ...[
               ListTile(
-                leading: Icon(Icons.delete_outline,
-                    color: Theme.of(context).colorScheme.error),
-                title: Text('\u524a\u9664',
-                    style: TextStyle(
-                        color: Theme.of(context).colorScheme.error)),
+                leading: Icon(
+                  Icons.delete_outline,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                title: Text(
+                  '\u524a\u9664',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
                 onTap: () async {
                   Navigator.pop(sheetCtx);
                   await _deleteNote(context);
@@ -450,7 +457,9 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('\u6295\u7a3f\u3092\u524a\u9664\u3057\u307e\u3057\u305f'),
+            content: Text(
+              '\u6295\u7a3f\u3092\u524a\u9664\u3057\u307e\u3057\u305f',
+            ),
             duration: Duration(seconds: 2),
           ),
         );
@@ -458,7 +467,11 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('\u524a\u9664\u306b\u5931\u6557\u3057\u307e\u3057\u305f: $e')),
+          SnackBar(
+            content: Text(
+              '\u524a\u9664\u306b\u5931\u6557\u3057\u307e\u3057\u305f: $e',
+            ),
+          ),
         );
       }
     }
@@ -479,15 +492,22 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
         ref.read(timelineProvider(type).notifier).removeNote(note.id);
       }
       if (context.mounted) {
-        context.push('/compose', extra: {
-          'initialText': note.text ?? '',
-          'visibility': note.visibility,
-        });
+        context.push(
+          '/compose',
+          extra: {
+            'initialText': note.text ?? '',
+            'visibility': note.visibility,
+          },
+        );
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('\u524a\u9664\u306b\u5931\u6557\u3057\u307e\u3057\u305f: $e')),
+          SnackBar(
+            content: Text(
+              '\u524a\u9664\u306b\u5931\u6557\u3057\u307e\u3057\u305f: $e',
+            ),
+          ),
         );
       }
     }
@@ -685,9 +705,8 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
             child: CachedNetworkImage(
               imageUrl: widget.urls[i],
               fit: BoxFit.contain,
-              placeholder: (_, __) => const CircularProgressIndicator(
-                color: Colors.white,
-              ),
+              placeholder: (_, __) =>
+                  const CircularProgressIndicator(color: Colors.white),
               errorWidget: (_, __, ___) => const Icon(
                 Icons.broken_image_outlined,
                 color: Colors.white,

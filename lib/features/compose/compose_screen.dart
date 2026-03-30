@@ -60,7 +60,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     _textController = TextEditingController();
     _currentDraftId = widget.draftId;
     // 保存済みのデフォルト公開範囲で初期化
-    _visibility = widget.initialVisibility ?? ref.read(settingsProvider).defaultVisibility;
+    _visibility =
+        widget.initialVisibility ??
+        ref.read(settingsProvider).defaultVisibility;
 
     if (widget.initialText != null) {
       _textController.text = widget.initialText!;
@@ -322,165 +324,150 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       ),
       body: Column(
         children: [
-          // テキスト入力エリア
-          Expanded(
-            child: SingleChildScrollView(
+          // リプライ先プレビュー（テキストエリアの外に固定表示）
+          if (widget.replyToNote != null)
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                border: Border.all(color: theme.colorScheme.outlineVariant),
+                borderRadius: BorderRadius.circular(8),
+              ),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // リプライ先プレビュー
-                  if (widget.replyToNote != null)
-                    Container(
-                      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: theme.colorScheme.outlineVariant,
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.replyToNote!.user.acct,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          if (widget.replyToNote!.text != null)
-                            Text(
-                              widget.replyToNote!.text!,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.outline,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: TextField(
-                      controller: _textController,
-                      maxLines: null,
-                      autofocus: true,
-                      decoration: InputDecoration(
-                        hintText: widget.replyToNote != null
-                            ? '${widget.replyToNote!.user.name} に返信...'
-                            : '何かつぶやく...',
-                        border: InputBorder.none,
-                      ),
-                      onChanged: (_) => setState(() {}),
+                  Text(
+                    widget.replyToNote!.user.acct,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  // 添付画像プレビュー
-                  if (_attachedMedia.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                      child: SizedBox(
-                        height: 100,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: _attachedMedia.length,
-                          separatorBuilder: (context, i) =>
-                              const SizedBox(width: 8),
-                          itemBuilder: (_, i) {
-                            final media = _attachedMedia[i];
-                            return Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: switch (media) {
-                                    _LocalMedia m => Image.file(
-                                      File(m.file.path),
-                                      width: 100,
-                                      height: 100,
-                                      fit: BoxFit.cover,
-                                    ),
-                                    _DriveMedia m =>
-                                      m.driveFile.isImage
-                                          ? CachedNetworkImage(
-                                              imageUrl:
-                                                  m.driveFile.thumbnailUrl ??
-                                                  m.driveFile.url,
-                                              width: 100,
-                                              height: 100,
-                                              fit: BoxFit.cover,
-                                            )
-                                          : Container(
-                                              width: 100,
-                                              height: 100,
-                                              color: theme
-                                                  .colorScheme
-                                                  .surfaceContainerHighest,
-                                              child: Column(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  Icon(
-                                                    Icons
-                                                        .insert_drive_file_outlined,
-                                                    color: theme
-                                                        .colorScheme
-                                                        .primary,
-                                                  ),
-                                                  Padding(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 4,
-                                                        ),
-                                                    child: Text(
-                                                      m.driveFile.name,
-                                                      style: theme
-                                                          .textTheme
-                                                          .labelSmall,
-                                                      maxLines: 2,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      textAlign:
-                                                          TextAlign.center,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                  },
-                                ),
-                                Positioned(
-                                  top: -6,
-                                  right: -6,
-                                  child: GestureDetector(
-                                    onTap: () => _removeMedia(i),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: theme.colorScheme.error,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      padding: const EdgeInsets.all(2),
-                                      child: Icon(
-                                        Icons.close,
-                                        size: 14,
-                                        color: theme.colorScheme.onError,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
+                  if (widget.replyToNote!.text != null)
+                    Text(
+                      widget.replyToNote!.text!,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.outline,
                       ),
                     ),
                 ],
               ),
             ),
+
+          // テキスト入力エリア（expands:true でExpandedを埋め、内部スクロール）
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: TextField(
+                controller: _textController,
+                maxLines: null,
+                expands: true,
+                textAlignVertical: TextAlignVertical.top,
+                autofocus: true,
+                scrollPadding: EdgeInsets.zero,
+                decoration: InputDecoration(
+                  hintText: widget.replyToNote != null
+                      ? '${widget.replyToNote!.user.name} に返信...'
+                      : '何かつぶやく...',
+                  border: InputBorder.none,
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
           ),
+
+          // 添付画像プレビュー（テキストエリアとフッターの間）
+          if (_attachedMedia.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: SizedBox(
+                height: 100,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _attachedMedia.length,
+                  separatorBuilder: (context, i) => const SizedBox(width: 8),
+                  itemBuilder: (_, i) {
+                    final media = _attachedMedia[i];
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: switch (media) {
+                            _LocalMedia m => Image.file(
+                              File(m.file.path),
+                              width: 100,
+                              height: 100,
+                              fit: BoxFit.cover,
+                            ),
+                            _DriveMedia m =>
+                              m.driveFile.isImage
+                                  ? CachedNetworkImage(
+                                      imageUrl:
+                                          m.driveFile.thumbnailUrl ??
+                                          m.driveFile.url,
+                                      width: 100,
+                                      height: 100,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Container(
+                                      width: 100,
+                                      height: 100,
+                                      color: theme
+                                          .colorScheme
+                                          .surfaceContainerHighest,
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.insert_drive_file_outlined,
+                                            color: theme.colorScheme.primary,
+                                          ),
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 4,
+                                            ),
+                                            child: Text(
+                                              m.driveFile.name,
+                                              style: theme.textTheme.labelSmall,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                          },
+                        ),
+                        Positioned(
+                          top: -6,
+                          right: -6,
+                          child: GestureDetector(
+                            onTap: () => _removeMedia(i),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.error,
+                                shape: BoxShape.circle,
+                              ),
+                              padding: const EdgeInsets.all(2),
+                              child: Icon(
+                                Icons.close,
+                                size: 14,
+                                color: theme.colorScheme.onError,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
 
           // アップロード中インジケーター
           if (_isUploadingMedia)
@@ -617,9 +604,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               ],
             ),
           ),
-
-          // キーボード分のスペース
-          SizedBox(height: MediaQuery.of(context).viewInsets.bottom),
         ],
       ),
     );

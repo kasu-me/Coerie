@@ -28,27 +28,30 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
   void _addTab() {
     showModalBottomSheet(
       context: context,
-      builder: (_) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'タブの種類を選択',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(ctx).bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'タブの種類を選択',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
             ),
-          ),
-          ...AppConstants.tabTypeLabels.entries.map(
-            (e) => ListTile(
-              leading: Icon(_tabIcon(e.key)),
-              title: Text(e.value),
-              onTap: () {
-                Navigator.pop(context);
-                _showLabelInput(e.key, e.value);
-              },
+            ...AppConstants.tabTypeLabels.entries.map(
+              (e) => ListTile(
+                leading: Icon(_tabIcon(e.key)),
+                title: Text(e.value),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showLabelInput(e.key, e.value);
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
