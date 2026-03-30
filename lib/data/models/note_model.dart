@@ -19,6 +19,7 @@ class DriveFileModel {
 
   bool get isImage => type.startsWith('image/');
   bool get isVideo => type.startsWith('video/');
+  bool get isAudio => type.startsWith('audio/');
 
   Map<String, dynamic> toJson() => {
     'id': id,

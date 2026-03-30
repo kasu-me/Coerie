@@ -55,6 +55,9 @@ dependencies:
   webview_flutter: ^4.13.1
   image_picker: ^1.2.1
   google_fonts: ^8.0.2
+  # 動画再生
+  video_player: ^2.9.3
+  chewie: ^1.10.0
 
 dev_dependencies:
   flutter_test:

@@ -1,10 +1,12 @@
 ﻿import 'package:cached_network_image/cached_network_image.dart';
+import 'package:chewie/chewie.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:video_player/video_player.dart';
 import '../../../data/models/note_model.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/providers/account_provider.dart';
@@ -664,37 +666,245 @@ class _MediaGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imageFiles = files.where((f) => f.isImage).toList();
-    if (imageFiles.isEmpty) return const SizedBox.shrink();
+    if (files.isEmpty) return const SizedBox.shrink();
 
-    final count = imageFiles.length.clamp(1, 4);
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: count == 1 ? 1 : 2,
-        crossAxisSpacing: 4,
-        mainAxisSpacing: 4,
-        childAspectRatio: count == 1 ? 16 / 9 : 1,
-      ),
-      itemCount: count,
-      itemBuilder: (_, i) => GestureDetector(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute<void>(
-            builder: (_) => _FullscreenImageViewer(
-              urls: imageFiles.map((f) => f.url).toList(),
-              initialIndex: i,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── 画像グリッド ──
+        Builder(
+          builder: (_) {
+            final imageFiles = files.where((f) => f.isImage).toList();
+            if (imageFiles.isEmpty) return const SizedBox.shrink();
+            final count = imageFiles.length.clamp(1, 4);
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: count == 1 ? 1 : 2,
+                crossAxisSpacing: 4,
+                mainAxisSpacing: 4,
+                childAspectRatio: count == 1 ? 16 / 9 : 1,
+              ),
+              itemCount: count,
+              itemBuilder: (_, i) => GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => _FullscreenImageViewer(
+                      urls: imageFiles.map((f) => f.url).toList(),
+                      initialIndex: i,
+                    ),
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: CachedNetworkImage(
+                    imageUrl: imageFiles[i].thumbnailUrl ?? imageFiles[i].url,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+
+        // ── 動画 ──
+        ...files
+            .where((f) => f.isVideo)
+            .map(
+              (f) => Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          _VideoPlayerScreen(url: f.url, title: f.name),
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (f.thumbnailUrl != null)
+                            CachedNetworkImage(
+                              imageUrl: f.thumbnailUrl!,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) =>
+                                  Container(color: Colors.black),
+                            )
+                          else
+                            Container(color: Colors.black),
+                          const Center(
+                            child: CircleAvatar(
+                              radius: 28,
+                              backgroundColor: Colors.black54,
+                              child: Icon(
+                                Icons.play_arrow,
+                                color: Colors.white,
+                                size: 36,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
-        child: ClipRRect(
+
+        // ── 音声 ──
+        ...files
+            .where((f) => f.isAudio)
+            .map(
+              (f) => Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: _FileTile(
+                  icon: Icons.audiotrack_outlined,
+                  label: f.name,
+                  onTap: () async {
+                    final uri = Uri.tryParse(f.url);
+                    if (uri != null) {
+                      await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      );
+                    }
+                  },
+                ),
+              ),
+            ),
+
+        // ── その他 ──
+        ...files
+            .where((f) => !f.isImage && !f.isVideo && !f.isAudio)
+            .map(
+              (f) => Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: _FileTile(
+                  icon: Icons.insert_drive_file_outlined,
+                  label: f.name,
+                  onTap: () async {
+                    final uri = Uri.tryParse(f.url);
+                    if (uri != null) {
+                      await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      );
+                    }
+                  },
+                ),
+              ),
+            ),
+      ],
+    );
+  }
+}
+
+/// 音声・その他ファイルの行表示
+class _FileTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _FileTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(8),
-          child: CachedNetworkImage(
-            imageUrl: imageFiles[i].thumbnailUrl ?? imageFiles[i].url,
-            fit: BoxFit.cover,
-          ),
         ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+            Icon(Icons.open_in_new, size: 14, color: theme.colorScheme.outline),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---- 動画プレーヤー画面 ----
+class _VideoPlayerScreen extends StatefulWidget {
+  final String url;
+  final String title;
+
+  const _VideoPlayerScreen({required this.url, required this.title});
+
+  @override
+  State<_VideoPlayerScreen> createState() => _VideoPlayerScreenState();
+}
+
+class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
+  late VideoPlayerController _vpc;
+  ChewieController? _chewieController;
+
+  @override
+  void initState() {
+    super.initState();
+    _vpc = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    _vpc.initialize().then((_) {
+      if (!mounted) return;
+      setState(() {
+        _chewieController = ChewieController(
+          videoPlayerController: _vpc,
+          autoPlay: true,
+          looping: false,
+          aspectRatio: _vpc.value.aspectRatio,
+        );
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _chewieController?.dispose();
+    _vpc.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(
+          widget.title,
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+      body: Center(
+        child: _chewieController != null
+            ? Chewie(controller: _chewieController!)
+            : const CircularProgressIndicator(color: Colors.white),
       ),
     );
   }

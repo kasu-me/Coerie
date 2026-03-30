@@ -108,9 +108,11 @@ class MisskeyApi {
     required String userId,
     int limit = 20,
     String? untilId,
+    bool withFiles = false,
   }) async {
     final params = <String, dynamic>{'userId': userId, 'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
+    if (withFiles) params['withFiles'] = true;
     final res = await _dio.post('users/notes', data: _body(params));
     final list = res.data as List<dynamic>;
     return list
