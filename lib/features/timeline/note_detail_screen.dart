@@ -49,19 +49,20 @@ class NoteDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ancestorsAsync = ref.watch(_ancestorsProvider(note));
     final repliesAsync = ref.watch(_noteRepliesProvider(note.id));
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('スレッド')),
       body: ListView(
         children: [
-          // 先祖ノートを古い順に表示
+          // ── 先祖ノート（上）: opacity を落とし文脈であることを示す ──
           ...ancestorsAsync.maybeWhen(
             data: (ancestors) => ancestors
-                .expand<Widget>(
-                  (n) => [
-                    NoteCard(note: n, navigatable: false),
-                    const Divider(height: 1),
-                  ],
+                .map<Widget>(
+                  (n) => Opacity(
+                    opacity: 0.55,
+                    child: NoteCard(note: n, navigatable: true),
+                  ),
                 )
                 .toList(),
             loading: () => [
@@ -72,8 +73,19 @@ class NoteDetailScreen extends ConsumerWidget {
             ],
             orElse: () => [],
           ),
-          NoteCard(note: note, navigatable: false),
-          const Divider(height: 1),
+
+          // ── フォーカスノート: primary 色の左ボーダーと淡い背景で強調 ──
+          Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.18),
+              border: Border(
+                left: BorderSide(color: theme.colorScheme.primary, width: 3),
+              ),
+            ),
+            child: NoteCard(note: note, navigatable: false),
+          ),
+
+          // ── 返信（下）: インデントしてスレッド感を演出 ──
           repliesAsync.when(
             data: (replies) {
               if (replies.isEmpty) {
@@ -84,7 +96,12 @@ class NoteDetailScreen extends ConsumerWidget {
               }
               return Column(
                 children: replies
-                    .map((r) => NoteCard(note: r, navigatable: false))
+                    .map(
+                      (r) => Padding(
+                        padding: const EdgeInsets.only(left: 16),
+                        child: NoteCard(note: r, navigatable: true),
+                      ),
+                    )
                     .toList(),
               );
             },
