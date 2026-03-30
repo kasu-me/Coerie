@@ -169,7 +169,8 @@ class _ProfileHeader extends StatelessWidget {
                 Navigator.of(context).pop();
               },
             ),
-          ),          const Divider(height: 1),
+          ),
+          const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.add),
             title: const Text('アカウントを追加'),
@@ -178,7 +179,8 @@ class _ProfileHeader extends StatelessWidget {
               Navigator.of(context).pop();
               context.push('/login');
             },
-          ),        ],
+          ),
+        ],
       ),
     );
   }

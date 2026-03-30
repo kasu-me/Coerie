@@ -159,17 +159,12 @@ class MisskeyApi {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
     if (sinceId != null) params['sinceId'] = sinceId;
-    final res = await _dio.post(
-      'i/notifications',
-      data: _body(params),
-    );
+    final res = await _dio.post('i/notifications', data: _body(params));
     final list = res.data as List<dynamic>;
     return list
         .map(
-          (n) => NotificationModel.fromJson(
-            n as Map<String, dynamic>,
-            host: host,
-          ),
+          (n) =>
+              NotificationModel.fromJson(n as Map<String, dynamic>, host: host),
         )
         .toList();
   }

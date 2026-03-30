@@ -139,10 +139,11 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet> {
                               ? CachedNetworkImage(
                                   imageUrl: url,
                                   fit: BoxFit.contain,
-                                  errorWidget: (context, url, error) => const Icon(
-                                    Icons.emoji_emotions,
-                                    size: 24,
-                                  ),
+                                  errorWidget: (context, url, error) =>
+                                      const Icon(
+                                        Icons.emoji_emotions,
+                                        size: 24,
+                                      ),
                                 )
                               : const Icon(Icons.emoji_emotions, size: 24),
                         ),

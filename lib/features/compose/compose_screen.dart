@@ -16,7 +16,12 @@ class ComposeScreen extends ConsumerStatefulWidget {
   final String? replyId;
   final NoteModel? replyToNote;
 
-  const ComposeScreen({super.key, this.draftId, this.replyId, this.replyToNote});
+  const ComposeScreen({
+    super.key,
+    this.draftId,
+    this.replyId,
+    this.replyToNote,
+  });
 
   @override
   ConsumerState<ComposeScreen> createState() => _ComposeScreenState();
@@ -223,8 +228,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
             (a) => ListTile(
               leading: a.avatarUrl != null
                   ? CircleAvatar(
-                      backgroundImage:
-                          CachedNetworkImageProvider(a.avatarUrl!),
+                      backgroundImage: CachedNetworkImageProvider(a.avatarUrl!),
                     )
                   : const CircleAvatar(child: Icon(Icons.person)),
               title: Text(a.name),
@@ -331,7 +335,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: _attachedFiles.length,
-                          separatorBuilder: (context, i) => const SizedBox(width: 8),
+                          separatorBuilder: (context, i) =>
+                              const SizedBox(width: 8),
                           itemBuilder: (_, i) => Stack(
                             clipBehavior: Clip.none,
                             children: [

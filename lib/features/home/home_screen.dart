@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/constants/app_constants.dart';
 import '../../shared/providers/settings_provider.dart';
 import 'widgets/home_app_bar.dart';
 import 'widgets/home_drawer.dart';
 import '../timeline/timeline_screen.dart';
+import '../notifications/notification_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -65,7 +67,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   child: TabBarView(
                     controller: _tabController,
                     children: tabs
-                        .map((t) => TimelineScreen(timelineType: t.type))
+                        .map(
+                          (t) => t.type == AppConstants.tabTypeNotifications
+                              ? const NotificationScreen(embedded: true)
+                              : TimelineScreen(timelineType: t.type),
+                        )
                         .toList(),
                   ),
                 ),

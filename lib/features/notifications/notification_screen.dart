@@ -7,12 +7,13 @@ import '../../shared/providers/misskey_api_provider.dart';
 
 // ---- Provider ----
 
-final _notificationsProvider = StateNotifierProvider.autoDispose<
-  _NotificationsNotifier,
-  _NotificationsState
->((ref) {
-  return _NotificationsNotifier(ref);
-});
+final _notificationsProvider =
+    StateNotifierProvider.autoDispose<
+      _NotificationsNotifier,
+      _NotificationsState
+    >((ref) {
+      return _NotificationsNotifier(ref);
+    });
 
 class _NotificationsState {
   final List<NotificationModel> items;
@@ -79,15 +80,19 @@ class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
 // ---- Screen ----
 
 class NotificationScreen extends ConsumerStatefulWidget {
-  const NotificationScreen({super.key});
+  final bool embedded;
+  const NotificationScreen({super.key, this.embedded = false});
 
   @override
-  ConsumerState<NotificationScreen> createState() =>
-      _NotificationScreenState();
+  ConsumerState<NotificationScreen> createState() => _NotificationScreenState();
 }
 
-class _NotificationScreenState extends ConsumerState<NotificationScreen> {
+class _NotificationScreenState extends ConsumerState<NotificationScreen>
+    with AutomaticKeepAliveClientMixin {
   final _scrollController = ScrollController();
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -115,7 +120,13 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final state = ref.watch(_notificationsProvider);
+
+    if (widget.embedded) {
+      // タブ埋め込み時: AppBarなし、リフレッシュはプルのみ
+      return _buildBody(context, state);
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -128,55 +139,49 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
           ),
         ],
       ),
-      body: Builder(
-        builder: (context) {
-          if (state.isLoading && state.items.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (state.error != null && state.items.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '読み込みに失敗しました',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  FilledButton(
-                    onPressed: () =>
-                        ref.read(_notificationsProvider.notifier).refresh(),
-                    child: const Text('再読み込み'),
-                  ),
-                ],
-              ),
-            );
-          }
-          if (state.items.isEmpty) {
-            return const Center(child: Text('通知はありません'));
-          }
-          return RefreshIndicator(
-            onRefresh: () =>
-                ref.read(_notificationsProvider.notifier).refresh(),
-            child: ListView.separated(
-              controller: _scrollController,
-              itemCount: state.items.length + (state.hasMore ? 1 : 0),
-              separatorBuilder: (context, i) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                if (index == state.items.length) {
-                  return state.isLoading
-                      ? const Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Center(child: CircularProgressIndicator()),
-                        )
-                      : const SizedBox.shrink();
-                }
-                return _NotificationTile(
-                  notification: state.items[index],
-                );
-              },
+      body: _buildBody(context, state),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, _NotificationsState state) {
+    if (state.isLoading && state.items.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (state.error != null && state.items.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('読み込みに失敗しました', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            FilledButton(
+              onPressed: () =>
+                  ref.read(_notificationsProvider.notifier).refresh(),
+              child: const Text('再読み込み'),
             ),
-          );
+          ],
+        ),
+      );
+    }
+    if (state.items.isEmpty) {
+      return const Center(child: Text('通知はありません'));
+    }
+    return RefreshIndicator(
+      onRefresh: () => ref.read(_notificationsProvider.notifier).refresh(),
+      child: ListView.separated(
+        controller: _scrollController,
+        itemCount: state.items.length + (state.hasMore ? 1 : 0),
+        separatorBuilder: (context, i) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          if (index == state.items.length) {
+            return state.isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                : const SizedBox.shrink();
+          }
+          return _NotificationTile(notification: state.items[index]);
         },
       ),
     );
@@ -199,7 +204,9 @@ class _NotificationTile extends StatelessWidget {
           ? () => context.push('/profile/${n.user?.id ?? ''}')
           : null,
       child: Container(
-        color: n.isRead ? null : theme.colorScheme.primaryContainer.withAlpha(60),
+        color: n.isRead
+            ? null
+            : theme.colorScheme.primaryContainer.withAlpha(60),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -304,8 +311,9 @@ class _NotificationTile extends StatelessWidget {
   };
 
   static IconData _typeIcon(String type) => switch (type) {
-    'follow' || 'followRequestAccepted' || 'receiveFollowRequest' =>
-      Icons.person_add,
+    'follow' ||
+    'followRequestAccepted' ||
+    'receiveFollowRequest' => Icons.person_add,
     'mention' || 'reply' => Icons.reply,
     'renote' || 'quote' => Icons.repeat,
     'reaction' => Icons.add_reaction_outlined,
