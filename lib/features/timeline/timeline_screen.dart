@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'timeline_provider.dart';
 import 'widgets/note_card.dart';
+import '../../core/streaming/streaming_service.dart';
 
 class TimelineScreen extends ConsumerStatefulWidget {
   final String timelineType;
@@ -15,6 +17,8 @@ class TimelineScreen extends ConsumerStatefulWidget {
 class _TimelineScreenState extends ConsumerState<TimelineScreen>
     with AutomaticKeepAliveClientMixin {
   final _scrollController = ScrollController();
+  StreamSubscription? _streamSub;
+  int _newNotesCount = 0;
 
   @override
   bool get wantKeepAlive => true;
@@ -23,6 +27,38 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _subscribeStream());
+  }
+
+  void _subscribeStream() {
+    final streaming = ref.read(streamingServiceProvider);
+    if (streaming == null) return;
+
+    _streamSub?.cancel();
+    _streamSub = streaming.subscribeTimeline(widget.timelineType)?.listen((
+      note,
+    ) {
+      if (!mounted) return;
+      // スクロールが先頭付近なら即追加、それ以外はバッジで通知
+      if (_scrollController.hasClients &&
+          _scrollController.position.pixels < 100) {
+        ref
+            .read(timelineProvider(widget.timelineType).notifier)
+            .prependNote(note);
+      } else {
+        setState(() => _newNotesCount++);
+      }
+    });
+  }
+
+  void _scrollToTopAndRefresh() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+    setState(() => _newNotesCount = 0);
+    ref.read(timelineProvider(widget.timelineType).notifier).refresh();
   }
 
   void _onScroll() {
@@ -63,8 +99,9 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
       );
     }
 
+    Widget list;
     if (state.notes.isEmpty) {
-      return RefreshIndicator(
+      list = RefreshIndicator(
         onRefresh: () => ref
             .read(timelineProvider(widget.timelineType).notifier)
             .fetchNotes(),
@@ -90,29 +127,45 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
           ],
         ),
       );
+    } else {
+      list = RefreshIndicator(
+        onRefresh: () =>
+            ref.read(timelineProvider(widget.timelineType).notifier).refresh(),
+        child: ListView.builder(
+          controller: _scrollController,
+          itemCount: state.notes.length + (state.isLoadingMore ? 1 : 0),
+          itemBuilder: (context, index) {
+            if (index == state.notes.length) {
+              return const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return NoteCard(note: state.notes[index]);
+          },
+        ),
+      );
     }
 
-    return RefreshIndicator(
-      onRefresh: () =>
-          ref.read(timelineProvider(widget.timelineType).notifier).fetchNotes(),
-      child: ListView.builder(
-        controller: _scrollController,
-        itemCount: state.notes.length + (state.isLoadingMore ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index == state.notes.length) {
-            return const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator()),
-            );
-          }
-          return NoteCard(note: state.notes[index]);
-        },
-      ),
+    return Stack(
+      alignment: Alignment.topCenter,
+      children: [
+        list,
+        if (_newNotesCount > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: FilledButton.tonal(
+              onPressed: _scrollToTopAndRefresh,
+              child: Text('$_newNotesCount件の新しい投稿'),
+            ),
+          ),
+      ],
     );
   }
 
   @override
   void dispose() {
+    _streamSub?.cancel();
     _scrollController.dispose();
     super.dispose();
   }

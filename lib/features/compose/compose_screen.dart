@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../shared/providers/account_provider.dart';
+import '../../shared/providers/misskey_api_provider.dart';
 import '../../core/constants/app_constants.dart';
 import '../draft/draft_provider.dart';
 
@@ -64,21 +65,37 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     if (mounted) context.pop();
   }
 
+  bool _isPosting = false;
+
   Future<void> _post() async {
-    if (_textController.text.trim().isEmpty || _isOverLimit) return;
+    if (_textController.text.trim().isEmpty || _isOverLimit || _isPosting)
+      return;
 
-    // TODO: 実際のAPI投稿処理
-    // final account = ref.read(activeAccountProvider);
-    // await dio.post('https://${account.host}/api/notes/create', data: {
-    //   'i': account.token,
-    //   'text': _textController.text,
-    //   'visibility': _visibility,
-    // });
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
 
-    if (_currentDraftId != null) {
-      await ref.read(draftProvider.notifier).deleteDraft(_currentDraftId!);
+    setState(() => _isPosting = true);
+
+    try {
+      await api.createNote(text: _textController.text, visibility: _visibility);
+      if (_currentDraftId != null) {
+        await ref.read(draftProvider.notifier).deleteDraft(_currentDraftId!);
+      }
+      if (mounted) context.pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '投稿に失敗しました: ${e.toString().replaceFirst('Exception: ', '')}',
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isPosting = false);
     }
-    if (mounted) context.pop();
   }
 
   void _showVisibilityPicker() {
@@ -216,10 +233,19 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
                 // 投稿ボタン
                 FilledButton(
-                  onPressed: _textController.text.trim().isEmpty || _isOverLimit
+                  onPressed:
+                      _textController.text.trim().isEmpty ||
+                          _isOverLimit ||
+                          _isPosting
                       ? null
                       : _post,
-                  child: const Text('投稿'),
+                  child: _isPosting
+                      ? const SizedBox(
+                          height: 14,
+                          width: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('投稿'),
                 ),
               ],
             ),

@@ -4,9 +4,10 @@ class UserModel {
   final String username;
   final String host;
   final String? avatarUrl;
-  final int followingCount;
-  final int followersCount;
-  final String? bio;
+  final String? bannerUrl;
+  final int? followingCount;
+  final int? followersCount;
+  final String? description;
 
   const UserModel({
     required this.id,
@@ -14,9 +15,10 @@ class UserModel {
     required this.username,
     required this.host,
     this.avatarUrl,
-    this.followingCount = 0,
-    this.followersCount = 0,
-    this.bio,
+    this.bannerUrl,
+    this.followingCount,
+    this.followersCount,
+    this.description,
   });
 
   String get acct => host.isEmpty ? '@$username' : '@$username@$host';
@@ -28,9 +30,10 @@ class UserModel {
       username: json['username'] as String,
       host: json['host'] as String? ?? host,
       avatarUrl: json['avatarUrl'] as String?,
-      followingCount: json['followingCount'] as int? ?? 0,
-      followersCount: json['followersCount'] as int? ?? 0,
-      bio: json['description'] as String?,
+      bannerUrl: json['bannerUrl'] as String?,
+      followingCount: json['followingCount'] as int?,
+      followersCount: json['followersCount'] as int?,
+      description: json['description'] as String?,
     );
   }
 }

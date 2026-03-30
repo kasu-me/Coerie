@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../data/models/account_model.dart';
+import '../../core/auth/miauth_service.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -16,6 +17,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _hostController = TextEditingController();
   bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -32,34 +34,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _startMiAuth() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     final host = _normalizeHost(_hostController.text);
 
-    // TODO: MiAuth フローを実装
-    // 1. UUID を生成してセッションIDとする
-    // 2. ブラウザで https://{host}/miauth/{sessionId}?name=Coerie&permission=read:account,write:notes,... を開く
-    // 3. ユーザーが認証したら https://{host}/api/miauth/{sessionId}/check にPOSTしてトークン取得
-    // 4. トークンでユーザー情報取得して AccountModel を保存
+    try {
+      final result = await MiAuthService.authenticate(host);
 
-    // 開発用: ダミーアカウントを追加
-    await ref
-        .read(accountProvider.notifier)
-        .addAccount(
-          AccountModel(
-            id: const Uuid().v4(),
-            host: host,
-            token: 'dummy_token',
-            userId: 'dummy_user_id',
-            username: 'user',
-            name: 'ユーザー',
-            isActive: true,
-          ),
-        );
+      await ref.read(accountProvider.notifier).addAccount(
+            AccountModel(
+              id: const Uuid().v4(),
+              host: host,
+              token: result.token,
+              userId: result.user.id,
+              username: result.user.username,
+              name: result.user.name,
+              avatarUrl: result.user.avatarUrl,
+              isActive: true,
+            ),
+          );
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-      context.go('/home');
+      if (mounted) context.go('/home');
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
     }
   }
 
@@ -75,16 +80,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               Text(
                 'Coerie',
                 style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Misskey クライアント',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.outline,
-                ),
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
               ),
               const SizedBox(height: 48),
               Form(
@@ -108,6 +113,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   },
                 ),
               ),
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline,
+                          color: Theme.of(context).colorScheme.error),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: TextStyle(
+                              color: Theme.of(context).colorScheme.error),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
@@ -119,8 +148,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('ログイン'),
+                      : const Text('ブラウザでログイン'),
                 ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'ブラウザでサーバーの認証ページが開きます。\n認証後、自動的にアプリに戻ります。',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
               ),
             ],
           ),

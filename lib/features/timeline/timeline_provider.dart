@@ -1,8 +1,8 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/note_model.dart';
 import '../../core/constants/app_constants.dart';
+import '../../shared/providers/misskey_api_provider.dart';
 
-// 各タイムラインの状態
 class TimelineState {
   final List<NoteModel> notes;
   final bool isLoading;
@@ -29,47 +29,18 @@ class TimelineState {
   );
 }
 
-// タイムラインタイプ別のプロバイダー
 final timelineProvider =
     StateNotifierProviderFamily<TimelineNotifier, TimelineState, String>(
       (ref, timelineType) => TimelineNotifier(ref, timelineType),
     );
 
 class TimelineNotifier extends StateNotifier<TimelineState> {
+  final Ref _ref;
   final String timelineType;
 
-  TimelineNotifier(Ref ref, this.timelineType) : super(const TimelineState()) {
+  TimelineNotifier(this._ref, this.timelineType)
+    : super(const TimelineState()) {
     fetchNotes();
-  }
-
-  Future<void> fetchNotes({bool loadMore = false}) async {
-    if (loadMore) {
-      if (state.isLoadingMore) return;
-      state = state.copyWith(isLoadingMore: true);
-    } else {
-      state = state.copyWith(isLoading: true);
-    }
-
-    // TODO: 実際のAPIコールに置き換える
-    // final account = _ref.read(activeAccountProvider);
-    // if (account == null) { ... }
-    // final dio = Dio();
-    // final endpoint = _getEndpoint(timelineType);
-    // final response = await dio.post(
-    //   'https://${account.host}/api/$endpoint',
-    //   data: {'i': account.token, 'limit': 20, ...},
-    // );
-    // final notes = (response.data as List)
-    //   .map((n) => NoteModel.fromJson(n, host: account.host))
-    //   .toList();
-
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    if (loadMore) {
-      state = state.copyWith(isLoadingMore: false, notes: [...state.notes]);
-    } else {
-      state = state.copyWith(isLoading: false, notes: []);
-    }
   }
 
   String getEndpoint(String type) {
@@ -80,5 +51,78 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
       AppConstants.tabTypeGlobal => 'notes/global-timeline',
       _ => 'notes/timeline',
     };
+  }
+
+  Future<void> fetchNotes({bool loadMore = false}) async {
+    final api = _ref.read(misskeyApiProvider);
+    if (api == null) {
+      state = state.copyWith(isLoading: false, error: 'ログインが必要です');
+      return;
+    }
+
+    if (loadMore) {
+      if (state.isLoadingMore) return;
+      state = state.copyWith(isLoadingMore: true, error: null);
+    } else {
+      state = state.copyWith(isLoading: true, error: null);
+    }
+
+    try {
+      final endpoint = getEndpoint(timelineType);
+      final untilId = loadMore && state.notes.isNotEmpty
+          ? state.notes.last.id
+          : null;
+      final notes = await api.getTimeline(
+        endpoint: endpoint,
+        limit: 20,
+        untilId: untilId,
+      );
+
+      if (loadMore) {
+        state = state.copyWith(
+          isLoadingMore: false,
+          notes: [...state.notes, ...notes],
+        );
+      } else {
+        state = state.copyWith(isLoading: false, notes: notes);
+      }
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        isLoadingMore: false,
+        error: e.toString().replaceFirst('Exception: ', ''),
+      );
+    }
+  }
+
+  Future<void> refresh() async {
+    await fetchNotes();
+  }
+
+  void prependNote(NoteModel note) {
+    // 重複チェック
+    if (state.notes.any((n) => n.id == note.id)) return;
+    state = state.copyWith(notes: [note, ...state.notes]);
+  }
+
+  Future<List<NoteModel>> fetchNew() async {
+    final api = _ref.read(misskeyApiProvider);
+    if (api == null || state.notes.isEmpty) return [];
+
+    try {
+      final endpoint = getEndpoint(timelineType);
+      final sinceId = state.notes.first.id;
+      final newNotes = await api.getTimeline(
+        endpoint: endpoint,
+        limit: 20,
+        sinceId: sinceId,
+      );
+      if (newNotes.isNotEmpty) {
+        state = state.copyWith(notes: [...newNotes, ...state.notes]);
+      }
+      return newNotes;
+    } catch (_) {
+      return [];
+    }
   }
 }
