@@ -70,4 +70,9 @@ class SettingsNotifier extends StateNotifier<AppSettingsModel> {
     state = state.copyWith(dateTimeRelative: value);
     await _save();
   }
+
+  Future<void> setDefaultVisibility(String value) async {
+    state = state.copyWith(defaultVisibility: value);
+    await _save();
+  }
 }

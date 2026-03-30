@@ -8,6 +8,7 @@ import '../../core/constants/app_constants.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/providers/settings_provider.dart';
 import '../draft/draft_provider.dart';
 import 'emoji_picker_sheet.dart';
 
@@ -43,7 +44,7 @@ class ComposeScreen extends ConsumerStatefulWidget {
 
 class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   late final TextEditingController _textController;
-  String _visibility = AppConstants.visibilityPublic;
+  late String _visibility;
   String? _currentDraftId;
   final List<_AttachedMedia> _attachedMedia = [];
   bool _isPosting = false;
@@ -54,6 +55,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     super.initState();
     _textController = TextEditingController();
     _currentDraftId = widget.draftId;
+    // 保存済みのデフォルト公開範囲で初期化
+    _visibility = ref.read(settingsProvider).defaultVisibility;
 
     if (widget.draftId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -240,6 +243,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                   : null,
               onTap: () {
                 setState(() => _visibility = e.key);
+                ref.read(settingsProvider.notifier).setDefaultVisibility(e.key);
                 Navigator.pop(context);
               },
             ),

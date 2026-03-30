@@ -6,6 +6,7 @@ import '../../shared/providers/settings_provider.dart';
 import 'widgets/home_app_bar.dart';
 import 'widgets/home_drawer.dart';
 import '../timeline/timeline_screen.dart';
+import '../timeline/timeline_provider.dart';
 import '../notifications/notification_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -16,7 +17,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   TabController? _tabController;
   int _tabCount = 0;
@@ -30,11 +31,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   void _syncTabController(int newCount) {
     if (newCount != _tabCount) {
+      final prevIndex = _tabController?.index ?? 0;
       _tabController?.dispose();
       _tabCount = newCount;
-      _tabController = newCount > 0
-          ? TabController(length: newCount, vsync: this)
-          : null;
+      if (newCount > 0) {
+        _tabController = TabController(
+          length: newCount,
+          vsync: this,
+          // 前のインデックスが範囲外の場合は0に戻す
+          initialIndex: prevIndex < newCount ? prevIndex : 0,
+        );
+      } else {
+        _tabController = null;
+      }
     }
   }
 
@@ -43,11 +52,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final settings = ref.watch(settingsProvider);
     final tabs = settings.tabs;
 
-    // タブ数変化を次フレームで反映
+    // タブ数変化を同フレームで即座に同期する（次フレームへの遅延を避ける）
     if (tabs.length != _tabCount) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _syncTabController(tabs.length));
-      });
+      _syncTabController(tabs.length);
     }
 
     return Scaffold(
@@ -78,7 +85,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ],
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/compose'),
+        onPressed: () async {
+          await context.push('/compose');
+          // 投稿後にタイムラインを全タブでリフレッシュ
+          if (mounted) {
+            for (final tab in ref.read(settingsProvider).tabs) {
+              if (tab.type != AppConstants.tabTypeNotifications) {
+                ref.read(timelineProvider(tab.type).notifier).refresh();
+              }
+            }
+          }
+        },
         child: const Icon(Icons.create),
       ),
     );

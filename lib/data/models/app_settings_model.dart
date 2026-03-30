@@ -37,6 +37,7 @@ class AppSettingsModel {
   final bool notifyFollow;
   final bool notifyReaction;
   final bool dateTimeRelative; // true=相対表示, false=絶対表示
+  final String defaultVisibility; // 投稿のデフォルト公開範囲
 
   const AppSettingsModel({
     this.theme = 'system',
@@ -48,6 +49,7 @@ class AppSettingsModel {
     this.notifyFollow = true,
     this.notifyReaction = true,
     this.dateTimeRelative = true,
+    this.defaultVisibility = 'public',
   });
 
   AppSettingsModel copyWith({
@@ -60,6 +62,7 @@ class AppSettingsModel {
     bool? notifyFollow,
     bool? notifyReaction,
     bool? dateTimeRelative,
+    String? defaultVisibility,
   }) => AppSettingsModel(
     theme: theme ?? this.theme,
     fontSize: fontSize ?? this.fontSize,
@@ -70,6 +73,7 @@ class AppSettingsModel {
     notifyFollow: notifyFollow ?? this.notifyFollow,
     notifyReaction: notifyReaction ?? this.notifyReaction,
     dateTimeRelative: dateTimeRelative ?? this.dateTimeRelative,
+    defaultVisibility: defaultVisibility ?? this.defaultVisibility,
   );
 
   Map<String, dynamic> toJson() => {
@@ -82,6 +86,7 @@ class AppSettingsModel {
     'notifyFollow': notifyFollow,
     'notifyReaction': notifyReaction,
     'dateTimeRelative': dateTimeRelative,
+    'defaultVisibility': defaultVisibility,
   };
 
   factory AppSettingsModel.fromJson(Map<String, dynamic> json) =>
@@ -97,6 +102,7 @@ class AppSettingsModel {
         notifyFollow: json['notifyFollow'] as bool? ?? true,
         notifyReaction: json['notifyReaction'] as bool? ?? true,
         dateTimeRelative: json['dateTimeRelative'] as bool? ?? true,
+        defaultVisibility: json['defaultVisibility'] as String? ?? 'public',
       );
 
   factory AppSettingsModel.fromJsonString(String jsonString) =>
