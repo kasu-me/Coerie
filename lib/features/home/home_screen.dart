@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_constants.dart';
+import '../../data/models/app_settings_model.dart';
 import '../../shared/providers/settings_provider.dart';
 import 'widgets/home_app_bar.dart';
 import 'widgets/home_drawer.dart';
@@ -77,7 +78,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         .map(
                           (t) => t.type == AppConstants.tabTypeNotifications
                               ? const NotificationScreen(embedded: true)
-                              : TimelineScreen(timelineType: t.type),
+                              : TimelineScreen(timelineType: _timelineKey(t)),
                         )
                         .toList(),
                   ),
@@ -91,7 +92,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           if (mounted) {
             for (final tab in ref.read(settingsProvider).tabs) {
               if (tab.type != AppConstants.tabTypeNotifications) {
-                ref.read(timelineProvider(tab.type).notifier).refresh();
+                ref
+                    .read(timelineProvider(_timelineKey(tab)).notifier)
+                    .refresh();
               }
             }
           }
@@ -99,6 +102,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         child: const Icon(Icons.create),
       ),
     );
+  }
+
+  /// リスト/アンテナタブは "list:id" / "antenna:id" 形式のキーを使う
+  String _timelineKey(TabConfigModel tab) {
+    if ((tab.type == AppConstants.tabTypeList ||
+            tab.type == AppConstants.tabTypeAntenna) &&
+        tab.sourceId != null) {
+      return '${tab.type}:${tab.sourceId}';
+    }
+    return tab.type;
   }
 
   @override

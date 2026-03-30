@@ -4,27 +4,40 @@ class TabConfigModel {
   final String id;
   final String label;
   final String type;
+  final String? sourceId; // リスト/アンテナタブ用のID
 
   const TabConfigModel({
     required this.id,
     required this.label,
     required this.type,
+    this.sourceId,
   });
 
-  Map<String, dynamic> toJson() => {'id': id, 'label': label, 'type': type};
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'label': label,
+    'type': type,
+    if (sourceId != null) 'sourceId': sourceId,
+  };
 
   factory TabConfigModel.fromJson(Map<String, dynamic> json) => TabConfigModel(
     id: json['id'] as String,
     label: json['label'] as String,
     type: json['type'] as String,
+    sourceId: json['sourceId'] as String?,
   );
 
-  TabConfigModel copyWith({String? id, String? label, String? type}) =>
-      TabConfigModel(
-        id: id ?? this.id,
-        label: label ?? this.label,
-        type: type ?? this.type,
-      );
+  TabConfigModel copyWith({
+    String? id,
+    String? label,
+    String? type,
+    String? sourceId,
+  }) => TabConfigModel(
+    id: id ?? this.id,
+    label: label ?? this.label,
+    type: type ?? this.type,
+    sourceId: sourceId ?? this.sourceId,
+  );
 }
 
 class AppSettingsModel {

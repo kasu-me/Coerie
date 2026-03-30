@@ -38,8 +38,9 @@ class MisskeyApi {
     int limit = 20,
     String? untilId,
     String? sinceId,
+    Map<String, dynamic> extraParams = const {},
   }) async {
-    final params = <String, dynamic>{'limit': limit};
+    final params = <String, dynamic>{'limit': limit, ...extraParams};
     if (untilId != null) params['untilId'] = untilId;
     if (sinceId != null) params['sinceId'] = sinceId;
 
@@ -199,6 +200,20 @@ class MisskeyApi {
 
   Future<void> markNotificationsRead() async {
     await _dio.post('notifications/mark-all-as-read', data: _body({}));
+  }
+
+  // ---- リスト ----
+
+  Future<List<Map<String, dynamic>>> getLists() async {
+    final res = await _dio.post('users/lists/list', data: _body({}));
+    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  // ---- アンテナ ----
+
+  Future<List<Map<String, dynamic>>> getAntennas() async {
+    final res = await _dio.post('antennas/list', data: _body({}));
+    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
   }
 
   // ---- ノート操作 ----

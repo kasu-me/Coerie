@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../shared/providers/settings_provider.dart';
+import '../../shared/providers/misskey_api_provider.dart';
 import '../../data/models/app_settings_model.dart';
 import '../../core/constants/app_constants.dart';
 
@@ -46,7 +47,23 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
                 title: Text(e.value),
                 onTap: () {
                   Navigator.pop(context);
-                  _showLabelInput(e.key, e.value);
+                  if (e.key == AppConstants.tabTypeList) {
+                    _pickAndAddSourceTab(
+                      type: AppConstants.tabTypeList,
+                      title: 'リストを選択',
+                      loader: () => ref.read(misskeyApiProvider)!.getLists(),
+                      icon: Icons.list,
+                    );
+                  } else if (e.key == AppConstants.tabTypeAntenna) {
+                    _pickAndAddSourceTab(
+                      type: AppConstants.tabTypeAntenna,
+                      title: 'アンテナを選択',
+                      loader: () => ref.read(misskeyApiProvider)!.getAntennas(),
+                      icon: Icons.settings_input_antenna,
+                    );
+                  } else {
+                    _showLabelInput(e.key, e.value);
+                  }
                 },
               ),
             ),
@@ -56,7 +73,7 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
     );
   }
 
-  void _showLabelInput(String type, String defaultLabel) {
+  void _showLabelInput(String type, String defaultLabel, {String? sourceId}) {
     final controller = TextEditingController(text: defaultLabel);
     showDialog(
       context: context,
@@ -83,6 +100,7 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
                     id: const Uuid().v4(),
                     label: label,
                     type: type,
+                    sourceId: sourceId,
                   ),
                 );
               });
@@ -93,6 +111,77 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _pickAndAddSourceTab({
+    required String type,
+    required String title,
+    required Future<List<Map<String, dynamic>>> Function() loader,
+    required IconData icon,
+  }) async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+
+    // ignore: use_build_context_synchronously
+    final selected = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(ctx).bottom),
+        child: FutureBuilder<List<Map<String, dynamic>>>(
+          future: loader(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const SizedBox(
+                height: 200,
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (snapshot.hasError) {
+              return SizedBox(
+                height: 200,
+                child: Center(child: Text('読み込みエラー: ${snapshot.error}')),
+              );
+            }
+            final items = snapshot.data ?? [];
+            if (items.isEmpty) {
+              return SizedBox(
+                height: 200,
+                child: Center(child: Text('$titleがありません')),
+              );
+            }
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                ...items.map(
+                  (item) => ListTile(
+                    leading: Icon(icon),
+                    title: Text(item['name'] as String? ?? ''),
+                    onTap: () => Navigator.pop(ctx, item),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+
+    if (selected == null || !mounted) return;
+    _showLabelInput(
+      type,
+      selected['name'] as String? ?? AppConstants.tabTypeLabels[type]!,
+      sourceId: selected['id'] as String,
     );
   }
 
@@ -212,6 +301,8 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
     AppConstants.tabTypeSocial => Icons.group_outlined,
     AppConstants.tabTypeGlobal => Icons.public,
     AppConstants.tabTypeNotifications => Icons.notifications_outlined,
+    AppConstants.tabTypeList => Icons.list,
+    AppConstants.tabTypeAntenna => Icons.settings_input_antenna,
     _ => Icons.tab,
   };
 }

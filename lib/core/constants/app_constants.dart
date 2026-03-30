@@ -23,6 +23,8 @@ class AppConstants {
   static const String tabTypeSocial = 'social';
   static const String tabTypeGlobal = 'global';
   static const String tabTypeNotifications = 'notifications';
+  static const String tabTypeList = 'list';
+  static const String tabTypeAntenna = 'antenna';
 
   static const Map<String, String> visibilityLabels = {
     visibilityPublic: '全体公開',
@@ -37,5 +39,7 @@ class AppConstants {
     tabTypeSocial: 'ソーシャル',
     tabTypeGlobal: '連合',
     tabTypeNotifications: '通知',
+    tabTypeList: 'リスト',
+    tabTypeAntenna: 'アンテナ',
   };
 }

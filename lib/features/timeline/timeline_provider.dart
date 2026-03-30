@@ -44,6 +44,8 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
   }
 
   String getEndpoint(String type) {
+    if (type.startsWith('list:')) return 'notes/user-list-timeline';
+    if (type.startsWith('antenna:')) return 'antennas/notes';
     return switch (type) {
       AppConstants.tabTypeHome => 'notes/timeline',
       AppConstants.tabTypeLocal => 'notes/local-timeline',
@@ -51,6 +53,12 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
       AppConstants.tabTypeGlobal => 'notes/global-timeline',
       _ => 'notes/timeline',
     };
+  }
+
+  Map<String, dynamic> getExtraParams(String type) {
+    if (type.startsWith('list:')) return {'listId': type.substring(5)};
+    if (type.startsWith('antenna:')) return {'antennaId': type.substring(8)};
+    return {};
   }
 
   Future<void> fetchNotes({bool loadMore = false}) async {
@@ -69,6 +77,7 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
 
     try {
       final endpoint = getEndpoint(timelineType);
+      final extraParams = getExtraParams(timelineType);
       final untilId = loadMore && state.notes.isNotEmpty
           ? state.notes.last.id
           : null;
@@ -76,6 +85,7 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
         endpoint: endpoint,
         limit: 20,
         untilId: untilId,
+        extraParams: extraParams,
       );
 
       if (loadMore) {
@@ -111,11 +121,13 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
 
     try {
       final endpoint = getEndpoint(timelineType);
+      final extraParams = getExtraParams(timelineType);
       final sinceId = state.notes.first.id;
       final newNotes = await api.getTimeline(
         endpoint: endpoint,
         limit: 20,
         sinceId: sinceId,
+        extraParams: extraParams,
       );
       if (newNotes.isNotEmpty) {
         state = state.copyWith(notes: [...newNotes, ...state.notes]);
