@@ -122,25 +122,28 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
     final source = await showModalBottomSheet<_MediaSource>(
       context: context,
-      builder: (_) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.photo_library_outlined),
-            title: const Text('ギャラリーから選択'),
-            onTap: () => Navigator.pop(context, _MediaSource.gallery),
-          ),
-          ListTile(
-            leading: const Icon(Icons.camera_alt_outlined),
-            title: const Text('カメラで撮影'),
-            onTap: () => Navigator.pop(context, _MediaSource.camera),
-          ),
-          ListTile(
-            leading: const Icon(Icons.cloud_outlined),
-            title: const Text('Misskeyドライブから選択'),
-            onTap: () => Navigator.pop(context, _MediaSource.drive),
-          ),
-        ],
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(ctx).bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('ギャラリーから選択'),
+              onTap: () => Navigator.pop(context, _MediaSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('カメラで撮影'),
+              onTap: () => Navigator.pop(context, _MediaSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.cloud_outlined),
+              title: const Text('Misskeyドライブから選択'),
+              onTap: () => Navigator.pop(context, _MediaSource.drive),
+            ),
+          ],
+        ),
       ),
     );
     if (source == null) return;
@@ -240,31 +243,36 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   void _showVisibilityPicker() {
     showModalBottomSheet(
       context: context,
-      builder: (_) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              '公開範囲',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(ctx).bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                '公開範囲',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
             ),
-          ),
-          ...AppConstants.visibilityLabels.entries.map(
-            (e) => ListTile(
-              leading: Icon(_visibilityIcon(e.key)),
-              title: Text(e.value),
-              trailing: _visibility == e.key
-                  ? const Icon(Icons.check, color: Colors.green)
-                  : null,
-              onTap: () {
-                setState(() => _visibility = e.key);
-                ref.read(settingsProvider.notifier).setDefaultVisibility(e.key);
-                Navigator.pop(context);
-              },
+            ...AppConstants.visibilityLabels.entries.map(
+              (e) => ListTile(
+                leading: Icon(_visibilityIcon(e.key)),
+                title: Text(e.value),
+                trailing: _visibility == e.key
+                    ? const Icon(Icons.check, color: Colors.green)
+                    : null,
+                onTap: () {
+                  setState(() => _visibility = e.key);
+                  ref
+                      .read(settingsProvider.notifier)
+                      .setDefaultVisibility(e.key);
+                  Navigator.pop(context);
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -550,64 +558,68 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           ),
 
           // フッター下段
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(color: theme.colorScheme.outlineVariant),
+          SafeArea(
+            top: false,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: theme.colorScheme.outlineVariant),
+                ),
               ),
-            ),
-            child: Row(
-              children: [
-                // メディア添付（最大4件）
-                IconButton(
-                  icon: _attachedMedia.isNotEmpty
-                      ? Badge(
-                          label: Text('${_attachedMedia.length}'),
-                          child: const Icon(Icons.image_outlined),
-                        )
-                      : const Icon(Icons.image_outlined),
-                  tooltip: 'メディアを添付（最大4件）',
-                  onPressed: _isPosting ? null : _pickMedia,
-                ),
+              child: Row(
+                children: [
+                  // メディア添付（最大4件）
+                  IconButton(
+                    icon: _attachedMedia.isNotEmpty
+                        ? Badge(
+                            label: Text('${_attachedMedia.length}'),
+                            child: const Icon(Icons.image_outlined),
+                          )
+                        : const Icon(Icons.image_outlined),
+                    tooltip: 'メディアを添付（最大4件）',
+                    onPressed: _isPosting ? null : _pickMedia,
+                  ),
 
-                // 下書き一覧
-                IconButton(
-                  icon: const Icon(Icons.edit_note),
-                  tooltip: '下書き一覧',
-                  onPressed: () => context.push('/drafts'),
-                ),
+                  // 下書き一覧
+                  IconButton(
+                    icon: const Icon(Icons.edit_note),
+                    tooltip: '下書き一覧',
+                    onPressed: () => context.push('/drafts'),
+                  ),
 
-                // 絵文字ピッカー
-                IconButton(
-                  icon: const Icon(Icons.emoji_emotions_outlined),
-                  tooltip: '絵文字',
-                  onPressed: () async {
-                    final name = await showModalBottomSheet<String>(
-                      context: context,
-                      isScrollControlled: true,
-                      builder: (_) => const EmojiPickerSheet(),
-                    );
-                    if (name != null && mounted) {
-                      final pos = _textController.selection.baseOffset;
-                      final text = _textController.text;
-                      final insert = ':$name:';
-                      final newText = pos < 0
-                          ? text + insert
-                          : text.substring(0, pos) +
-                                insert +
-                                text.substring(pos);
-                      _textController.value = TextEditingValue(
-                        text: newText,
-                        selection: TextSelection.collapsed(
-                          offset: (pos < 0 ? text.length : pos) + insert.length,
-                        ),
+                  // 絵文字ピッカー
+                  IconButton(
+                    icon: const Icon(Icons.emoji_emotions_outlined),
+                    tooltip: '絵文字',
+                    onPressed: () async {
+                      final name = await showModalBottomSheet<String>(
+                        context: context,
+                        isScrollControlled: true,
+                        builder: (_) => const EmojiPickerSheet(),
                       );
-                      setState(() {});
-                    }
-                  },
-                ),
-              ],
+                      if (name != null && mounted) {
+                        final pos = _textController.selection.baseOffset;
+                        final text = _textController.text;
+                        final insert = ':$name:';
+                        final newText = pos < 0
+                            ? text + insert
+                            : text.substring(0, pos) +
+                                  insert +
+                                  text.substring(pos);
+                        _textController.value = TextEditingValue(
+                          text: newText,
+                          selection: TextSelection.collapsed(
+                            offset:
+                                (pos < 0 ? text.length : pos) + insert.length,
+                          ),
+                        );
+                        setState(() {});
+                      }
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ],
