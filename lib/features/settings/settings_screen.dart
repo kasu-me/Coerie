@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
@@ -268,20 +269,19 @@ class SettingsScreen extends ConsumerWidget {
         .substring(0, 19);
     final defaultName = 'coerie_settings_$timestamp.json';
     final jsonStr = settings.toJsonString();
+    final jsonBytes = Uint8List.fromList(utf8.encode(jsonStr));
 
     try {
-      // 保存先を選択させる
+      // bytes にデータを渡すことで file_picker が SAF 経由で書き込む（Android対応）
       final savePath = await FilePicker.platform.saveFile(
         dialogTitle: '設定のエクスポート先を選択',
         fileName: defaultName,
         type: FileType.custom,
         allowedExtensions: ['json'],
-        bytes: Uint8List(0), // Android 向けダミー（パスベースで書き込む）
+        bytes: jsonBytes,
       );
 
       if (savePath == null) return; // キャンセル
-
-      await File(savePath).writeAsString(jsonStr);
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
