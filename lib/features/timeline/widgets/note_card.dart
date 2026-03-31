@@ -197,6 +197,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                   _formatDateTime(
                     note.createdAt,
                     ref.watch(settingsProvider).dateTimeRelative,
+                    ref.watch(settingsProvider).timezoneOffsetHours,
                   ),
                   style: theme.textTheme.bodySmall,
                 ),
@@ -228,7 +229,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
             if (note.text != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: _LinkedText(text: note.text!),
+                child: _LinkedText(text: note.text!, emojiUrlMap: emojiUrlMap),
               ),
 
             // OGPカード（本文にURLが含まれる場合）
@@ -287,17 +288,20 @@ class _NoteCardState extends ConsumerState<NoteCard> {
     );
   }
 
-  String _formatDateTime(DateTime dt, bool relative) {
+  String _formatDateTime(DateTime dt, bool relative, int? tzOffset) {
     if (relative) {
       final now = DateTime.now();
       final diff = now.difference(dt);
       if (diff.inSeconds < 60) return '${diff.inSeconds}秒前';
       if (diff.inMinutes < 60) return '${diff.inMinutes}分前';
       if (diff.inHours < 24) return '${diff.inHours}時間前';
-      return '${dt.month}/${dt.day}';
+      return '${dt.toLocal().month}/${dt.toLocal().day}';
     } else {
-      return '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')} '
-          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:${dt.second.toString().padLeft(2, '0')}';
+      final d = tzOffset != null
+          ? dt.toUtc().add(Duration(hours: tzOffset))
+          : dt.toLocal();
+      return '${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')} '
+          '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}:${d.second.toString().padLeft(2, '0')}';
     }
   }
 
@@ -535,6 +539,8 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
             'initialText': note.text ?? '',
             'visibility': note.visibility,
             'initialFiles': note.files,
+            if (note.reply != null) 'replyId': note.reply!.id,
+            if (note.reply != null) 'replyToNote': note.reply,
           },
         );
       }
@@ -886,23 +892,26 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
               )
             : null,
       ),
-      body: PageView.builder(
-        controller: PageController(initialPage: widget.initialIndex),
-        itemCount: widget.urls.length,
-        onPageChanged: (i) => setState(() => _current = i),
-        itemBuilder: (_, i) => InteractiveViewer(
-          minScale: 0.5,
-          maxScale: 5.0,
-          child: Center(
-            child: CachedNetworkImage(
-              imageUrl: widget.urls[i],
-              fit: BoxFit.contain,
-              placeholder: (_, _) =>
-                  const CircularProgressIndicator(color: Colors.white),
-              errorWidget: (_, _, _) => const Icon(
-                Icons.broken_image_outlined,
-                color: Colors.white,
-                size: 64,
+      body: SafeArea(
+        top: false,
+        child: PageView.builder(
+          controller: PageController(initialPage: widget.initialIndex),
+          itemCount: widget.urls.length,
+          onPageChanged: (i) => setState(() => _current = i),
+          itemBuilder: (_, i) => InteractiveViewer(
+            minScale: 0.5,
+            maxScale: 5.0,
+            child: Center(
+              child: CachedNetworkImage(
+                imageUrl: widget.urls[i],
+                fit: BoxFit.contain,
+                placeholder: (_, _) =>
+                    const CircularProgressIndicator(color: Colors.white),
+                errorWidget: (_, _, _) => const Icon(
+                  Icons.broken_image_outlined,
+                  color: Colors.white,
+                  size: 64,
+                ),
               ),
             ),
           ),
@@ -915,12 +924,28 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
 // ---- URLをタップ可能リンクとして表示するウィジェット ----
 class _LinkedText extends StatelessWidget {
   final String text;
+  final Map<String, String> emojiUrlMap;
+
+  // OgpCard から参照されるため public static で保持
   static final _urlRegex = RegExp(
     r'https?://[^\s\u3000\u300c\u300d\uff08\uff09\u300e\u300f]+',
     caseSensitive: false,
   );
 
-  const _LinkedText({required this.text});
+  // URL と絵文字の両方を一括でマッチ
+  static final _tokenRegex = RegExp(
+    r'(?:https?://[^\s\u3000\u300c\u300d\uff08\uff09\u300e\u300f]+)'
+    r'|(?::[a-zA-Z0-9_]+(?:@[a-zA-Z0-9._-]*)?:)',
+    caseSensitive: false,
+  );
+
+  const _LinkedText({required this.text, required this.emojiUrlMap});
+
+  static String _emojiName(String token) {
+    final inner = token.substring(1, token.length - 1);
+    final atIdx = inner.indexOf('@');
+    return atIdx >= 0 ? inner.substring(0, atIdx) : inner;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -928,28 +953,51 @@ class _LinkedText extends StatelessWidget {
     final spans = <InlineSpan>[];
     int lastEnd = 0;
 
-    for (final match in _urlRegex.allMatches(text)) {
+    for (final match in _tokenRegex.allMatches(text)) {
       if (match.start > lastEnd) {
         spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
       }
-      final url = match.group(0)!;
-      spans.add(
-        TextSpan(
-          text: url,
-          style: TextStyle(
-            color: theme.colorScheme.primary,
-            decoration: TextDecoration.underline,
-            decorationColor: theme.colorScheme.primary,
+      final token = match.group(0)!;
+      if (token.startsWith(':')) {
+        // カスタム絵文字
+        final name = _emojiName(token);
+        final url = emojiUrlMap[name];
+        if (url != null) {
+          spans.add(
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: CachedNetworkImage(
+                imageUrl: url,
+                height: 20,
+                width: 20,
+                fit: BoxFit.contain,
+                errorWidget: (_, _, _) => Text(token),
+              ),
+            ),
+          );
+        } else {
+          spans.add(TextSpan(text: token));
+        }
+      } else {
+        // URL
+        spans.add(
+          TextSpan(
+            text: token,
+            style: TextStyle(
+              color: theme.colorScheme.primary,
+              decoration: TextDecoration.underline,
+              decorationColor: theme.colorScheme.primary,
+            ),
+            recognizer: TapGestureRecognizer()
+              ..onTap = () async {
+                final uri = Uri.tryParse(token);
+                if (uri != null) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
           ),
-          recognizer: TapGestureRecognizer()
-            ..onTap = () async {
-              final uri = Uri.tryParse(url);
-              if (uri != null) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            },
-        ),
-      );
+        );
+      }
       lastEnd = match.end;
     }
 

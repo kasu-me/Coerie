@@ -75,4 +75,9 @@ class SettingsNotifier extends StateNotifier<AppSettingsModel> {
     state = state.copyWith(defaultVisibility: value);
     await _save();
   }
+
+  Future<void> setTimezoneOffsetHours(int? value) async {
+    state = state.copyWith(timezoneOffsetHours: value);
+    await _save();
+  }
 }

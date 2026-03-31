@@ -76,6 +76,15 @@ class SettingsScreen extends ConsumerWidget {
             onChanged: (v) =>
                 ref.read(settingsProvider.notifier).setDateTimeRelative(v),
           ),
+          if (!settings.dateTimeRelative)
+            ListTile(
+              leading: const Icon(Icons.schedule),
+              title: const Text('絶対時刻のタイムゾーン'),
+              subtitle: Text(_timezoneLabel(settings.timezoneOffsetHours)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () =>
+                  _pickTimezone(context, ref, settings.timezoneOffsetHours),
+            ),
 
           // --- タブ設定 ---
           _SectionHeader('タブ'),
@@ -152,6 +161,71 @@ class SettingsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  static const _tzOptions = [
+    (label: 'デバイスの設定に従う', offset: null),
+    (label: 'UTC-12 (IDLW)', offset: -12),
+    (label: 'UTC-11 (SST)', offset: -11),
+    (label: 'UTC-10 (HST)', offset: -10),
+    (label: 'UTC-9 (AKST)', offset: -9),
+    (label: 'UTC-8 (PST)', offset: -8),
+    (label: 'UTC-7 (MST)', offset: -7),
+    (label: 'UTC-6 (CST)', offset: -6),
+    (label: 'UTC-5 (EST)', offset: -5),
+    (label: 'UTC-4 (AST)', offset: -4),
+    (label: 'UTC-3 (BRT)', offset: -3),
+    (label: 'UTC+0 (UTC/GMT)', offset: 0),
+    (label: 'UTC+1 (CET)', offset: 1),
+    (label: 'UTC+2 (EET)', offset: 2),
+    (label: 'UTC+3 (MSK)', offset: 3),
+    (label: 'UTC+4 (GST)', offset: 4),
+    (label: 'UTC+5 (PKT)', offset: 5),
+    (label: 'UTC+6 (BST)', offset: 6),
+    (label: 'UTC+7 (WIB)', offset: 7),
+    (label: 'UTC+8 (CST/HKT)', offset: 8),
+    (label: 'UTC+9 (JST/KST)', offset: 9),
+    (label: 'UTC+10 (AEST)', offset: 10),
+    (label: 'UTC+11 (AEDT)', offset: 11),
+    (label: 'UTC+12 (NZST)', offset: 12),
+  ];
+
+  static String _timezoneLabel(int? offset) {
+    if (offset == null) return 'デバイスの設定に従う';
+    final match = _tzOptions.where((o) => o.offset == offset).firstOrNull;
+    if (match != null) return match.label;
+    return offset >= 0 ? 'UTC+$offset' : 'UTC$offset';
+  }
+
+  Future<void> _pickTimezone(
+    BuildContext context,
+    WidgetRef ref,
+    int? current,
+  ) async {
+    final selected = await showDialog<({String label, int? offset})>(
+      context: context,
+      builder: (_) => SimpleDialog(
+        title: const Text('タイムゾーンを選択'),
+        children: _tzOptions.map((opt) {
+          return SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, opt),
+            child: Text(
+              opt.label,
+              style: TextStyle(
+                fontWeight: opt.offset == current
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+    if (selected != null) {
+      ref
+          .read(settingsProvider.notifier)
+          .setTimezoneOffsetHours(selected.offset);
+    }
   }
 
   Future<void> _confirmRemoveAccount(

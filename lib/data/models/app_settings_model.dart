@@ -51,6 +51,7 @@ class AppSettingsModel {
   final bool notifyReaction;
   final bool dateTimeRelative; // true=相対表示, false=絶対表示
   final String defaultVisibility; // 投稿のデフォルト公開範囲
+  final int? timezoneOffsetHours; // null=デバイスのローカルタイムゾーン, 数値=UTC+N
 
   const AppSettingsModel({
     this.theme = 'system',
@@ -63,6 +64,7 @@ class AppSettingsModel {
     this.notifyReaction = true,
     this.dateTimeRelative = true,
     this.defaultVisibility = 'public',
+    this.timezoneOffsetHours,
   });
 
   AppSettingsModel copyWith({
@@ -76,6 +78,7 @@ class AppSettingsModel {
     bool? notifyReaction,
     bool? dateTimeRelative,
     String? defaultVisibility,
+    Object? timezoneOffsetHours = _sentinel,
   }) => AppSettingsModel(
     theme: theme ?? this.theme,
     fontSize: fontSize ?? this.fontSize,
@@ -87,7 +90,12 @@ class AppSettingsModel {
     notifyReaction: notifyReaction ?? this.notifyReaction,
     dateTimeRelative: dateTimeRelative ?? this.dateTimeRelative,
     defaultVisibility: defaultVisibility ?? this.defaultVisibility,
+    timezoneOffsetHours: identical(timezoneOffsetHours, _sentinel)
+        ? this.timezoneOffsetHours
+        : timezoneOffsetHours as int?,
   );
+
+  static const Object _sentinel = Object();
 
   Map<String, dynamic> toJson() => {
     'theme': theme,
@@ -100,6 +108,7 @@ class AppSettingsModel {
     'notifyReaction': notifyReaction,
     'dateTimeRelative': dateTimeRelative,
     'defaultVisibility': defaultVisibility,
+    if (timezoneOffsetHours != null) 'timezoneOffsetHours': timezoneOffsetHours,
   };
 
   factory AppSettingsModel.fromJson(Map<String, dynamic> json) =>
@@ -116,6 +125,7 @@ class AppSettingsModel {
         notifyReaction: json['notifyReaction'] as bool? ?? true,
         dateTimeRelative: json['dateTimeRelative'] as bool? ?? true,
         defaultVisibility: json['defaultVisibility'] as String? ?? 'public',
+        timezoneOffsetHours: json['timezoneOffsetHours'] as int?,
       );
 
   factory AppSettingsModel.fromJsonString(String jsonString) =>
