@@ -153,7 +153,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
     final card = Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -274,7 +274,6 @@ class _NoteCardState extends ConsumerState<NoteCard> {
               ),
 
             // アクションボタン
-            const SizedBox(height: 4),
             _ActionBar(note: note, onReaction: _handleReaction),
           ],
         ),
@@ -606,7 +605,6 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
             extra: {'replyId': widget.note.id, 'replyToNote': widget.note},
           ),
         ),
-        const SizedBox(width: 16),
         _ActionButton(
           icon: _isRenoting ? Icons.hourglass_empty : Icons.repeat,
           count: widget.note.renoteCount,
@@ -615,7 +613,6 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
               ? theme.colorScheme.tertiary
               : theme.colorScheme.onSurface.withValues(alpha: 0.3),
         ),
-        const SizedBox(width: 16),
         _ActionButton(
           icon: Icons.add_reaction_outlined,
           count: 0,
@@ -625,7 +622,6 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
         IconButton(
           icon: const Icon(Icons.more_horiz, size: 18),
           onPressed: () => _showNoteMenu(context),
-          style: IconButton.styleFrom(padding: EdgeInsets.zero),
         ),
       ],
     );
@@ -649,16 +645,21 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final c = color ?? theme.colorScheme.outline;
-    return GestureDetector(
+    return InkWell(
       onTap: onTap,
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: c),
-          if (count > 0) ...[
-            const SizedBox(width: 2),
-            Text('$count', style: TextStyle(fontSize: 12, color: c)),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: c),
+            if (count > 0) ...[
+              const SizedBox(width: 2),
+              Text('$count', style: TextStyle(fontSize: 12, color: c)),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -932,12 +933,29 @@ class _LinkedText extends StatelessWidget {
     caseSensitive: false,
   );
 
-  // URL と絵文字の両方を一括でマッチ
+  // URL と絵文字の両方を一括でマッチ（unicode モード）
   static final _tokenRegex = RegExp(
+    // URLs
     r'(?:https?://[^\s\u3000\u300c\u300d\uff08\uff09\u300e\u300f]+)'
-    r'|(?::[a-zA-Z0-9_]+(?:@[a-zA-Z0-9._-]*)?:)',
+    // カスタム絵文字 :name: / :name@server:
+    r'|(?::[a-zA-Z0-9_]+(?:@[a-zA-Z0-9._-]*)?:)'
+    // 国旗 (regional indicator ペア)
+    r'|(?:[\u{1F1E6}-\u{1F1FF}]{2})'
+    // SMP 絵文字 (肌色修飾子 + ZWJシーケンス含む)
+    r'|(?:[\u{1F004}-\u{1FAFF}](?:\u{FE0F})?(?:[\u{1F3FB}-\u{1F3FF}])?'
+    r'(?:\u{200D}(?:[\u{1F004}-\u{1FAFF}]|[\u2640\u2642\u2695\u2696\u2708\u2764])(?:\u{FE0F})?(?:[\u{1F3FB}-\u{1F3FF}])?)*)'
+    // BMP 記号絵文字 (☀️ 等) + 任意 VS16
+    r'|(?:[\u2194-\u27BF]\u{FE0F}?)',
+    unicode: true,
     caseSensitive: false,
   );
+
+  static const _maxUrlDisplayLength = 40;
+
+  static String _twemojiUrl(String emoji) {
+    final parts = emoji.runes.map((r) => r.toRadixString(16)).join('-');
+    return 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/$parts.png';
+  }
 
   const _LinkedText({required this.text, required this.emojiUrlMap});
 
@@ -978,11 +996,14 @@ class _LinkedText extends StatelessWidget {
         } else {
           spans.add(TextSpan(text: token));
         }
-      } else {
-        // URL
+      } else if (token.startsWith('http')) {
+        // URL → 長い場合は短縮表示
+        final display = token.length > _maxUrlDisplayLength
+            ? '${token.substring(0, _maxUrlDisplayLength - 1)}\u2026'
+            : token;
         spans.add(
           TextSpan(
-            text: token,
+            text: display,
             style: TextStyle(
               color: theme.colorScheme.primary,
               decoration: TextDecoration.underline,
@@ -995,6 +1016,21 @@ class _LinkedText extends StatelessWidget {
                   await launchUrl(uri, mode: LaunchMode.externalApplication);
                 }
               },
+          ),
+        );
+      } else {
+        // Unicode 絵文字 → Twemoji CDN で描画
+        spans.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: CachedNetworkImage(
+              imageUrl: _twemojiUrl(token),
+              height: 20,
+              width: 20,
+              fit: BoxFit.contain,
+              errorWidget: (_, _, _) =>
+                  Text(token, style: theme.textTheme.bodyMedium),
+            ),
           ),
         );
       }

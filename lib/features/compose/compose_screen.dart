@@ -335,9 +335,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         automaticallyImplyLeading: false,
         leading: TextButton(
           onPressed: () => context.pop(),
-          child: const Text('キャンセル'),
+          child: const Text('キャンセル', softWrap: false),
         ),
-        leadingWidth: 90,
+        leadingWidth: 110,
         actions: [
           TextButton.icon(
             onPressed: _saveDraft,

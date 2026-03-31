@@ -200,9 +200,14 @@ class _NotificationTile extends StatelessWidget {
     final n = notification;
 
     return InkWell(
-      onTap: n.note != null
-          ? () => context.push('/profile/${n.user?.id ?? ''}')
-          : null,
+      onTap: () {
+        const noteTypes = {'mention', 'reply', 'renote', 'quote', 'reaction'};
+        if (n.note != null && noteTypes.contains(n.type)) {
+          context.push('/note/${n.note!.id}', extra: n.note);
+        } else if (n.user != null) {
+          context.push('/profile/${n.user!.id}');
+        }
+      },
       child: Container(
         color: n.isRead
             ? null

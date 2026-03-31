@@ -16,25 +16,74 @@ final userProfileProvider = FutureProvider.family<UserModel, String>((
   return api.getUser(userId);
 });
 
-// ユーザー投稿プロバイダー
-final userNotesProvider = FutureProvider.family<List<NoteModel>, String>((
-  ref,
-  userId,
-) async {
-  final api = ref.watch(misskeyApiProvider);
-  if (api == null) throw Exception('未ログイン');
-  return api.getUserNotes(userId: userId, limit: 20);
-});
+// ---- 投稿ページネーション ----
+class _ProfileNotesState {
+  final List<NoteModel> notes;
+  final bool isLoading;
+  final bool hasMore;
 
-// メディア付き投稿プロバイダー
-final userMediaNotesProvider = FutureProvider.family<List<NoteModel>, String>((
-  ref,
-  userId,
-) async {
-  final api = ref.watch(misskeyApiProvider);
-  if (api == null) throw Exception('未ログイン');
-  return api.getUserNotes(userId: userId, limit: 20, withFiles: true);
-});
+  const _ProfileNotesState({
+    this.notes = const [],
+    this.isLoading = false,
+    this.hasMore = true,
+  });
+
+  _ProfileNotesState copyWith({
+    List<NoteModel>? notes,
+    bool? isLoading,
+    bool? hasMore,
+  }) => _ProfileNotesState(
+    notes: notes ?? this.notes,
+    isLoading: isLoading ?? this.isLoading,
+    hasMore: hasMore ?? this.hasMore,
+  );
+}
+
+class _ProfileNotesNotifier extends StateNotifier<_ProfileNotesState> {
+  final Ref _ref;
+  final String userId;
+  final bool withFiles;
+
+  _ProfileNotesNotifier(this._ref, this.userId, {this.withFiles = false})
+    : super(const _ProfileNotesState()) {
+    fetch();
+  }
+
+  Future<void> fetch({bool loadMore = false}) async {
+    if (state.isLoading) return;
+    if (loadMore && !state.hasMore) return;
+
+    final api = _ref.read(misskeyApiProvider);
+    if (api == null) return;
+
+    state = state.copyWith(isLoading: true);
+    try {
+      final untilId = loadMore && state.notes.isNotEmpty
+          ? state.notes.last.id
+          : null;
+      final notes = await api.getUserNotes(
+        userId: userId,
+        limit: 20,
+        withFiles: withFiles,
+        untilId: untilId,
+      );
+      state = state.copyWith(
+        isLoading: false,
+        notes: loadMore ? [...state.notes, ...notes] : notes,
+        hasMore: notes.length >= 20,
+      );
+    } catch (_) {
+      state = state.copyWith(isLoading: false);
+    }
+  }
+}
+
+typedef _NotesProviderKey = ({String userId, bool withFiles});
+
+final _profileNotesProvider = StateNotifierProvider.autoDispose
+    .family<_ProfileNotesNotifier, _ProfileNotesState, _NotesProviderKey>(
+      (ref, p) => _ProfileNotesNotifier(ref, p.userId, withFiles: p.withFiles),
+    );
 
 class ProfileScreen extends ConsumerWidget {
   final String userId;
@@ -69,17 +118,27 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
-class _ProfileBody extends ConsumerWidget {
+class _ProfileBody extends ConsumerStatefulWidget {
   final UserModel user;
   final String userId;
 
   const _ProfileBody({required this.user, required this.userId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ProfileBody> createState() => _ProfileBodyState();
+}
+
+class _ProfileBodyState extends ConsumerState<_ProfileBody> {
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final notesAsync = ref.watch(userNotesProvider(userId));
-    final mediaNotesAsync = ref.watch(userMediaNotesProvider(userId));
+    final notesState = ref.watch(
+      _profileNotesProvider((userId: widget.userId, withFiles: false)),
+    );
+    final mediaState = ref.watch(
+      _profileNotesProvider((userId: widget.userId, withFiles: true)),
+    );
+    final user = widget.user;
 
     return DefaultTabController(
       length: 2,
@@ -195,34 +254,54 @@ class _ProfileBody extends ConsumerWidget {
         ],
         body: TabBarView(
           children: [
-            // 全投稿タブ
-            notesAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(
-                child: Text(e.toString().replaceFirst('Exception: ', '')),
-              ),
-              data: (notes) => notes.isEmpty
-                  ? const Center(child: Text('投稿がありません'))
-                  : ListView.builder(
-                      itemCount: notes.length,
-                      itemBuilder: (context, i) => NoteCard(note: notes[i]),
-                    ),
-            ),
-            // メディアタブ
-            mediaNotesAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(
-                child: Text(e.toString().replaceFirst('Exception: ', '')),
-              ),
-              data: (notes) => notes.isEmpty
-                  ? const Center(child: Text('メディア付きの投稿がありません'))
-                  : ListView.builder(
-                      itemCount: notes.length,
-                      itemBuilder: (context, i) => NoteCard(note: notes[i]),
-                    ),
-            ),
+            _buildNotesList(notesState, (
+              userId: widget.userId,
+              withFiles: false,
+            ), '投稿がありません'),
+            _buildNotesList(mediaState, (
+              userId: widget.userId,
+              withFiles: true,
+            ), 'メディア付きの投稿がありません'),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildNotesList(
+    _ProfileNotesState state,
+    _NotesProviderKey providerKey,
+    String emptyMessage,
+  ) {
+    if (state.isLoading && state.notes.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (state.notes.isEmpty) {
+      return Center(child: Text(emptyMessage));
+    }
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        if (n is ScrollUpdateNotification &&
+            n.metrics.pixels >= n.metrics.maxScrollExtent - 300) {
+          ref
+              .read(_profileNotesProvider(providerKey).notifier)
+              .fetch(loadMore: true);
+        }
+        return false;
+      },
+      child: ListView.builder(
+        itemCount: state.notes.length + (state.hasMore ? 1 : 0),
+        itemBuilder: (context, i) {
+          if (i == state.notes.length) {
+            return state.isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                : const SizedBox.shrink();
+          }
+          return NoteCard(note: state.notes[i]);
+        },
       ),
     );
   }
