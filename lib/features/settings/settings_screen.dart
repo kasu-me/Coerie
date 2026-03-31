@@ -325,7 +325,7 @@ class SettingsScreen extends ConsumerWidget {
     String jsonStr;
     try {
       if (bytes != null) {
-        jsonStr = String.fromCharCodes(bytes);
+        jsonStr = utf8.decode(bytes);
       } else if (path != null) {
         jsonStr = await File(path).readAsString();
       } else {
