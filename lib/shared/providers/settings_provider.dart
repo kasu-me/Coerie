@@ -80,4 +80,14 @@ class SettingsNotifier extends StateNotifier<AppSettingsModel> {
     state = state.copyWith(timezoneOffsetHours: value);
     await _save();
   }
+
+  Future<void> setConfirmDestructive(bool value) async {
+    state = state.copyWith(confirmDestructive: value);
+    await _save();
+  }
+
+  Future<void> importSettings(AppSettingsModel settings) async {
+    state = settings;
+    await _save();
+  }
 }

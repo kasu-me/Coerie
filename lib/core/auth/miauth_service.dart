@@ -18,6 +18,10 @@ const _permissions = [
   'write:following',
   'read:drive',
   'write:drive',
+  'read:mutes',
+  'write:mutes',
+  'read:blocks',
+  'write:blocks',
 ];
 
 class MiAuthService {
@@ -102,7 +106,8 @@ class MiAuthService {
 
   /// OOM Kill 後にアプリがディープリンクで再起動した場合に認証を再開する。
   /// 未処理のコールバックがなければ null を返す。
-  static Future<({String token, UserModel user, String host})?> tryResumeAuth() async {
+  static Future<({String token, UserModel user, String host})?>
+  tryResumeAuth() async {
     if (_bufferedUri == null) return null;
 
     final prefs = await SharedPreferences.getInstance();
@@ -131,8 +136,7 @@ class MiAuthService {
   ) async {
     final dio = Dio();
     try {
-      final res =
-          await dio.post('https://$host/api/miauth/$sessionId/check');
+      final res = await dio.post('https://$host/api/miauth/$sessionId/check');
       final data = res.data as Map<String, dynamic>;
 
       await prefs.remove(_prefKeySession);

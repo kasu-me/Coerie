@@ -60,6 +60,10 @@ dependencies:
   # 動画再生
   video_player: ^2.9.3
   chewie: ^1.10.0
+  # ファイルパス取得
+  path_provider: ^2.1.5
+  # ファイル選択
+  file_picker: ^8.1.7
 
 dev_dependencies:
   flutter_test:

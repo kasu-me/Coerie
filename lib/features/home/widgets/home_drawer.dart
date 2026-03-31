@@ -40,6 +40,14 @@ class HomeDrawer extends ConsumerWidget {
                 context.push('/drafts');
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.volume_off_outlined),
+              title: const Text('ミュート・ブロック'),
+              onTap: () {
+                Navigator.of(context).pop();
+                context.push('/mute-block');
+              },
+            ),
             const Spacer(),
             const Divider(),
             ListTile(
@@ -102,12 +110,11 @@ class _ProfileHeader extends StatelessWidget {
                       ),
               ),
               const Spacer(),
-              if (accounts.length > 1)
-                IconButton(
-                  icon: const Icon(Icons.swap_horiz),
-                  tooltip: 'アカウント切り替え',
-                  onPressed: () => _showAccountSwitcher(context),
-                ),
+              IconButton(
+                icon: const Icon(Icons.manage_accounts),
+                tooltip: 'アカウント管理',
+                onPressed: () => _showAccountSwitcher(context),
+              ),
             ],
           ),
           const SizedBox(height: 8),

@@ -16,6 +16,10 @@ const _permissions = [
   'write:following',
   'read:drive',
   'write:drive',
+  'read:mutes',
+  'write:mutes',
+  'read:blocks',
+  'write:blocks',
 ];
 
 /// MiAuth をアプリ内 WebView で完結させる画面。
@@ -62,9 +66,7 @@ class _MiAuthWebViewScreenState extends State<MiAuthWebViewScreen> {
           },
           onNavigationRequest: (request) {
             final uri = Uri.tryParse(request.url);
-            if (uri != null &&
-                uri.scheme == 'coerie' &&
-                uri.host == 'auth') {
+            if (uri != null && uri.scheme == 'coerie' && uri.host == 'auth') {
               // Deep Link を受信 → セッションチェック
               _checkSession();
               return NavigationDecision.prevent;
@@ -141,8 +143,7 @@ class _MiAuthWebViewScreenState extends State<MiAuthWebViewScreen> {
       body: Stack(
         children: [
           WebViewWidget(controller: _controller),
-          if (_isLoading && !_isProcessing)
-            const LinearProgressIndicator(),
+          if (_isLoading && !_isProcessing) const LinearProgressIndicator(),
         ],
       ),
     );

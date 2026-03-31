@@ -127,6 +127,8 @@ class _NoteCardState extends ConsumerState<NoteCard> {
 
     // リノート（引用なし）の場合
     if (note.text == null && note.renote != null) {
+      final activeAccount = ref.read(activeAccountProvider);
+      final isMyRenote = activeAccount?.userId == note.user.id;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -136,12 +138,19 @@ class _NoteCardState extends ConsumerState<NoteCard> {
               children: [
                 Icon(Icons.repeat, size: 14, color: theme.colorScheme.tertiary),
                 const SizedBox(width: 4),
-                Text(
-                  '${note.user.name} がリノート',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.tertiary,
+                Expanded(
+                  child: Text(
+                    '${note.user.name} がリノート',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.tertiary,
+                    ),
                   ),
                 ),
+                if (isMyRenote)
+                  _UnrenoteButton(
+                    originalNoteId: note.renote!.id,
+                    renoteWrapperNoteId: note.id,
+                  ),
               ],
             ),
           ),
@@ -481,6 +490,32 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
   }
 
   Future<void> _deleteNote(BuildContext context) async {
+    final settings = ref.read(settingsProvider);
+    if (settings.confirmDestructive) {
+      final confirmed =
+          await showDialog<bool>(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('ノートを削除'),
+              content: const Text('このノートを削除しますか？この操作は取り消せません。'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('キャンセル'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('削除'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (!confirmed) return;
+    }
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
     try {
@@ -559,6 +594,31 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
   Future<void> _renote() async {
     final api = ref.read(misskeyApiProvider);
     if (api == null || _isRenoting) return;
+
+    final settings = ref.read(settingsProvider);
+    if (settings.confirmDestructive) {
+      final confirmed =
+          await showDialog<bool>(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('リノート'),
+              content: const Text('このノートをリノートしますか？'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('キャンセル'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('リノート'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (!mounted || !confirmed) return;
+    }
+
     setState(() => _isRenoting = true);
     try {
       await api.renote(widget.note.id);
@@ -1044,5 +1104,106 @@ class _LinkedText extends StatelessWidget {
     return RichText(
       text: TextSpan(style: theme.textTheme.bodyMedium, children: spans),
     );
+  }
+}
+
+// ---- リノート解除ボタン ----
+
+class _UnrenoteButton extends ConsumerStatefulWidget {
+  final String originalNoteId; // 元ノートのID（API呼び出し用）
+  final String renoteWrapperNoteId; // リノートラッパーのID（TL削除用）
+
+  const _UnrenoteButton({
+    required this.originalNoteId,
+    required this.renoteWrapperNoteId,
+  });
+
+  @override
+  ConsumerState<_UnrenoteButton> createState() => _UnrenoteButtonState();
+}
+
+class _UnrenoteButtonState extends ConsumerState<_UnrenoteButton> {
+  bool _isLoading = false;
+
+  Future<void> _unrenote() async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null || _isLoading) return;
+
+    final settings = ref.read(settingsProvider);
+    if (settings.confirmDestructive) {
+      final confirmed =
+          await showDialog<bool>(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('リノートを解除'),
+              content: const Text('このリノートを解除しますか？'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('キャンセル'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('解除'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (!mounted || !confirmed) return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await api.unrenote(widget.originalNoteId);
+      // TLからリノートラッパーを削除
+      for (final type in [
+        AppConstants.tabTypeHome,
+        AppConstants.tabTypeLocal,
+        AppConstants.tabTypeSocial,
+        AppConstants.tabTypeGlobal,
+      ]) {
+        ref
+            .read(timelineProvider(type).notifier)
+            .removeNote(widget.renoteWrapperNoteId);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('リノートを解除しました')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('リノート解除に失敗しました: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _isLoading
+        ? const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : IconButton(
+            icon: Icon(
+              Icons.repeat_one_outlined,
+              size: 16,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            tooltip: 'リノートを解除',
+            onPressed: _unrenote,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          );
   }
 }

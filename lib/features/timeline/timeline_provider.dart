@@ -2,6 +2,7 @@
 import '../../data/models/note_model.dart';
 import '../../core/constants/app_constants.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/providers/account_provider.dart';
 
 class TimelineState {
   final List<NoteModel> notes;
@@ -41,6 +42,13 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
   TimelineNotifier(this._ref, this.timelineType)
     : super(const TimelineState()) {
     fetchNotes();
+    // アカウント切り替え時にTLをリセット＆再取得
+    _ref.listen(activeAccountProvider, (prev, next) {
+      if (prev?.id != next?.id) {
+        state = const TimelineState();
+        fetchNotes();
+      }
+    });
   }
 
   String getEndpoint(String type) {

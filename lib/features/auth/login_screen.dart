@@ -43,11 +43,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     try {
       // アプリ内 WebView で MiAuth 認証を行う（外部ブラウザ不要）
-      final result = await Navigator.of(context).push<({String token, dynamic user})>(
-        MaterialPageRoute(
-          builder: (_) => MiAuthWebViewScreen(host: host),
-        ),
-      );
+      final result = await Navigator.of(context)
+          .push<({String token, dynamic user})>(
+            MaterialPageRoute(builder: (_) => MiAuthWebViewScreen(host: host)),
+          );
 
       if (result == null) {
         // ユーザーがキャンセル
@@ -55,7 +54,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
 
-      await ref.read(accountProvider.notifier).addAccount(
+      await ref
+          .read(accountProvider.notifier)
+          .addAccount(
             AccountModel(
               id: const Uuid().v4(),
               host: host,
@@ -91,16 +92,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               Text(
                 'Coerie',
                 style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Misskey クライアント',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
+                  color: Theme.of(context).colorScheme.outline,
+                ),
               ),
               const SizedBox(height: 48),
               Form(
@@ -109,7 +110,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   controller: _hostController,
                   decoration: const InputDecoration(
                     labelText: 'サーバー URL',
-                    hintText: 'misskey.io',
+                    hintText: 'misskey.example.com',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.dns_outlined),
                   ),
@@ -170,8 +171,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 'サーバーの認証ページをアプリ内で開きます。',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
+                  color: Theme.of(context).colorScheme.outline,
+                ),
               ),
             ],
           ),

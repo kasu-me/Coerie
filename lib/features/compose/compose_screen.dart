@@ -10,6 +10,7 @@ import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../draft/draft_provider.dart';
+import '../timeline/timeline_provider.dart';
 import 'emoji_picker_sheet.dart';
 
 sealed class _AttachedMedia {}
@@ -55,6 +56,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   final List<_AttachedMedia> _attachedMedia = [];
   bool _isPosting = false;
   bool _isUploadingMedia = false;
+  List<Map<String, dynamic>> _emojiSuggestions = [];
 
   @override
   void initState() {
@@ -194,6 +196,61 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     setState(() => _attachedMedia.removeAt(index));
   }
 
+  /// テキスト変更時に絵文字サジェストを更新する
+  void _updateEmojiSuggestions(String text) {
+    final selection = _textController.selection;
+    if (!selection.isValid || selection.baseOffset < 0) {
+      if (_emojiSuggestions.isNotEmpty) setState(() => _emojiSuggestions = []);
+      return;
+    }
+    final cursorPos = selection.baseOffset.clamp(0, text.length);
+    final textBeforeCursor = text.substring(0, cursorPos);
+    final lastColon = textBeforeCursor.lastIndexOf(':');
+    if (lastColon < 0) {
+      if (_emojiSuggestions.isNotEmpty) setState(() => _emojiSuggestions = []);
+      return;
+    }
+    final partial = textBeforeCursor.substring(lastColon + 1);
+    // スペース・改行・コロンが含まれる場合はサジェスト非表示
+    if (partial.isEmpty ||
+        partial.contains(' ') ||
+        partial.contains('\n') ||
+        partial.contains(':')) {
+      if (_emojiSuggestions.isNotEmpty) setState(() => _emojiSuggestions = []);
+      return;
+    }
+    final emojis = ref.read(customEmojisProvider).value ?? [];
+    final q = partial.toLowerCase();
+    final suggestions = emojis
+        .where((e) {
+          final name = (e['name'] as String? ?? '').toLowerCase();
+          return name.contains(q);
+        })
+        .take(20)
+        .toList();
+    setState(() => _emojiSuggestions = suggestions);
+  }
+
+  /// サジェストから絵文字を選択して挿入する
+  void _insertEmojiSuggestion(String name) {
+    final selection = _textController.selection;
+    final text = _textController.text;
+    final cursorPos = (selection.isValid && selection.baseOffset >= 0)
+        ? selection.baseOffset.clamp(0, text.length)
+        : text.length;
+    final textBeforeCursor = text.substring(0, cursorPos);
+    final lastColon = textBeforeCursor.lastIndexOf(':');
+    if (lastColon < 0) return;
+    final insert = ':$name:';
+    final newText =
+        text.substring(0, lastColon) + insert + text.substring(cursorPos);
+    _textController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: lastColon + insert.length),
+    );
+    setState(() => _emojiSuggestions = []);
+  }
+
   Future<void> _post() async {
     if (_textController.text.trim().isEmpty && _attachedMedia.isEmpty) return;
     if (_isOverLimit || _isPosting) return;
@@ -229,6 +286,17 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       if (_currentDraftId != null) {
         await ref.read(draftProvider.notifier).deleteDraft(_currentDraftId!);
       }
+
+      // 投稿後にすべてのメインTLを最新ノートで更新
+      for (final type in [
+        AppConstants.tabTypeHome,
+        AppConstants.tabTypeLocal,
+        AppConstants.tabTypeSocial,
+        AppConstants.tabTypeGlobal,
+      ]) {
+        ref.read(timelineProvider(type).notifier).fetchNew();
+      }
+
       if (mounted) context.pop();
     } catch (e) {
       if (mounted) {
@@ -397,10 +465,20 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                       : '何かつぶやく...',
                   border: InputBorder.none,
                 ),
-                onChanged: (_) => setState(() {}),
+                onChanged: (_) {
+                  setState(() {});
+                  _updateEmojiSuggestions(_textController.text);
+                },
               ),
             ),
           ),
+
+          // 絵文字サジェストバー
+          if (_emojiSuggestions.isNotEmpty)
+            _EmojiSuggestBar(
+              suggestions: _emojiSuggestions,
+              onSelect: _insertEmojiSuggestion,
+            ),
 
           // 添付画像プレビュー（テキストエリアとフッターの間）
           if (_attachedMedia.isNotEmpty)
@@ -645,5 +723,82 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       AppConstants.visibilitySpecified => Icons.mail_outline,
       _ => Icons.public,
     };
+  }
+}
+
+// ---- 絵文字サジェストバー ----
+
+class _EmojiSuggestBar extends ConsumerWidget {
+  final List<Map<String, dynamic>> suggestions;
+  final void Function(String name) onSelect;
+
+  const _EmojiSuggestBar({required this.suggestions, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    // 絵文字URLマップ
+    final emojisAsync = ref.watch(customEmojisProvider);
+    final urlMap = emojisAsync.when(
+      data: (list) => {
+        for (final e in list)
+          if (e['name'] != null && e['url'] != null)
+            e['name'] as String: e['url'] as String,
+      },
+      loading: () => <String, String>{},
+      error: (_, __) => <String, String>{},
+    );
+
+    return Container(
+      height: 52,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        border: Border(
+          top: BorderSide(color: theme.colorScheme.outlineVariant),
+          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        itemCount: suggestions.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 4),
+        itemBuilder: (_, i) {
+          final emoji = suggestions[i];
+          final name = emoji['name'] as String? ?? '';
+          final url = urlMap[name] ?? emoji['url'] as String?;
+          return InkWell(
+            onTap: () => onSelect(name),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: theme.colorScheme.outline),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (url != null)
+                    CachedNetworkImage(
+                      imageUrl: url,
+                      width: 24,
+                      height: 24,
+                      fit: BoxFit.contain,
+                      errorWidget: (_, _, _) =>
+                          const Icon(Icons.emoji_emotions, size: 20),
+                    )
+                  else
+                    const Icon(Icons.emoji_emotions, size: 20),
+                  const SizedBox(width: 4),
+                  Text(':$name:', style: theme.textTheme.bodySmall),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 }

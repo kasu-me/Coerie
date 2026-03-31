@@ -9,6 +9,7 @@ import '../../features/compose/compose_screen.dart';
 import '../../features/draft/draft_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/settings/tabs_settings_screen.dart';
+import '../../features/settings/mute_block_screen.dart';
 import '../../features/notifications/notification_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/timeline/note_detail_screen.dart';
@@ -74,6 +75,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const TabsSettingsScreen(),
           ),
         ],
+      ),
+      GoRoute(
+        path: '/mute-block',
+        builder: (context, state) => const MuteBlockScreen(),
       ),
       GoRoute(
         path: '/notifications',

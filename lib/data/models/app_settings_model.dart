@@ -52,6 +52,7 @@ class AppSettingsModel {
   final bool dateTimeRelative; // true=相対表示, false=絶対表示
   final String defaultVisibility; // 投稿のデフォルト公開範囲
   final int? timezoneOffsetHours; // null=デバイスのローカルタイムゾーン, 数値=UTC+N
+  final bool confirmDestructive; // 破壊的操作の確認ダイアログを表示する
 
   const AppSettingsModel({
     this.theme = 'system',
@@ -65,6 +66,7 @@ class AppSettingsModel {
     this.dateTimeRelative = true,
     this.defaultVisibility = 'public',
     this.timezoneOffsetHours,
+    this.confirmDestructive = false,
   });
 
   AppSettingsModel copyWith({
@@ -79,6 +81,7 @@ class AppSettingsModel {
     bool? dateTimeRelative,
     String? defaultVisibility,
     Object? timezoneOffsetHours = _sentinel,
+    bool? confirmDestructive,
   }) => AppSettingsModel(
     theme: theme ?? this.theme,
     fontSize: fontSize ?? this.fontSize,
@@ -93,6 +96,7 @@ class AppSettingsModel {
     timezoneOffsetHours: identical(timezoneOffsetHours, _sentinel)
         ? this.timezoneOffsetHours
         : timezoneOffsetHours as int?,
+    confirmDestructive: confirmDestructive ?? this.confirmDestructive,
   );
 
   static const Object _sentinel = Object();
@@ -109,6 +113,7 @@ class AppSettingsModel {
     'dateTimeRelative': dateTimeRelative,
     'defaultVisibility': defaultVisibility,
     if (timezoneOffsetHours != null) 'timezoneOffsetHours': timezoneOffsetHours,
+    'confirmDestructive': confirmDestructive,
   };
 
   factory AppSettingsModel.fromJson(Map<String, dynamic> json) =>
@@ -126,6 +131,7 @@ class AppSettingsModel {
         dateTimeRelative: json['dateTimeRelative'] as bool? ?? true,
         defaultVisibility: json['defaultVisibility'] as String? ?? 'public',
         timezoneOffsetHours: json['timezoneOffsetHours'] as int?,
+        confirmDestructive: json['confirmDestructive'] as bool? ?? false,
       );
 
   factory AppSettingsModel.fromJsonString(String jsonString) =>

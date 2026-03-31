@@ -97,6 +97,10 @@ class MisskeyApi {
     );
   }
 
+  Future<void> unrenote(String noteId) async {
+    await _dio.post('notes/unrenote', data: _body({'noteId': noteId}));
+  }
+
   // ---- ユーザー ----
 
   Future<UserModel> getUser(String userId) async {
@@ -251,5 +255,67 @@ class MisskeyApi {
     return (res.data as List<dynamic>)
         .map((e) => NoteModel.fromJson(e as Map<String, dynamic>, host: host))
         .toList();
+  }
+
+  // ---- ミュート（ユーザー） ----
+
+  Future<List<Map<String, dynamic>>> getMutingList({
+    int limit = 100,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('mute/list', data: _body(params));
+    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  Future<void> muteUser(String userId) async {
+    await _dio.post('mute/create', data: _body({'userId': userId}));
+  }
+
+  Future<void> unmuteUser(String userId) async {
+    await _dio.post('mute/delete', data: _body({'userId': userId}));
+  }
+
+  // ---- ブロック（ユーザー） ----
+
+  Future<List<Map<String, dynamic>>> getBlockingList({
+    int limit = 100,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('blocking/list', data: _body(params));
+    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  Future<void> blockUser(String userId) async {
+    await _dio.post('blocking/create', data: _body({'userId': userId}));
+  }
+
+  Future<void> unblockUser(String userId) async {
+    await _dio.post('blocking/delete', data: _body({'userId': userId}));
+  }
+
+  // ---- ワードミュート ----
+
+  /// 現在のワードミュート設定を取得する（i エンドポイントから）
+  Future<List<List<String>>> getMutedWords() async {
+    final res = await _dio.post('i', data: _body({}));
+    final data = res.data as Map<String, dynamic>;
+    final raw = data['mutedWords'] as List<dynamic>? ?? [];
+    return raw
+        .map((item) {
+          if (item is List) return item.cast<String>();
+          if (item is String) return [item];
+          return <String>[];
+        })
+        .where((w) => w.isNotEmpty)
+        .toList();
+  }
+
+  /// ワードミュートを更新する
+  Future<void> setMutedWords(List<List<String>> words) async {
+    await _dio.post('i/update', data: _body({'mutedWords': words}));
   }
 }

@@ -1,8 +1,12 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../../shared/providers/account_provider.dart';
+import '../../data/models/app_settings_model.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -96,6 +100,16 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => context.push('/settings/tabs'),
           ),
 
+          // --- 操作設定 ---
+          _SectionHeader('操作'),
+          SwitchListTile(
+            title: const Text('破壊的操作の前に確認する'),
+            subtitle: const Text('ノート削除・リノート解除などで確認ダイアログを表示する'),
+            value: settings.confirmDestructive,
+            onChanged: (v) =>
+                ref.read(settingsProvider.notifier).setConfirmDestructive(v),
+          ),
+
           // --- 通知設定 ---
           _SectionHeader('通知'),
           SwitchListTile(
@@ -157,6 +171,21 @@ class SettingsScreen extends ConsumerWidget {
             leading: const Icon(Icons.add),
             title: const Text('アカウントを追加'),
             onTap: () => context.push('/login'),
+          ),
+
+          // --- データ管理 ---
+          _SectionHeader('データ管理'),
+          ListTile(
+            leading: const Icon(Icons.upload_outlined),
+            title: const Text('設定をエクスポート'),
+            subtitle: const Text('設定内容をJSONファイルとして保存'),
+            onTap: () => _exportSettings(context, settings),
+          ),
+          ListTile(
+            leading: const Icon(Icons.download_outlined),
+            title: const Text('設定をインポート'),
+            subtitle: const Text('JSONファイルから設定を復元'),
+            onTap: () => _importSettings(context, ref),
           ),
         ],
       ),
@@ -225,6 +254,112 @@ class SettingsScreen extends ConsumerWidget {
       ref
           .read(settingsProvider.notifier)
           .setTimezoneOffsetHours(selected.offset);
+    }
+  }
+
+  Future<void> _exportSettings(
+    BuildContext context,
+    AppSettingsModel settings,
+  ) async {
+    final timestamp = DateTime.now()
+        .toIso8601String()
+        .replaceAll(':', '-')
+        .replaceAll('.', '-')
+        .substring(0, 19);
+    final defaultName = 'coerie_settings_$timestamp.json';
+    final jsonStr = settings.toJsonString();
+
+    try {
+      // 保存先を選択させる
+      final savePath = await FilePicker.platform.saveFile(
+        dialogTitle: '設定のエクスポート先を選択',
+        fileName: defaultName,
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        bytes: Uint8List(0), // Android 向けダミー（パスベースで書き込む）
+      );
+
+      if (savePath == null) return; // キャンセル
+
+      await File(savePath).writeAsString(jsonStr);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('保存しました: $savePath'),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('エクスポートに失敗しました: $e')));
+      }
+    }
+  }
+
+  Future<void> _importSettings(BuildContext context, WidgetRef ref) async {
+    FilePickerResult? result;
+    try {
+      result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        withData: true,
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ファイル選択に失敗しました: $e')));
+      }
+      return;
+    }
+
+    // キャンセル
+    if (result == null || result.files.isEmpty) return;
+
+    final bytes = result.files.first.bytes;
+    final path = result.files.first.path;
+    String jsonStr;
+    try {
+      if (bytes != null) {
+        jsonStr = String.fromCharCodes(bytes);
+      } else if (path != null) {
+        jsonStr = await File(path).readAsString();
+      } else {
+        throw const FormatException('ファイルを読み込めませんでした');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ファイルの読み込みに失敗しました: $e')));
+      }
+      return;
+    }
+
+    try {
+      final imported = AppSettingsModel.fromJsonString(jsonStr);
+      await ref.read(settingsProvider.notifier).importSettings(imported);
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('設定をインポートしました')));
+      }
+    } on FormatException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('無効なJSONです: ${e.message}')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('インポートに失敗しました: $e')));
+      }
     }
   }
 
