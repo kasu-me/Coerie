@@ -110,6 +110,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 Expanded(
                   child: TabBarView(
                     controller: _tabController,
+                    physics: const ClampingScrollPhysics(),
                     children: tabs
                         .map(
                           (t) => t.type == AppConstants.tabTypeNotifications

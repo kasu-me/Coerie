@@ -1,6 +1,8 @@
-﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'dart:async';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/note_model.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/streaming/streaming_service.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
 
@@ -38,6 +40,7 @@ final timelineProvider =
 class TimelineNotifier extends StateNotifier<TimelineState> {
   final Ref _ref;
   final String timelineType;
+  StreamSubscription<NoteUpdateEvent>? _noteUpdateSub;
 
   TimelineNotifier(this._ref, this.timelineType)
     : super(const TimelineState()) {
@@ -49,6 +52,27 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
         fetchNotes();
       }
     });
+    // ストリーミングサービスの削除イベントを購読
+    _subscribeNoteUpdates(_ref.read(streamingServiceProvider));
+    _ref.listen<StreamingService?>(streamingServiceProvider, (prev, next) {
+      _noteUpdateSub?.cancel();
+      _subscribeNoteUpdates(next);
+    });
+  }
+
+  void _subscribeNoteUpdates(StreamingService? streaming) {
+    if (streaming == null) return;
+    _noteUpdateSub = streaming.noteUpdateStream.listen((event) {
+      if (event.type == 'deleted') {
+        removeNote(event.noteId);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _noteUpdateSub?.cancel();
+    super.dispose();
   }
 
   String getEndpoint(String type) {
@@ -138,7 +162,14 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
         extraParams: extraParams,
       );
       if (newNotes.isNotEmpty) {
-        state = state.copyWith(notes: [...newNotes, ...state.notes]);
+        // WebSocket の prependNote と競合した場合の重複を除去
+        final existingIds = state.notes.map((n) => n.id).toSet();
+        final unique = newNotes
+            .where((n) => !existingIds.contains(n.id))
+            .toList();
+        if (unique.isNotEmpty) {
+          state = state.copyWith(notes: [...unique, ...state.notes]);
+        }
       }
       return newNotes;
     } catch (_) {

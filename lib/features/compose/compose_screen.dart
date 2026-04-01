@@ -429,284 +429,221 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     final account = ref.watch(activeAccountProvider);
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        leading: TextButton(
-          onPressed: () => context.pop(),
-          child: const Text('キャンセル', softWrap: false),
-        ),
-        leadingWidth: 110,
-        actions: [
-          TextButton.icon(
-            onPressed: _saveDraft,
-            icon: const Icon(Icons.save_outlined, size: 18),
-            label: const Text('下書き'),
+    return TooltipTheme(
+      data: const TooltipThemeData(preferBelow: false),
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          leading: TextButton(
+            onPressed: () => context.pop(),
+            child: const Text('キャンセル', softWrap: false),
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // リプライ先プレビュー（テキストエリアの外に固定表示）
-          if (widget.replyToNote != null)
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                border: Border.all(color: theme.colorScheme.outlineVariant),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.replyToNote!.user.acct,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (widget.replyToNote!.text != null)
+          leadingWidth: 110,
+          actions: [
+            TextButton.icon(
+              onPressed: _saveDraft,
+              icon: const Icon(Icons.save_outlined, size: 18),
+              label: const Text('下書き'),
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            // リプライ先プレビュー（テキストエリアの外に固定表示）
+            if (widget.replyToNote != null)
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      widget.replyToNote!.text!,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
+                      widget.replyToNote!.user.acct,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.outline,
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                ],
-              ),
-            ),
-
-          // CW入力エリア
-          if (_cwEnabled)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: TextField(
-                controller: _cwController,
-                maxLines: 1,
-                decoration: InputDecoration(
-                  hintText: '警告文言（CW）...',
-                  prefixIcon: const Icon(
-                    Icons.warning_amber_outlined,
-                    size: 18,
-                  ),
-                  isDense: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                ),
-                onChanged: (_) => setState(() {}),
-              ),
-            ),
-
-          // テキスト入力エリア（expands:true でExpandedを埋め、内部スクロール）
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: TextField(
-                controller: _textController,
-                maxLines: null,
-                expands: true,
-                textAlignVertical: TextAlignVertical.top,
-                autofocus: true,
-                scrollPadding: EdgeInsets.zero,
-                decoration: InputDecoration(
-                  hintText: widget.replyToNote != null
-                      ? '${widget.replyToNote!.user.name} に返信...'
-                      : '何かつぶやく...',
-                  border: InputBorder.none,
-                ),
-                onChanged: (_) {
-                  setState(() {});
-                  _updateEmojiSuggestions(_textController.text);
-                },
-              ),
-            ),
-          ),
-
-          // 絵文字サジェストバー
-          if (_emojiSuggestions.isNotEmpty)
-            _EmojiSuggestBar(
-              suggestions: _emojiSuggestions,
-              onSelect: _insertEmojiSuggestion,
-            ),
-
-          // 添付画像プレビュー（テキストエリアとフッターの間）
-          if (_attachedMedia.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              child: SizedBox(
-                height: 100,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _attachedMedia.length,
-                  separatorBuilder: (context, i) => const SizedBox(width: 8),
-                  itemBuilder: (_, i) {
-                    final media = _attachedMedia[i];
-                    return Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: switch (media) {
-                            _LocalMedia m => Image.file(
-                              File(m.file.path),
-                              width: 100,
-                              height: 100,
-                              fit: BoxFit.cover,
-                            ),
-                            _DriveMedia m =>
-                              m.driveFile.isImage
-                                  ? CachedNetworkImage(
-                                      imageUrl:
-                                          m.driveFile.thumbnailUrl ??
-                                          m.driveFile.url,
-                                      width: 100,
-                                      height: 100,
-                                      fit: BoxFit.cover,
-                                    )
-                                  : Container(
-                                      width: 100,
-                                      height: 100,
-                                      color: theme
-                                          .colorScheme
-                                          .surfaceContainerHighest,
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.insert_drive_file_outlined,
-                                            color: theme.colorScheme.primary,
-                                          ),
-                                          Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 4,
-                                            ),
-                                            child: Text(
-                                              m.driveFile.name,
-                                              style: theme.textTheme.labelSmall,
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                              textAlign: TextAlign.center,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                          },
+                    if (widget.replyToNote!.text != null)
+                      Text(
+                        widget.replyToNote!.text!,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.outline,
                         ),
-                        Positioned(
-                          top: -6,
-                          right: -6,
-                          child: GestureDetector(
-                            onTap: () => _removeMedia(i),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.error,
-                                shape: BoxShape.circle,
-                              ),
-                              padding: const EdgeInsets.all(2),
-                              child: Icon(
-                                Icons.close,
-                                size: 14,
-                                color: theme.colorScheme.onError,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
+                      ),
+                  ],
+                ),
+              ),
+
+            // CW入力エリア
+            if (_cwEnabled)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: TextField(
+                  controller: _cwController,
+                  maxLines: 1,
+                  decoration: InputDecoration(
+                    hintText: '警告文言（CW）...',
+                    prefixIcon: const Icon(
+                      Icons.warning_amber_outlined,
+                      size: 18,
+                    ),
+                    isDense: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+
+            // テキスト入力エリア（expands:true でExpandedを埋め、内部スクロール）
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: TextField(
+                  controller: _textController,
+                  maxLines: null,
+                  expands: true,
+                  textAlignVertical: TextAlignVertical.top,
+                  autofocus: true,
+                  scrollPadding: EdgeInsets.zero,
+                  decoration: InputDecoration(
+                    hintText: widget.replyToNote != null
+                        ? '${widget.replyToNote!.user.name} に返信...'
+                        : '何かつぶやく...',
+                    border: InputBorder.none,
+                  ),
+                  onChanged: (_) {
+                    setState(() {});
+                    _updateEmojiSuggestions(_textController.text);
                   },
                 ),
               ),
             ),
 
-          // アップロード中インジケーター
-          if (_isUploadingMedia)
-            LinearProgressIndicator(
-              backgroundColor: theme.colorScheme.surfaceContainerHighest,
-            ),
-
-          // フッター上段
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(color: theme.colorScheme.outlineVariant),
+            // 絵文字サジェストバー
+            if (_emojiSuggestions.isNotEmpty)
+              _EmojiSuggestBar(
+                suggestions: _emojiSuggestions,
+                onSelect: _insertEmojiSuggestion,
               ),
-            ),
-            child: Row(
-              children: [
-                // アカウントアイコン（タップで切り替え）
-                GestureDetector(
-                  onTap: () => _showAccountSwitcher(context, ref),
-                  child: account?.avatarUrl != null
-                      ? CircleAvatar(
-                          radius: 16,
-                          backgroundImage: CachedNetworkImageProvider(
-                            account!.avatarUrl!,
-                          ),
-                        )
-                      : const CircleAvatar(
-                          radius: 16,
-                          child: Icon(Icons.person, size: 16),
-                        ),
-                ),
-                const SizedBox(width: 8),
 
-                // 文字数カウンター
-                Text(
-                  '$_charCount / $_charLimit',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _isOverLimit
-                        ? theme.colorScheme.error
-                        : theme.colorScheme.outline,
-                    fontWeight: _isOverLimit ? FontWeight.bold : null,
+            // 添付画像プレビュー（テキストエリアとフッターの間）
+            if (_attachedMedia.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                child: SizedBox(
+                  height: 100,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _attachedMedia.length,
+                    separatorBuilder: (context, i) => const SizedBox(width: 8),
+                    itemBuilder: (_, i) {
+                      final media = _attachedMedia[i];
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: switch (media) {
+                              _LocalMedia m => Image.file(
+                                File(m.file.path),
+                                width: 100,
+                                height: 100,
+                                fit: BoxFit.cover,
+                              ),
+                              _DriveMedia m =>
+                                m.driveFile.isImage
+                                    ? CachedNetworkImage(
+                                        imageUrl:
+                                            m.driveFile.thumbnailUrl ??
+                                            m.driveFile.url,
+                                        width: 100,
+                                        height: 100,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : Container(
+                                        width: 100,
+                                        height: 100,
+                                        color: theme
+                                            .colorScheme
+                                            .surfaceContainerHighest,
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.insert_drive_file_outlined,
+                                              color: theme.colorScheme.primary,
+                                            ),
+                                            Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 4,
+                                                  ),
+                                              child: Text(
+                                                m.driveFile.name,
+                                                style:
+                                                    theme.textTheme.labelSmall,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                            },
+                          ),
+                          Positioned(
+                            top: -6,
+                            right: -6,
+                            child: GestureDetector(
+                              onTap: () => _removeMedia(i),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.error,
+                                  shape: BoxShape.circle,
+                                ),
+                                padding: const EdgeInsets.all(2),
+                                child: Icon(
+                                  Icons.close,
+                                  size: 14,
+                                  color: theme.colorScheme.onError,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
-                const Spacer(),
+              ),
 
-                // 公開範囲ボタン
-                IconButton(
-                  icon: Icon(_visibilityIcon(_visibility), size: 20),
-                  tooltip: AppConstants.visibilityLabels[_visibility],
-                  onPressed: _showVisibilityPicker,
-                ),
+            // アップロード中インジケーター
+            if (_isUploadingMedia)
+              LinearProgressIndicator(
+                backgroundColor: theme.colorScheme.surfaceContainerHighest,
+              ),
 
-                // 投稿ボタン
-                FilledButton(
-                  onPressed:
-                      ((_textController.text.trim().isEmpty &&
-                              _attachedMedia.isEmpty) ||
-                          _isOverLimit ||
-                          _isPosting)
-                      ? null
-                      : _post,
-                  child: _isPosting
-                      ? const SizedBox(
-                          height: 14,
-                          width: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('投稿'),
-                ),
-              ],
-            ),
-          ),
-
-          // フッター下段
-          SafeArea(
-            top: false,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            // フッター上段
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 border: Border(
                   top: BorderSide(color: theme.colorScheme.outlineVariant),
@@ -714,84 +651,155 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               ),
               child: Row(
                 children: [
-                  // メディア添付（最大4件）
-                  IconButton(
-                    icon: _attachedMedia.isNotEmpty
-                        ? Badge(
-                            label: Text('${_attachedMedia.length}'),
-                            child: const Icon(Icons.image_outlined),
+                  // アカウントアイコン（タップで切り替え）
+                  GestureDetector(
+                    onTap: () => _showAccountSwitcher(context, ref),
+                    child: account?.avatarUrl != null
+                        ? CircleAvatar(
+                            radius: 16,
+                            backgroundImage: CachedNetworkImageProvider(
+                              account!.avatarUrl!,
+                            ),
                           )
-                        : const Icon(Icons.image_outlined),
-                    tooltip: 'メディアを添付（最大4件）',
-                    onPressed: _isPosting ? null : _pickMedia,
-                  ),
-
-                  // 下書き一覧
-                  IconButton(
-                    icon: const Icon(Icons.edit_note),
-                    tooltip: '下書き一覧',
-                    onPressed: () => context.push('/drafts'),
-                  ),
-
-                  // CWトグル
-                  IconButton(
-                    icon: Icon(
-                      Icons.warning_amber_outlined,
-                      color: _cwEnabled ? theme.colorScheme.primary : null,
-                    ),
-                    tooltip: 'CW（警告文言）',
-                    onPressed: () => setState(() {
-                      _cwEnabled = !_cwEnabled;
-                      if (!_cwEnabled) _cwController.clear();
-                    }),
-                  ),
-
-                  // isSensitiveトグル
-                  IconButton(
-                    icon: Icon(
-                      Icons.visibility_off_outlined,
-                      color: _isSensitive ? theme.colorScheme.error : null,
-                    ),
-                    tooltip: 'センシティブコンテンツ',
-                    onPressed: () =>
-                        setState(() => _isSensitive = !_isSensitive),
-                  ),
-
-                  // 絵文字ピッカー
-                  IconButton(
-                    icon: const Icon(Icons.emoji_emotions_outlined),
-                    tooltip: '絵文字',
-                    onPressed: () async {
-                      final name = await showModalBottomSheet<String>(
-                        context: context,
-                        isScrollControlled: true,
-                        builder: (_) => const EmojiPickerSheet(),
-                      );
-                      if (name != null && mounted) {
-                        final pos = _textController.selection.baseOffset;
-                        final text = _textController.text;
-                        final insert = ':$name:';
-                        final newText = pos < 0
-                            ? text + insert
-                            : text.substring(0, pos) +
-                                  insert +
-                                  text.substring(pos);
-                        _textController.value = TextEditingValue(
-                          text: newText,
-                          selection: TextSelection.collapsed(
-                            offset:
-                                (pos < 0 ? text.length : pos) + insert.length,
+                        : const CircleAvatar(
+                            radius: 16,
+                            child: Icon(Icons.person, size: 16),
                           ),
-                        );
-                        setState(() {});
-                      }
-                    },
+                  ),
+                  const SizedBox(width: 8),
+
+                  // 文字数カウンター
+                  Text(
+                    '$_charCount / $_charLimit',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _isOverLimit
+                          ? theme.colorScheme.error
+                          : theme.colorScheme.outline,
+                      fontWeight: _isOverLimit ? FontWeight.bold : null,
+                    ),
+                  ),
+                  const Spacer(),
+
+                  // 公開範囲ボタン
+                  IconButton(
+                    icon: Icon(_visibilityIcon(_visibility), size: 20),
+                    tooltip: AppConstants.visibilityLabels[_visibility],
+                    onPressed: _showVisibilityPicker,
+                  ),
+
+                  // 投稿ボタン
+                  FilledButton(
+                    onPressed:
+                        ((_textController.text.trim().isEmpty &&
+                                _attachedMedia.isEmpty) ||
+                            _isOverLimit ||
+                            _isPosting)
+                        ? null
+                        : _post,
+                    child: _isPosting
+                        ? const SizedBox(
+                            height: 14,
+                            width: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('投稿'),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+
+            // フッター下段
+            SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(color: theme.colorScheme.outlineVariant),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    // メディア添付（最大4件）
+                    IconButton(
+                      icon: _attachedMedia.isNotEmpty
+                          ? Badge(
+                              label: Text('${_attachedMedia.length}'),
+                              child: const Icon(Icons.image_outlined),
+                            )
+                          : const Icon(Icons.image_outlined),
+                      tooltip: 'メディアを添付（最大4件）',
+                      onPressed: _isPosting ? null : _pickMedia,
+                    ),
+
+                    // 下書き一覧
+                    IconButton(
+                      icon: const Icon(Icons.edit_note),
+                      tooltip: '下書き一覧',
+                      onPressed: () => context.push('/drafts'),
+                    ),
+
+                    // CWトグル
+                    IconButton(
+                      icon: Icon(
+                        Icons.warning_amber_outlined,
+                        color: _cwEnabled ? theme.colorScheme.primary : null,
+                      ),
+                      tooltip: 'CW（警告文言）',
+                      onPressed: () => setState(() {
+                        _cwEnabled = !_cwEnabled;
+                        if (!_cwEnabled) _cwController.clear();
+                      }),
+                    ),
+
+                    // isSensitiveトグル
+                    IconButton(
+                      icon: Icon(
+                        Icons.visibility_off_outlined,
+                        color: _isSensitive ? theme.colorScheme.error : null,
+                      ),
+                      tooltip: 'センシティブコンテンツ',
+                      onPressed: () =>
+                          setState(() => _isSensitive = !_isSensitive),
+                    ),
+
+                    // 絵文字ピッカー
+                    IconButton(
+                      icon: const Icon(Icons.emoji_emotions_outlined),
+                      tooltip: '絵文字',
+                      onPressed: () async {
+                        final name = await showModalBottomSheet<String>(
+                          context: context,
+                          isScrollControlled: true,
+                          builder: (_) => const EmojiPickerSheet(),
+                        );
+                        if (name != null && mounted) {
+                          final pos = _textController.selection.baseOffset;
+                          final text = _textController.text;
+                          final insert = ':$name:';
+                          final newText = pos < 0
+                              ? text + insert
+                              : text.substring(0, pos) +
+                                    insert +
+                                    text.substring(pos);
+                          _textController.value = TextEditingValue(
+                            text: newText,
+                            selection: TextSelection.collapsed(
+                              offset:
+                                  (pos < 0 ? text.length : pos) + insert.length,
+                            ),
+                          );
+                          setState(() {});
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
