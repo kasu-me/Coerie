@@ -58,6 +58,12 @@ class NoteModel {
   final int renoteCount;
   final Map<String, int> reactions;
   final String? myReaction;
+
+  /// ノート本文で使われているカスタム絵文字の name→url マップ（Misskey API の emojis フィールド）
+  final Map<String, String> emojis;
+
+  /// リアクションで使われているカスタム絵文字の name→url マップ（reactionEmojis フィールド、リモート含む）
+  final Map<String, String> reactionEmojis;
   final NoteModel? reply;
   final NoteModel? renote;
 
@@ -73,6 +79,8 @@ class NoteModel {
     this.renoteCount = 0,
     this.reactions = const {},
     this.myReaction,
+    this.emojis = const {},
+    this.reactionEmojis = const {},
     this.reply,
     this.renote,
   });
@@ -98,6 +106,8 @@ class NoteModel {
     myReaction: identical(myReaction, _sentinel)
         ? this.myReaction
         : myReaction as String?,
+    emojis: emojis,
+    reactionEmojis: reactionEmojis,
     reply: reply,
     renote: renote,
   );
@@ -105,6 +115,21 @@ class NoteModel {
   factory NoteModel.fromJson(Map<String, dynamic> json, {String host = ''}) {
     final filesJson = json['files'] as List<dynamic>? ?? [];
     final reactionsJson = json['reactions'] as Map<String, dynamic>? ?? {};
+
+    // emojis フィールド: Map<String,String> 形式（Misskey 13+）またはリスト形式
+    Map<String, String> parseEmojiMap(dynamic raw) {
+      if (raw is Map) {
+        return raw.map((k, v) => MapEntry(k as String, v as String));
+      }
+      if (raw is List) {
+        return {
+          for (final e in raw)
+            if (e is Map && e['name'] != null && e['url'] != null)
+              e['name'] as String: e['url'] as String,
+        };
+      }
+      return {};
+    }
 
     return NoteModel(
       id: json['id'] as String,
@@ -123,6 +148,8 @@ class NoteModel {
       renoteCount: json['renoteCount'] as int? ?? 0,
       reactions: reactionsJson.map((k, v) => MapEntry(k, v as int)),
       myReaction: json['myReaction'] as String?,
+      emojis: parseEmojiMap(json['emojis']),
+      reactionEmojis: parseEmojiMap(json['reactionEmojis']),
       reply: json['reply'] != null
           ? NoteModel.fromJson(
               json['reply'] as Map<String, dynamic>,

@@ -188,7 +188,13 @@ class _NoteCardState extends ConsumerState<NoteCard> {
   Widget build(BuildContext context) {
     final note = widget.note;
     final theme = Theme.of(context);
-    final emojiUrlMap = ref.watch(_emojiUrlMapProvider);
+    // ローカル絵文字マップにノート固有の絵文字（リモート含む）をマージする
+    final localEmojiMap = ref.watch(_emojiUrlMapProvider);
+    final emojiUrlMap = {
+      ...localEmojiMap,
+      ...note.emojis,
+      ...note.reactionEmojis,
+    };
 
     // リノート（引用なし）の場合
     if (note.text == null && note.renote != null) {
@@ -438,12 +444,14 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                   runSpacing: 4,
                   children: _localReactions.entries.map((e) {
                     final isSelected = _myReaction == e.key;
+                    final isRemote = _ReactionChip._isRemote(e.key);
                     return _ReactionChip(
                       reactionKey: e.key,
                       count: e.value,
                       isSelected: isSelected,
+                      isRemote: isRemote,
                       emojiUrlMap: emojiUrlMap,
-                      onTap: () => _handleReaction(e.key),
+                      onTap: isRemote ? null : () => _handleReaction(e.key),
                     );
                   }).toList(),
                 ),
@@ -495,8 +503,9 @@ class _ReactionChip extends StatelessWidget {
   final String reactionKey;
   final int count;
   final bool isSelected;
+  final bool isRemote;
   final Map<String, String> emojiUrlMap;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _ReactionChip({
     required this.reactionKey,
@@ -504,63 +513,92 @@ class _ReactionChip extends StatelessWidget {
     required this.isSelected,
     required this.emojiUrlMap,
     required this.onTap,
+    this.isRemote = false,
   });
 
-  /// `:honda@.:` → `honda`、`:wave:` → `wave`、それ以外は null（Unicode絵文字等）
-  static String? _extractName(String key) {
+  /// `:name@.:` → `name@.`、`:name:` → `name`、それ以外は null
+  static String? _inner(String key) {
     if (!key.startsWith(':') || !key.endsWith(':')) return null;
-    final inner = key.substring(1, key.length - 1);
-    final atIndex = inner.indexOf('@');
-    return atIndex >= 0 ? inner.substring(0, atIndex) : inner;
+    return key.substring(1, key.length - 1);
+  }
+
+  /// `@` を含む場合はリモート絵文字（リアクション不可）
+  static bool _isRemote(String key) {
+    final inner = _inner(key);
+    return inner != null && inner.contains('@');
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final name = _extractName(reactionKey);
-    final imageUrl = name != null ? emojiUrlMap[name] : null;
+    final inner = _inner(reactionKey); // e.g., "name@." or "name" or null
+    // リモート対応: フル形式（name@.）で検索し、なければ名前部分のみでフォールバック
+    String? imageUrl;
+    if (inner != null) {
+      imageUrl = emojiUrlMap[inner];
+      if (imageUrl == null) {
+        final atIdx = inner.indexOf('@');
+        final nameOnly = atIdx >= 0 ? inner.substring(0, atIdx) : inner;
+        imageUrl = emojiUrlMap[nameOnly];
+      }
+    }
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? theme.colorScheme.primaryContainer
-              : theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-          border: isSelected
-              ? Border.all(color: theme.colorScheme.primary, width: 1.5)
-              : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (imageUrl != null)
-              CachedNetworkImage(
+    final chipWidget = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: isRemote
+            ? theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5)
+            : isSelected
+            ? theme.colorScheme.primaryContainer
+            : theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        border: isSelected && !isRemote
+            ? Border.all(color: theme.colorScheme.primary, width: 1.5)
+            : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (imageUrl != null)
+            Opacity(
+              opacity: isRemote ? 0.5 : 1.0,
+              child: CachedNetworkImage(
                 imageUrl: imageUrl,
                 height: 18,
                 width: 18,
                 fit: BoxFit.contain,
                 errorWidget: (context, url, error) =>
                     Text(reactionKey, style: const TextStyle(fontSize: 12)),
-              )
-            else
-              Text(reactionKey, style: const TextStyle(fontSize: 14)),
-            const SizedBox(width: 3),
-            Text(
-              '$count',
-              style: TextStyle(
-                fontSize: 12,
-                color: isSelected
-                    ? theme.colorScheme.onPrimaryContainer
-                    : theme.colorScheme.onSurface,
               ),
+            )
+          else
+            Opacity(
+              opacity: isRemote ? 0.5 : 1.0,
+              child: Text(reactionKey, style: const TextStyle(fontSize: 14)),
             ),
-          ],
-        ),
+          const SizedBox(width: 3),
+          Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 12,
+              color: isRemote
+                  ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
+                  : isSelected
+                  ? theme.colorScheme.onPrimaryContainer
+                  : theme.colorScheme.onSurface,
+            ),
+          ),
+        ],
       ),
+    );
+
+    // リモート絵文字はタップ不可
+    if (isRemote) return chipWidget;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: chipWidget,
     );
   }
 }
@@ -1279,12 +1317,6 @@ class _LinkedText extends StatelessWidget {
 
   const _LinkedText({required this.text, required this.emojiUrlMap});
 
-  static String _emojiName(String token) {
-    final inner = token.substring(1, token.length - 1);
-    final atIdx = inner.indexOf('@');
-    return atIdx >= 0 ? inner.substring(0, atIdx) : inner;
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1297,9 +1329,17 @@ class _LinkedText extends StatelessWidget {
       }
       final token = match.group(0)!;
       if (token.startsWith(':')) {
-        // カスタム絵文字
-        final name = _emojiName(token);
-        final url = emojiUrlMap[name];
+        // カスタム絵文字: フルキー (name@.) 優先、なければ名前のみでフォールバック
+        final inner = token.substring(
+          1,
+          token.length - 1,
+        ); // e.g., "name@." or "name"
+        String? url = emojiUrlMap[inner];
+        if (url == null) {
+          final atIdx = inner.indexOf('@');
+          final nameOnly = atIdx >= 0 ? inner.substring(0, atIdx) : inner;
+          url = emojiUrlMap[nameOnly];
+        }
         if (url != null) {
           spans.add(
             WidgetSpan(
