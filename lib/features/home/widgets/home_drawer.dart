@@ -148,46 +148,51 @@ class _ProfileHeader extends StatelessWidget {
   void _showAccountSwitcher(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      builder: (_) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'アカウント切り替え',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(ctx).bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'アカウント切り替え',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
             ),
-          ),
-          ...accounts.map(
-            (a) => ListTile(
-              leading: a.avatarUrl != null
-                  ? CircleAvatar(
-                      backgroundImage: CachedNetworkImageProvider(a.avatarUrl!),
-                    )
-                  : const CircleAvatar(child: Icon(Icons.person)),
-              title: Text(a.name),
-              subtitle: Text(a.acct),
-              trailing: a.isActive
-                  ? const Icon(Icons.check, color: Colors.green)
-                  : null,
+            ...accounts.map(
+              (a) => ListTile(
+                leading: a.avatarUrl != null
+                    ? CircleAvatar(
+                        backgroundImage: CachedNetworkImageProvider(
+                          a.avatarUrl!,
+                        ),
+                      )
+                    : const CircleAvatar(child: Icon(Icons.person)),
+                title: Text(a.name),
+                subtitle: Text(a.acct),
+                trailing: a.isActive
+                    ? const Icon(Icons.check, color: Colors.green)
+                    : null,
+                onTap: () {
+                  ref.read(accountProvider.notifier).switchAccount(a.id);
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pop();
+                },
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.add),
+              title: const Text('アカウントを追加'),
               onTap: () {
-                ref.read(accountProvider.notifier).switchAccount(a.id);
                 Navigator.of(context).pop();
                 Navigator.of(context).pop();
+                context.push('/login');
               },
             ),
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.add),
-            title: const Text('アカウントを追加'),
-            onTap: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pop();
-              context.push('/login');
-            },
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
