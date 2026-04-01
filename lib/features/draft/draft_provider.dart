@@ -26,6 +26,8 @@ class DraftNotifier extends StateNotifier<List<DraftModel>> {
     String visibility = AppConstants.visibilityPublic,
     String? existingId,
     List<DriveFileModel> files = const [],
+    String? cw,
+    bool isSensitive = false,
   }) async {
     final box = HiveService.draftsBox;
     final id = existingId ?? const Uuid().v4();
@@ -35,6 +37,8 @@ class DraftNotifier extends StateNotifier<List<DraftModel>> {
       visibility: visibility,
       savedAt: DateTime.now(),
       files: files,
+      cw: cw,
+      isSensitive: isSensitive,
     );
     await box.put(id, draft);
     _load();

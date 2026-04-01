@@ -1,4 +1,5 @@
-﻿import 'package:cached_network_image/cached_network_image.dart';
+﻿import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -56,6 +57,8 @@ class NoteCard extends ConsumerStatefulWidget {
 class _NoteCardState extends ConsumerState<NoteCard> {
   late Map<String, int> _localReactions;
   String? _myReaction;
+  bool _cwExpanded = false;
+  final Set<int> _revealedSensitiveIndexes = {};
 
   @override
   void initState() {
@@ -71,6 +74,8 @@ class _NoteCardState extends ConsumerState<NoteCard> {
     if (oldWidget.note.id != widget.note.id) {
       _localReactions = Map.from(widget.note.reactions);
       _myReaction = widget.note.myReaction;
+      _cwExpanded = false;
+      _revealedSensitiveIndexes.clear();
     }
   }
 
@@ -295,15 +300,69 @@ class _NoteCardState extends ConsumerState<NoteCard> {
               ],
             ),
 
+            // CWバー（content warningがある場合）
+            if (note.cw != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(6),
+                  onTap: () => setState(() => _cwExpanded = !_cwExpanded),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.warning_amber_outlined,
+                          size: 14,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            note.cw!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _cwExpanded ? '折りたたむ' : '表示',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Icon(
+                          _cwExpanded ? Icons.expand_less : Icons.expand_more,
+                          size: 14,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
             // 本文（URLをタップ可能リンクとして表示）
-            if (note.text != null)
+            if (note.text != null && (note.cw == null || _cwExpanded))
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: _LinkedText(text: note.text!, emojiUrlMap: emojiUrlMap),
               ),
 
             // OGPカード（本文にURLが含まれる場合）
-            if (note.text != null)
+            if (note.text != null && (note.cw == null || _cwExpanded))
               Builder(
                 builder: (_) {
                   final match = _LinkedText._urlRegex.firstMatch(note.text!);
@@ -316,8 +375,8 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                 },
               ),
 
-            // 添付メディア
-            if (note.files.isNotEmpty)
+            // 添付メディア（CWがある場合は展開時のみ表示）
+            if (note.files.isNotEmpty && (note.cw == null || _cwExpanded))
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: _MediaGrid(files: note.files),
@@ -634,6 +693,8 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
             'initialText': note.text ?? '',
             'visibility': note.visibility,
             'initialFiles': note.files,
+            'initialCw': note.cw,
+            'initialIsSensitive': note.files.any((f) => f.isSensitive),
             if (note.reply != null) 'replyId': note.reply!.id,
             if (note.reply != null) 'replyToNote': note.reply,
           },
@@ -786,13 +847,76 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-class _MediaGrid extends StatelessWidget {
+class _MediaGrid extends StatefulWidget {
   final List<DriveFileModel> files;
 
   const _MediaGrid({required this.files});
 
   @override
+  State<_MediaGrid> createState() => _MediaGridState();
+}
+
+class _MediaGridState extends State<_MediaGrid> {
+  final Set<int> _revealedSensitiveIndexes = {};
+
+  Widget _wrapSensitive({
+    required DriveFileModel file,
+    required int globalIndex,
+    required Widget child,
+    required VoidCallback onRevealTap,
+  }) {
+    if (!file.isSensitive || _revealedSensitiveIndexes.contains(globalIndex)) {
+      return child;
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          child,
+          BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(color: Colors.black.withValues(alpha: 0.3)),
+          ),
+          Center(
+            child: GestureDetector(
+              onTap: () =>
+                  setState(() => _revealedSensitiveIndexes.add(globalIndex)),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.visibility_off, color: Colors.white, size: 16),
+                    SizedBox(width: 6),
+                    Text(
+                      'センシティブ',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final files = widget.files;
     if (files.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -801,7 +925,11 @@ class _MediaGrid extends StatelessWidget {
         // ── 画像グリッド ──
         Builder(
           builder: (_) {
-            final imageFiles = files.where((f) => f.isImage).toList();
+            final imageFiles = files
+                .asMap()
+                .entries
+                .where((e) => e.value.isImage)
+                .toList();
             if (imageFiles.isEmpty) return const SizedBox.shrink();
             final count = imageFiles.length.clamp(1, 4);
             return GridView.builder(
@@ -814,76 +942,100 @@ class _MediaGrid extends StatelessWidget {
                 childAspectRatio: count == 1 ? 16 / 9 : 1,
               ),
               itemCount: count,
-              itemBuilder: (_, i) => GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => _FullscreenImageViewer(
-                      urls: imageFiles.map((f) => f.url).toList(),
-                      initialIndex: i,
-                    ),
-                  ),
-                ),
-                child: ClipRRect(
+              itemBuilder: (ctx, i) {
+                final entry = imageFiles[i];
+                final globalIdx = entry.key;
+                final file = entry.value;
+                final isRevealed = _revealedSensitiveIndexes.contains(
+                  globalIdx,
+                );
+                final imageWidget = ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: CachedNetworkImage(
-                    imageUrl: imageFiles[i].thumbnailUrl ?? imageFiles[i].url,
+                    imageUrl: file.thumbnailUrl ?? file.url,
                     fit: BoxFit.cover,
                   ),
-                ),
-              ),
+                );
+                if (file.isSensitive && !isRevealed) {
+                  return _wrapSensitive(
+                    file: file,
+                    globalIndex: globalIdx,
+                    child: imageWidget,
+                    onRevealTap: () => setState(
+                      () => _revealedSensitiveIndexes.add(globalIdx),
+                    ),
+                  );
+                }
+                return GestureDetector(
+                  onTap: () => Navigator.push(
+                    ctx,
+                    MaterialPageRoute<void>(
+                      builder: (_) => _FullscreenImageViewer(
+                        urls: imageFiles.map((e) => e.value.url).toList(),
+                        initialIndex: i,
+                      ),
+                    ),
+                  ),
+                  child: imageWidget,
+                );
+              },
             );
           },
         ),
 
         // ── 動画 ──
-        ...files
-            .where((f) => f.isVideo)
-            .map(
-              (f) => Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder: (_) =>
-                          MediaPlayerScreen(url: f.url, title: f.name),
-                    ),
+        ...files.asMap().entries.where((e) => e.value.isVideo).map((entry) {
+          final globalIdx = entry.key;
+          final f = entry.value;
+          return Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: _wrapSensitive(
+              file: f,
+              globalIndex: globalIdx,
+              child: GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        MediaPlayerScreen(url: f.url, title: f.name),
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          if (f.thumbnailUrl != null)
-                            CachedNetworkImage(
-                              imageUrl: f.thumbnailUrl!,
-                              fit: BoxFit.cover,
-                              errorWidget: (_, _, _) =>
-                                  Container(color: Colors.black),
-                            )
-                          else
-                            Container(color: Colors.black),
-                          const Center(
-                            child: CircleAvatar(
-                              radius: 28,
-                              backgroundColor: Colors.black54,
-                              child: Icon(
-                                Icons.play_arrow,
-                                color: Colors.white,
-                                size: 36,
-                              ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (f.thumbnailUrl != null)
+                          CachedNetworkImage(
+                            imageUrl: f.thumbnailUrl!,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, _, _) =>
+                                Container(color: Colors.black),
+                          )
+                        else
+                          Container(color: Colors.black),
+                        const Center(
+                          child: CircleAvatar(
+                            radius: 28,
+                            backgroundColor: Colors.black54,
+                            child: Icon(
+                              Icons.play_arrow,
+                              color: Colors.white,
+                              size: 36,
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
+              onRevealTap: () {},
             ),
+          );
+        }),
 
         // ── 音声 ──
         ...files

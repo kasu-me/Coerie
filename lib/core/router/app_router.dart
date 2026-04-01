@@ -40,6 +40,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           final initialText = extra?['initialText'] as String?;
           final initialVisibility = extra?['visibility'] as String?;
           final initialFiles = extra?['initialFiles'] as List<DriveFileModel>?;
+          final initialCw = extra?['initialCw'] as String?;
+          final initialIsSensitive =
+              extra?['initialIsSensitive'] as bool? ?? false;
           return ComposeScreen(
             draftId: draftId,
             replyId: replyId,
@@ -47,6 +50,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             initialText: initialText,
             initialVisibility: initialVisibility,
             initialFiles: initialFiles,
+            initialCw: initialCw,
+            initialIsSensitive: initialIsSensitive,
           );
         },
       ),

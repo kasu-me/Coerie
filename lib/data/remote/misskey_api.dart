@@ -55,12 +55,14 @@ class MisskeyApi {
 
   Future<NoteModel> createNote({
     String? text,
+    String? cw,
     String visibility = 'public',
     String? replyId,
     List<String> fileIds = const [],
   }) async {
     final params = <String, dynamic>{'visibility': visibility};
     if (text != null && text.isNotEmpty) params['text'] = text;
+    if (cw != null && cw.isNotEmpty) params['cw'] = cw;
     if (replyId != null) params['replyId'] = replyId;
     if (fileIds.isNotEmpty) params['fileIds'] = fileIds;
 
@@ -219,12 +221,17 @@ class MisskeyApi {
   }
 
   /// ファイルをDriveにアップロードし、ファイルIDを返す。
-  Future<String> uploadFile(File file, {String? name}) async {
+  Future<String> uploadFile(
+    File file, {
+    String? name,
+    bool isSensitive = false,
+  }) async {
     final fileName = name ?? file.path.split('/').last.split('\\').last;
     final formData = FormData.fromMap({
       'i': token,
       'file': await MultipartFile.fromFile(file.path, filename: fileName),
       if (name != null) 'name': name,
+      if (isSensitive) 'isSensitive': 'true',
     });
 
     // Drive upload は multipart/form-data を使用

@@ -28,12 +28,25 @@ class DraftModelAdapter extends TypeAdapter<DraftModel> {
           .toList();
     }
 
+    String? cw;
+    if (reader.availableBytes > 0) {
+      final cwRaw = reader.readString();
+      cw = cwRaw.isEmpty ? null : cwRaw;
+    }
+
+    bool isSensitive = false;
+    if (reader.availableBytes > 0) {
+      isSensitive = reader.readInt() == 1;
+    }
+
     return DraftModel(
       id: id,
       text: text,
       visibility: visibility,
       savedAt: savedAt,
       files: files,
+      cw: cw,
+      isSensitive: isSensitive,
     );
   }
 
@@ -46,5 +59,7 @@ class DraftModelAdapter extends TypeAdapter<DraftModel> {
     writer.writeStringList(
       obj.files.map((f) => jsonEncode(f.toJson())).toList(),
     );
+    writer.writeString(obj.cw ?? '');
+    writer.writeInt(obj.isSensitive ? 1 : 0);
   }
 }

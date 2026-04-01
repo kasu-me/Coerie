@@ -10,6 +10,8 @@ class DraftModel {
   final String visibility;
   final DateTime savedAt;
   final List<DriveFileModel> files;
+  final String? cw;
+  final bool isSensitive;
 
   DraftModel({
     required this.id,
@@ -17,5 +19,7 @@ class DraftModel {
     required this.visibility,
     required this.savedAt,
     this.files = const [],
+    this.cw,
+    this.isSensitive = false,
   });
 }

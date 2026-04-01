@@ -7,6 +7,7 @@ class DriveFileModel {
   final String url;
   final String? thumbnailUrl;
   final int size;
+  final bool isSensitive;
 
   const DriveFileModel({
     required this.id,
@@ -15,6 +16,7 @@ class DriveFileModel {
     required this.url,
     this.thumbnailUrl,
     required this.size,
+    this.isSensitive = false,
   });
 
   bool get isImage => type.startsWith('image/');
@@ -28,6 +30,7 @@ class DriveFileModel {
     'url': url,
     'thumbnailUrl': thumbnailUrl,
     'size': size,
+    'isSensitive': isSensitive,
   };
 
   factory DriveFileModel.fromJson(Map<String, dynamic> json) {
@@ -38,6 +41,7 @@ class DriveFileModel {
       url: json['url'] as String,
       thumbnailUrl: json['thumbnailUrl'] as String?,
       size: json['size'] as int? ?? 0,
+      isSensitive: json['isSensitive'] as bool? ?? false,
     );
   }
 }
@@ -47,6 +51,7 @@ class NoteModel {
   final DateTime createdAt;
   final UserModel user;
   final String? text;
+  final String? cw;
   final String visibility;
   final List<DriveFileModel> files;
   final int repliesCount;
@@ -61,6 +66,7 @@ class NoteModel {
     required this.createdAt,
     required this.user,
     this.text,
+    this.cw,
     required this.visibility,
     this.files = const [],
     this.repliesCount = 0,
@@ -83,6 +89,7 @@ class NoteModel {
         host: host,
       ),
       text: json['text'] as String?,
+      cw: json['cw'] as String?,
       visibility: json['visibility'] as String? ?? 'public',
       files: filesJson
           .map((f) => DriveFileModel.fromJson(f as Map<String, dynamic>))

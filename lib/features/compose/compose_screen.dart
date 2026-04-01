@@ -34,6 +34,8 @@ class ComposeScreen extends ConsumerStatefulWidget {
   final String? initialText;
   final String? initialVisibility;
   final List<DriveFileModel>? initialFiles;
+  final String? initialCw;
+  final bool initialIsSensitive;
 
   const ComposeScreen({
     super.key,
@@ -43,6 +45,8 @@ class ComposeScreen extends ConsumerStatefulWidget {
     this.initialText,
     this.initialVisibility,
     this.initialFiles,
+    this.initialCw,
+    this.initialIsSensitive = false,
   });
 
   @override
@@ -51,17 +55,21 @@ class ComposeScreen extends ConsumerStatefulWidget {
 
 class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   late final TextEditingController _textController;
+  late final TextEditingController _cwController;
   late String _visibility;
   String? _currentDraftId;
   final List<_AttachedMedia> _attachedMedia = [];
   bool _isPosting = false;
   bool _isUploadingMedia = false;
+  bool _cwEnabled = false;
+  bool _isSensitive = false;
   List<Map<String, dynamic>> _emojiSuggestions = [];
 
   @override
   void initState() {
     super.initState();
     _textController = TextEditingController();
+    _cwController = TextEditingController();
     _currentDraftId = widget.draftId;
     // 保存済みのデフォルト公開範囲で初期化
     _visibility =
@@ -71,6 +79,13 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     if (widget.initialText != null) {
       _textController.text = widget.initialText!;
     }
+
+    if (widget.initialCw != null) {
+      _cwController.text = widget.initialCw!;
+      _cwEnabled = true;
+    }
+
+    _isSensitive = widget.initialIsSensitive;
 
     if (widget.initialFiles != null && widget.initialFiles!.isNotEmpty) {
       _attachedMedia.addAll(widget.initialFiles!.map((f) => _DriveMedia(f)));
@@ -85,6 +100,11 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           _textController.text = draft.text;
           setState(() {
             _visibility = draft.visibility;
+            if (draft.cw != null && draft.cw!.isNotEmpty) {
+              _cwController.text = draft.cw!;
+              _cwEnabled = true;
+            }
+            _isSensitive = draft.isSensitive;
             if (draft.files.isNotEmpty) {
               _attachedMedia.addAll(draft.files.map(_DriveMedia.new));
             }
@@ -97,6 +117,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   @override
   void dispose() {
     _textController.dispose();
+    _cwController.dispose();
     super.dispose();
   }
 
@@ -120,6 +141,10 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           visibility: _visibility,
           existingId: _currentDraftId,
           files: driveFiles,
+          cw: _cwEnabled && _cwController.text.isNotEmpty
+              ? _cwController.text
+              : null,
+          isSensitive: _isSensitive,
         );
     if (mounted) context.pop();
   }
@@ -267,7 +292,10 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         setState(() => _isUploadingMedia = true);
         for (final media in _attachedMedia) {
           if (media is _LocalMedia) {
-            final id = await api.uploadFile(File(media.file.path));
+            final id = await api.uploadFile(
+              File(media.file.path),
+              isSensitive: _isSensitive,
+            );
             fileIds.add(id);
           } else if (media is _DriveMedia) {
             fileIds.add(media.driveFile.id);
@@ -278,6 +306,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
       await api.createNote(
         text: _textController.text.trim().isEmpty ? null : _textController.text,
+        cw: _cwEnabled && _cwController.text.isNotEmpty
+            ? _cwController.text
+            : null,
         visibility: _visibility,
         fileIds: fileIds,
         replyId: widget.replyId,
@@ -445,6 +476,32 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                       ),
                     ),
                 ],
+              ),
+            ),
+
+          // CW入力エリア
+          if (_cwEnabled)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: TextField(
+                controller: _cwController,
+                maxLines: 1,
+                decoration: InputDecoration(
+                  hintText: '警告文言（CW）...',
+                  prefixIcon: const Icon(
+                    Icons.warning_amber_outlined,
+                    size: 18,
+                  ),
+                  isDense: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+                onChanged: (_) => setState(() {}),
               ),
             ),
 
@@ -674,6 +731,30 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                     icon: const Icon(Icons.edit_note),
                     tooltip: '下書き一覧',
                     onPressed: () => context.push('/drafts'),
+                  ),
+
+                  // CWトグル
+                  IconButton(
+                    icon: Icon(
+                      Icons.warning_amber_outlined,
+                      color: _cwEnabled ? theme.colorScheme.primary : null,
+                    ),
+                    tooltip: 'CW（警告文言）',
+                    onPressed: () => setState(() {
+                      _cwEnabled = !_cwEnabled;
+                      if (!_cwEnabled) _cwController.clear();
+                    }),
+                  ),
+
+                  // isSensitiveトグル
+                  IconButton(
+                    icon: Icon(
+                      Icons.visibility_off_outlined,
+                      color: _isSensitive ? theme.colorScheme.error : null,
+                    ),
+                    tooltip: 'センシティブコンテンツ',
+                    onPressed: () =>
+                        setState(() => _isSensitive = !_isSensitive),
                   ),
 
                   // 絵文字ピッカー
