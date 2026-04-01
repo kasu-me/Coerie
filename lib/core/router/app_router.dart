@@ -25,13 +25,21 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final isLoggedIn = accountState.isNotEmpty;
       final isLoginRoute = state.matchedLocation == '/login';
+      final isAddingAccount = state.uri.queryParameters['addAccount'] == 'true';
 
       if (!isLoggedIn && !isLoginRoute) return '/login';
-      if (isLoggedIn && isLoginRoute) return '/home';
+      // アカウント追加モードのときはログイン済みでも /login を許可する
+      if (isLoggedIn && isLoginRoute && !isAddingAccount) return '/home';
       return null;
     },
     routes: [
-      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: '/login',
+        builder: (context, state) {
+          final addAccount = state.uri.queryParameters['addAccount'] == 'true';
+          return LoginScreen(addAccount: addAccount);
+        },
+      ),
       GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
       GoRoute(
         path: '/compose',

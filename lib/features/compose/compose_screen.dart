@@ -7,8 +7,8 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/constants/app_constants.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/account_provider.dart';
+import '../../shared/providers/account_visibility_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
-import '../../shared/providers/settings_provider.dart';
 import '../draft/draft_provider.dart';
 import '../timeline/timeline_provider.dart';
 import 'emoji_picker_sheet.dart';
@@ -71,10 +71,11 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     _textController = TextEditingController();
     _cwController = TextEditingController();
     _currentDraftId = widget.draftId;
-    // 保存済みのデフォルト公開範囲で初期化
+    // アカウント別のデフォルト公開範囲で初期化
+    final accountId = ref.read(activeAccountProvider)?.id ?? '';
     _visibility =
         widget.initialVisibility ??
-        ref.read(settingsProvider).defaultVisibility;
+        ref.read(accountVisibilityProvider(accountId));
 
     if (widget.initialText != null) {
       _textController.text = widget.initialText!;
@@ -373,9 +374,10 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                     : null,
                 onTap: () {
                   setState(() => _visibility = e.key);
+                  final accountId = ref.read(activeAccountProvider)?.id ?? '';
                   ref
-                      .read(settingsProvider.notifier)
-                      .setDefaultVisibility(e.key);
+                      .read(accountVisibilityProvider(accountId).notifier)
+                      .setVisibility(e.key);
                   Navigator.pop(context);
                 },
               ),
@@ -415,6 +417,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                   : null,
               onTap: () {
                 ref.read(accountProvider.notifier).switchAccount(a.id);
+                // 切り替え先アカウントのデフォルト公開範囲を反映
+                final newVisibility = ref.read(accountVisibilityProvider(a.id));
+                setState(() => _visibility = newVisibility);
                 Navigator.pop(context);
               },
             ),

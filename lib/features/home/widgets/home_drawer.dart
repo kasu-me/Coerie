@@ -205,7 +205,7 @@ class _ProfileHeader extends StatelessWidget {
               onTap: () {
                 Navigator.of(context).pop();
                 Navigator.of(context).pop();
-                context.push('/login');
+                context.push('/login?addAccount=true');
               },
             ),
           ],

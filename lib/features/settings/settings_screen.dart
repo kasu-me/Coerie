@@ -5,6 +5,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../shared/providers/account_provider.dart';
+import '../../shared/providers/account_tabs_provider.dart';
+import '../../shared/providers/account_visibility_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../../data/models/app_settings_model.dart';
 
@@ -91,12 +94,18 @@ class SettingsScreen extends ConsumerWidget {
 
           // --- タブ設定 ---
           _SectionHeader('タブ'),
-          ListTile(
-            leading: const Icon(Icons.tab),
-            title: const Text('タブの管理'),
-            subtitle: Text('${settings.tabs.length}個のタブ'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/settings/tabs'),
+          Consumer(
+            builder: (context, ref, _) {
+              final accountId = ref.watch(activeAccountProvider)?.id ?? '';
+              final tabs = ref.watch(accountTabsProvider(accountId));
+              return ListTile(
+                leading: const Icon(Icons.tab),
+                title: const Text('タブの管理'),
+                subtitle: Text('${tabs.length}個のタブ'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/settings/tabs'),
+              );
+            },
           ),
 
           // --- 操作設定 ---
@@ -144,7 +153,7 @@ class SettingsScreen extends ConsumerWidget {
             leading: const Icon(Icons.upload_outlined),
             title: const Text('設定をエクスポート'),
             subtitle: const Text('設定内容をJSONファイルとして保存'),
-            onTap: () => _exportSettings(context, settings),
+            onTap: () => _exportSettings(context, ref, settings),
           ),
           ListTile(
             leading: const Icon(Icons.download_outlined),
@@ -224,6 +233,7 @@ class SettingsScreen extends ConsumerWidget {
 
   Future<void> _exportSettings(
     BuildContext context,
+    WidgetRef ref,
     AppSettingsModel settings,
   ) async {
     final timestamp = DateTime.now()
@@ -232,11 +242,30 @@ class SettingsScreen extends ConsumerWidget {
         .replaceAll('.', '-')
         .substring(0, 19);
     final defaultName = 'coerie_settings_$timestamp.json';
-    final jsonStr = settings.toJsonString();
+
+    // アカウント別設定（タブ・公開範囲）をまとめる
+    final accounts = ref.read(accountProvider);
+    final accountSettings = <String, dynamic>{};
+    for (final account in accounts) {
+      accountSettings[account.id] = {
+        'tabs': ref
+            .read(accountTabsProvider(account.id))
+            .map((t) => t.toJson())
+            .toList(),
+        'defaultVisibility': ref.read(accountVisibilityProvider(account.id)),
+      };
+    }
+
+    // バージョン2フォーマット: globalSettings + accountSettings
+    final exportData = {
+      'version': 2,
+      'globalSettings': settings.toJson(),
+      'accountSettings': accountSettings,
+    };
+    final jsonStr = jsonEncode(exportData);
     final jsonBytes = Uint8List.fromList(utf8.encode(jsonStr));
 
     try {
-      // bytes にデータを渡すことで file_picker が SAF 経由で書き込む（Android対応）
       final savePath = await FilePicker.platform.saveFile(
         dialogTitle: '設定のエクスポート先を選択',
         fileName: defaultName,
@@ -245,7 +274,7 @@ class SettingsScreen extends ConsumerWidget {
         bytes: jsonBytes,
       );
 
-      if (savePath == null) return; // キャンセル
+      if (savePath == null) return;
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -281,7 +310,6 @@ class SettingsScreen extends ConsumerWidget {
       return;
     }
 
-    // キャンセル
     if (result == null || result.files.isEmpty) return;
 
     final bytes = result.files.first.bytes;
@@ -305,8 +333,55 @@ class SettingsScreen extends ConsumerWidget {
     }
 
     try {
-      final imported = AppSettingsModel.fromJsonString(jsonStr);
-      await ref.read(settingsProvider.notifier).importSettings(imported);
+      final decoded = jsonDecode(jsonStr) as Map<String, dynamic>;
+      final version = decoded['version'] as int? ?? 1;
+
+      if (version >= 2) {
+        // バージョン2: globalSettings + accountSettings
+        final globalJson =
+            decoded['globalSettings'] as Map<String, dynamic>? ?? decoded;
+        final imported = AppSettingsModel.fromJson(globalJson);
+        await ref.read(settingsProvider.notifier).importSettings(imported);
+
+        final accountSettingsMap =
+            decoded['accountSettings'] as Map<String, dynamic>? ?? {};
+        for (final entry in accountSettingsMap.entries) {
+          final accountId = entry.key;
+          final data = entry.value as Map<String, dynamic>;
+
+          final tabsJson = data['tabs'] as List<dynamic>?;
+          if (tabsJson != null) {
+            final tabs = tabsJson
+                .map((e) => TabConfigModel.fromJson(e as Map<String, dynamic>))
+                .toList();
+            await ref
+                .read(accountTabsProvider(accountId).notifier)
+                .setTabs(tabs);
+          }
+
+          final visibility = data['defaultVisibility'] as String?;
+          if (visibility != null) {
+            await ref
+                .read(accountVisibilityProvider(accountId).notifier)
+                .setVisibility(visibility);
+          }
+        }
+      } else {
+        // バージョン1（旧フォーマット）: AppSettingsModelのみ
+        final imported = AppSettingsModel.fromJson(decoded);
+        await ref.read(settingsProvider.notifier).importSettings(imported);
+
+        // 旧フォーマットのtabsを現在のアクティブアカウントに適用
+        if (imported.tabs.isNotEmpty) {
+          final accountId = ref.read(activeAccountProvider)?.id ?? '';
+          if (accountId.isNotEmpty) {
+            await ref
+                .read(accountTabsProvider(accountId).notifier)
+                .setTabs(imported.tabs);
+          }
+        }
+      }
+
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,

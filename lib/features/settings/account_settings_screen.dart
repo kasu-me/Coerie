@@ -43,7 +43,7 @@ class AccountSettingsScreen extends ConsumerWidget {
           ListTile(
             leading: const Icon(Icons.add),
             title: const Text('アカウントを追加'),
-            onTap: () => context.push('/login'),
+            onTap: () => context.push('/login?addAccount=true'),
           ),
         ],
       ),

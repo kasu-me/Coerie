@@ -7,7 +7,9 @@ import '../../data/models/account_model.dart';
 import 'miauth_webview_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+  final bool addAccount;
+
+  const LoginScreen({super.key, this.addAccount = false});
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -69,7 +71,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           );
 
-      if (mounted) context.go('/home');
+      if (mounted) {
+        if (widget.addAccount) {
+          // アカウント追加時は元の画面に戻る
+          context.pop();
+        } else {
+          context.go('/home');
+        }
+      }
     } catch (e) {
       if (mounted) {
         setState(() {

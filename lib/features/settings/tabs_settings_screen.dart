@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
-import '../../shared/providers/settings_provider.dart';
+import '../../shared/providers/account_provider.dart';
+import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../data/models/app_settings_model.dart';
 import '../../core/constants/app_constants.dart';
@@ -19,11 +20,13 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _tabs = List.from(ref.read(settingsProvider).tabs);
+    final accountId = ref.read(activeAccountProvider)?.id ?? '';
+    _tabs = List.from(ref.read(accountTabsProvider(accountId)));
   }
 
   Future<void> _save() async {
-    await ref.read(settingsProvider.notifier).setTabs(_tabs);
+    final accountId = ref.read(activeAccountProvider)?.id ?? '';
+    await ref.read(accountTabsProvider(accountId).notifier).setTabs(_tabs);
   }
 
   void _addTab() {

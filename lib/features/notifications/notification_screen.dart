@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/streaming/streaming_service.dart';
 import '../../data/models/notification_model.dart';
+import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 
 // ---- Provider ----
@@ -50,6 +51,21 @@ class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
   _NotificationsNotifier(this._ref) : super(const _NotificationsState()) {
     fetch();
     _subscribeStream();
+    // アカウント切り替え時にリセット＆再購読
+    _ref.listen(activeAccountProvider, (prev, next) {
+      if (prev?.id != next?.id) {
+        state = const _NotificationsState();
+        fetch();
+        _streamSub?.cancel();
+        _subscribeStream();
+      }
+    });
+    // ストリーミングサービス変更時に再購読
+    _ref.listen<StreamingService?>(streamingServiceProvider, (prev, next) {
+      _streamSub?.cancel();
+      _streamSub = null;
+      _subscribeStream();
+    });
   }
 
   void _subscribeStream() {

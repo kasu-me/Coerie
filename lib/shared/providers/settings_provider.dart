@@ -2,28 +2,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/models/app_settings_model.dart';
 import '../../core/constants/app_constants.dart';
+import 'shared_preferences_provider.dart';
 
 final settingsProvider =
-    StateNotifierProvider<SettingsNotifier, AppSettingsModel>(
-      (ref) => SettingsNotifier(),
-    );
+    StateNotifierProvider<SettingsNotifier, AppSettingsModel>((ref) {
+      final prefs = ref.read(sharedPreferencesProvider);
+      return SettingsNotifier(prefs);
+    });
 
 class SettingsNotifier extends StateNotifier<AppSettingsModel> {
-  SettingsNotifier() : super(const AppSettingsModel()) {
-    _load();
-  }
+  final SharedPreferences _prefs;
 
-  Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
+  SettingsNotifier(this._prefs) : super(_loadSync(_prefs));
+
+  static AppSettingsModel _loadSync(SharedPreferences prefs) {
     final jsonStr = prefs.getString(AppConstants.settingsKey);
     if (jsonStr != null) {
-      state = AppSettingsModel.fromJsonString(jsonStr);
+      try {
+        return AppSettingsModel.fromJsonString(jsonStr);
+      } catch (_) {
+        return const AppSettingsModel();
+      }
     }
+    return const AppSettingsModel();
   }
 
   Future<void> _save() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(AppConstants.settingsKey, state.toJsonString());
+    await _prefs.setString(AppConstants.settingsKey, state.toJsonString());
   }
 
   Future<void> setTheme(String theme) async {

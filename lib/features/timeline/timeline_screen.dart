@@ -73,6 +73,18 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+
+    // アカウント切り替え時にストリーミングサービスが変わるため再購読する
+    ref.listen<StreamingService?>(streamingServiceProvider, (prev, next) {
+      _streamSub?.cancel();
+      _streamSub = null;
+      if (next != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _subscribeStream();
+        });
+      }
+    });
+
     final state = ref.watch(timelineProvider(widget.timelineType));
 
     if (state.isLoading) {

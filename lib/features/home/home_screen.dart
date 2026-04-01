@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/streaming/streaming_service.dart';
 import '../../data/models/app_settings_model.dart';
+import '../../shared/providers/account_provider.dart';
+import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 import 'widgets/home_app_bar.dart';
 import 'widgets/home_drawer.dart';
@@ -27,7 +29,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final tabs = ref.read(settingsProvider).tabs;
+    final accountId = ref.read(activeAccountProvider)?.id ?? '';
+    final tabs = ref.read(accountTabsProvider(accountId));
     _syncTabController(tabs.length);
   }
 
@@ -51,8 +54,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final settings = ref.watch(settingsProvider);
-    final tabs = settings.tabs;
+    ref.watch(settingsProvider); // theme/fontSize等の変更を受け取る
+    final accountId = ref.watch(activeAccountProvider)?.id ?? '';
+    final tabs = ref.watch(accountTabsProvider(accountId));
 
     // タブ数変化を同フレームで即座に同期する（次フレームへの遅延を避ける）
     if (tabs.length != _tabCount) {
@@ -127,7 +131,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           await context.push('/compose');
           // 投稿後にタイムラインを全タブでリフレッシュ
           if (mounted) {
-            for (final tab in ref.read(settingsProvider).tabs) {
+            final currentAccountId = ref.read(activeAccountProvider)?.id ?? '';
+            for (final tab in ref.read(accountTabsProvider(currentAccountId))) {
               if (tab.type != AppConstants.tabTypeNotifications) {
                 ref
                     .read(timelineProvider(_timelineKey(tab)).notifier)
