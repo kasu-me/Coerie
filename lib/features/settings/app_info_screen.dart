@@ -8,16 +8,15 @@ class AppInfoScreen extends StatelessWidget {
 
   static const _version = '1.0.0';
   static const _author = 'M_Kasumi';
-  static const _githubUrl =
-      'https://github.com/kasu-me/Coerie/tree/main';
+  static const _githubUrl = 'https://github.com/kasu-me/Coerie/tree/main';
 
   Future<void> _launchUrl(BuildContext context, String url) async {
     final uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('URLを開けませんでした: $url')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('URLを開けませんでした: $url')));
       }
     }
   }
@@ -38,15 +37,15 @@ class AppInfoScreen extends StatelessWidget {
                 Text(
                   AppConstants.appName,
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'バージョン $_version',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),

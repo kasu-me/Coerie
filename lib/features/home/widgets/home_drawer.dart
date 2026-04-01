@@ -25,6 +25,15 @@ class HomeDrawer extends ConsumerWidget {
             ),
             const Divider(),
             ListTile(
+              leading: const Icon(Icons.manage_accounts),
+              title: const Text('アカウント設定'),
+              onTap: () {
+                Navigator.of(context).pop();
+                context.push('/account-settings');
+              },
+            ),
+            const Divider(),
+            ListTile(
               leading: const Icon(Icons.folder_open),
               title: const Text('ドライブ'),
               onTap: () {

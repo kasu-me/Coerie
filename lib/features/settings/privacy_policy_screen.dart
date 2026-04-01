@@ -50,8 +50,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
             ),
             _Section(
               title: '5. 広告・アナリティクス',
-              body:
-                  '本アプリは広告を表示せず、Google Analyticsなどの外部アナリティクスサービスを使用しません。',
+              body: '本アプリは広告を表示せず、Google Analyticsなどの外部アナリティクスサービスを使用しません。',
             ),
             _Section(
               title: '6. データの保管と削除',
@@ -112,9 +111,9 @@ class _Section extends StatelessWidget {
         children: [
           Text(
             title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(body, style: Theme.of(context).textTheme.bodyMedium),
