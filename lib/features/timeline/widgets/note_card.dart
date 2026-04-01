@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/note_model.dart';
+import '../../../data/models/user_model.dart';
 import '../../../shared/widgets/media_player_screen.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/providers/account_provider.dart';
@@ -34,7 +35,17 @@ final _emojiUrlMapProvider = Provider<Map<String, String>>((ref) {
 class NoteCard extends ConsumerStatefulWidget {
   final NoteModel note;
   final bool navigatable;
-  const NoteCard({super.key, required this.note, this.navigatable = true});
+  final UserModel? renoteUser;
+  final bool isMyRenote;
+  final String? renoteWrapperNoteId;
+  const NoteCard({
+    super.key,
+    required this.note,
+    this.navigatable = true,
+    this.renoteUser,
+    this.isMyRenote = false,
+    this.renoteWrapperNoteId,
+  });
 
   @override
   ConsumerState<NoteCard> createState() => _NoteCardState();
@@ -129,43 +140,50 @@ class _NoteCardState extends ConsumerState<NoteCard> {
     if (note.text == null && note.renote != null) {
       final activeAccount = ref.read(activeAccountProvider);
       final isMyRenote = activeAccount?.userId == note.user.id;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Row(
-              children: [
-                Icon(Icons.repeat, size: 14, color: theme.colorScheme.tertiary),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    '${note.user.name} がリノート',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.tertiary,
-                    ),
-                  ),
-                ),
-                if (isMyRenote)
-                  _UnrenoteButton(
-                    originalNoteId: note.renote!.id,
-                    renoteWrapperNoteId: note.id,
-                  ),
-              ],
-            ),
-          ),
-          NoteCard(note: note.renote!, navigatable: widget.navigatable),
-        ],
+      return NoteCard(
+        note: note.renote!,
+        navigatable: widget.navigatable,
+        renoteUser: note.user,
+        isMyRenote: isMyRenote,
+        renoteWrapperNoteId: note.id,
       );
     }
 
     final card = Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // リノートヘッダー
+            if (widget.renoteUser != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.repeat,
+                      size: 14,
+                      color: theme.colorScheme.tertiary,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        '${widget.renoteUser!.name} がリノート',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.tertiary,
+                        ),
+                      ),
+                    ),
+                    if (widget.isMyRenote)
+                      _UnrenoteButton(
+                        originalNoteId: note.id,
+                        renoteWrapperNoteId: widget.renoteWrapperNoteId!,
+                      ),
+                  ],
+                ),
+              ),
             // ユーザー情報
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
