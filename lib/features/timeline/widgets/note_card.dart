@@ -522,10 +522,16 @@ class _ReactionChip extends StatelessWidget {
     return key.substring(1, key.length - 1);
   }
 
-  /// `@` を含む場合はリモート絵文字（リアクション不可）
+  /// `@` を含む、かつ `@.` ではない場合はリモート絵文字（リアクション不可）
+  /// `:name@.:` はMisskeyがローカル絵文字を示すフォーマットなので押せる
   static bool _isRemote(String key) {
     final inner = _inner(key);
-    return inner != null && inner.contains('@');
+    if (inner == null) return false;
+    final atIdx = inner.indexOf('@');
+    if (atIdx < 0) return false;
+    // `@.` はローカルサーバーを指すため、リモートとは見なさない
+    final host = inner.substring(atIdx + 1);
+    return host != '.';
   }
 
   @override

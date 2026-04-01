@@ -221,14 +221,29 @@ class StreamingService {
   }
 
   Future<void> _tryReconnect() async {
-    if (_disposed) return;
-    final success = await _doConnect();
+    // 初回以降の再試行待機時間（秒）
+    const retryDelays = [5, 10, 20, 30, 60];
+
+    for (int i = 0; i <= retryDelays.length; i++) {
+      if (_disposed) return;
+      final success = await _doConnect();
+      if (success) {
+        _reconnecting = false;
+        if (!_statusController.isClosed) {
+          _statusController.add(StreamingStatus.connected);
+        }
+        return;
+      }
+      // まだ試行回数が残っている場合はバックオフして再試行
+      if (i < retryDelays.length) {
+        await Future.delayed(Duration(seconds: retryDelays[i]));
+      }
+    }
+
+    // 全試行失敗
     _reconnecting = false;
-    if (_disposed) return;
-    if (!_statusController.isClosed) {
-      _statusController.add(
-        success ? StreamingStatus.connected : StreamingStatus.serverDown,
-      );
+    if (!_disposed && !_statusController.isClosed) {
+      _statusController.add(StreamingStatus.serverDown);
     }
   }
 

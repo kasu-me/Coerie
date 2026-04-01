@@ -19,6 +19,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
   final _scrollController = ScrollController();
   StreamSubscription? _streamSub;
   int _newNotesCount = 0;
+  bool _wasReconnecting = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -83,6 +84,21 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
           if (mounted) _subscribeStream();
         });
       }
+    });
+
+    // 再接続後にギャップ期間の投稿を補填する
+    ref.listen<AsyncValue<StreamingStatus>>(streamingStatusProvider, (
+      prev,
+      next,
+    ) {
+      next.whenData((status) {
+        if (status == StreamingStatus.reconnecting) {
+          _wasReconnecting = true;
+        } else if (status == StreamingStatus.connected && _wasReconnecting) {
+          _wasReconnecting = false;
+          ref.read(timelineProvider(widget.timelineType).notifier).fetchNew();
+        }
+      });
     });
 
     final state = ref.watch(timelineProvider(widget.timelineType));
