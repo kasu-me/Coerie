@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/streaming/streaming_service.dart';
 import '../../data/models/app_settings_model.dart';
 import '../../shared/providers/settings_provider.dart';
 import 'widgets/home_app_bar.dart';
@@ -57,7 +58,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (tabs.length != _tabCount) {
       _syncTabController(tabs.length);
     }
-
+    // WebSocket 接続状態を監視：サーバーダウン時にバナー表示
+    ref.listen<AsyncValue<StreamingStatus>>(streamingStatusProvider, (
+      prev,
+      next,
+    ) {
+      next.whenData((status) {
+        final messenger = ScaffoldMessenger.of(context);
+        if (status == StreamingStatus.serverDown) {
+          messenger.showMaterialBanner(
+            MaterialBanner(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              content: const Text('サーバーに接続できません。リアルタイム更新が停止しています。'),
+              leading: const Icon(Icons.wifi_off, color: Colors.white),
+              backgroundColor: Theme.of(context).colorScheme.error,
+              contentTextStyle: TextStyle(
+                color: Theme.of(context).colorScheme.onError,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => messenger.hideCurrentMaterialBanner(),
+                  child: Text(
+                    '閉じる',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onError,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        } else if (status == StreamingStatus.connected) {
+          // 再接続に成功したらバナーを閉じる
+          messenger.hideCurrentMaterialBanner();
+        }
+      });
+    });
     return Scaffold(
       key: _scaffoldKey,
       appBar: HomeAppBar(scaffoldKey: _scaffoldKey),

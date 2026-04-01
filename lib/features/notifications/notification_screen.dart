@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/streaming/streaming_service.dart';
 import '../../data/models/notification_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 
@@ -43,9 +45,23 @@ class _NotificationsState {
 
 class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
   final Ref _ref;
+  StreamSubscription<NotificationModel>? _streamSub;
 
   _NotificationsNotifier(this._ref) : super(const _NotificationsState()) {
     fetch();
+    _subscribeStream();
+  }
+
+  void _subscribeStream() {
+    final streaming = _ref.read(streamingServiceProvider);
+    if (streaming == null) return;
+    _streamSub = streaming.notificationStream.listen(_onRealtimeNotification);
+  }
+
+  void _onRealtimeNotification(NotificationModel notification) {
+    // 重複チェック
+    if (state.items.any((n) => n.id == notification.id)) return;
+    state = state.copyWith(items: [notification, ...state.items]);
   }
 
   Future<void> fetch({bool loadMore = false}) async {
@@ -74,6 +90,12 @@ class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
   Future<void> refresh() async {
     state = const _NotificationsState();
     await fetch();
+  }
+
+  @override
+  void dispose() {
+    _streamSub?.cancel();
+    super.dispose();
   }
 }
 

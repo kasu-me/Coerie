@@ -77,6 +77,31 @@ class NoteModel {
     this.renote,
   });
 
+  static const _sentinel = Object();
+
+  NoteModel copyWith({
+    Map<String, int>? reactions,
+    Object? myReaction = _sentinel,
+    int? repliesCount,
+    int? renoteCount,
+  }) => NoteModel(
+    id: id,
+    createdAt: createdAt,
+    user: user,
+    text: text,
+    cw: cw,
+    visibility: visibility,
+    files: files,
+    repliesCount: repliesCount ?? this.repliesCount,
+    renoteCount: renoteCount ?? this.renoteCount,
+    reactions: reactions ?? this.reactions,
+    myReaction: identical(myReaction, _sentinel)
+        ? this.myReaction
+        : myReaction as String?,
+    reply: reply,
+    renote: renote,
+  );
+
   factory NoteModel.fromJson(Map<String, dynamic> json, {String host = ''}) {
     final filesJson = json['files'] as List<dynamic>? ?? [];
     final reactionsJson = json['reactions'] as Map<String, dynamic>? ?? {};

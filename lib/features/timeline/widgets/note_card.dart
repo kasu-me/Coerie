@@ -1,4 +1,5 @@
-﻿import 'dart:ui';
+﻿import 'dart:async';
+import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../shared/providers/account_provider.dart';
 import '../../../shared/providers/misskey_api_provider.dart';
 import '../../../shared/providers/settings_provider.dart';
+import '../../../core/streaming/streaming_service.dart';
 import '../../compose/emoji_picker_sheet.dart';
 import '../ogp_provider.dart';
 import '../timeline_provider.dart';
@@ -59,12 +61,39 @@ class _NoteCardState extends ConsumerState<NoteCard> {
   String? _myReaction;
   bool _cwExpanded = false;
   final Set<int> _revealedSensitiveIndexes = {};
+  StreamSubscription<NoteUpdateEvent>? _noteUpdateSub;
 
   @override
   void initState() {
     super.initState();
     _localReactions = Map.from(widget.note.reactions);
     _myReaction = widget.note.myReaction;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _subscribeNote());
+  }
+
+  void _subscribeNote() {
+    final streaming = ref.read(streamingServiceProvider);
+    if (streaming == null) return;
+    final noteId = widget.note.id;
+    streaming.subNote(noteId);
+    _noteUpdateSub = streaming.noteUpdateStream
+        .where((e) => e.noteId == noteId)
+        .listen(_onNoteUpdate);
+  }
+
+  void _onNoteUpdate(NoteUpdateEvent event) {
+    if (!mounted) return;
+    final activeUserId = ref.read(activeAccountProvider)?.userId;
+    // 自分の操作は _handleReaction で既に反映済みなのでスキップ
+    if (event.userId == activeUserId) return;
+
+    setState(() {
+      if (event.type == 'reacted' && event.reaction != null) {
+        _incrementReaction(event.reaction!);
+      } else if (event.type == 'unreacted' && event.reaction != null) {
+        _decrementReaction(event.reaction!);
+      }
+    });
   }
 
   @override
@@ -76,7 +105,25 @@ class _NoteCardState extends ConsumerState<NoteCard> {
       _myReaction = widget.note.myReaction;
       _cwExpanded = false;
       _revealedSensitiveIndexes.clear();
+      // 購読し直し
+      final streaming = ref.read(streamingServiceProvider);
+      if (streaming != null) {
+        _noteUpdateSub?.cancel();
+        streaming.unsubNote(oldWidget.note.id);
+        streaming.subNote(widget.note.id);
+        _noteUpdateSub = streaming.noteUpdateStream
+            .where((e) => e.noteId == widget.note.id)
+            .listen(_onNoteUpdate);
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    _noteUpdateSub?.cancel();
+    final streaming = ref.read(streamingServiceProvider);
+    streaming?.unsubNote(widget.note.id);
+    super.dispose();
   }
 
   // リアクション Chip またはピッカーからのリアクション操作を一元処理
