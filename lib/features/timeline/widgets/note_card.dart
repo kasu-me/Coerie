@@ -152,19 +152,14 @@ class _NoteCardState extends ConsumerState<NoteCard> {
     final card = Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          12,
-          widget.renoteUser != null ? 4 : 12,
-          12,
-          4,
-        ),
+        padding: EdgeInsets.fromLTRB(12, 12, 12, 4),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // リノートヘッダー
             if (widget.renoteUser != null)
               Padding(
-                padding: const EdgeInsets.only(bottom: 4),
+                padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
                     Icon(
@@ -186,6 +181,29 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                         originalNoteId: note.id,
                         renoteWrapperNoteId: widget.renoteWrapperNoteId!,
                       ),
+                  ],
+                ),
+              ),
+            // 返信先ヘッダー
+            if (note.reply != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.reply,
+                      size: 14,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        'Re: ${note.reply!.user.acct}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -244,18 +262,6 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                   ),
               ],
             ),
-
-            // 返信先
-            if (note.reply != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  'Re: ${note.reply!.user.acct}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-              ),
 
             // 本文（URLをタップ可能リンクとして表示）
             if (note.text != null)
@@ -1213,20 +1219,21 @@ class _UnrenoteButtonState extends ConsumerState<_UnrenoteButton> {
   Widget build(BuildContext context) {
     return _isLoading
         ? const SizedBox(
-            width: 24,
-            height: 24,
+            width: 14,
+            height: 14,
             child: CircularProgressIndicator(strokeWidth: 2),
           )
-        : IconButton(
-            icon: Icon(
-              Icons.repeat_one_outlined,
-              size: 16,
-              color: Theme.of(context).colorScheme.error,
+        : GestureDetector(
+            onTap: _unrenote,
+            behavior: HitTestBehavior.opaque,
+            child: Tooltip(
+              message: 'リノートを解除',
+              child: Icon(
+                Icons.repeat_one_outlined,
+                size: 14,
+                color: Theme.of(context).colorScheme.error,
+              ),
             ),
-            tooltip: 'リノートを解除',
-            onPressed: _unrenote,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           );
   }
 }
