@@ -124,6 +124,60 @@ class MisskeyApi {
         .toList();
   }
 
+  Future<List<NoteModel>> getUserPinnedNotes(String userId) async {
+    final user = await getUser(userId);
+    if (user.pinnedNoteIds.isEmpty) return [];
+    final futures = user.pinnedNoteIds.map((id) async {
+      final res = await _dio.post('notes/show', data: _body({'noteId': id}));
+      return NoteModel.fromJson(res.data as Map<String, dynamic>, host: host);
+    });
+    return Future.wait(futures);
+  }
+
+  Future<List<UserModel>> getFollowing(
+    String userId, {
+    int limit = 30,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'userId': userId, 'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('users/following', data: _body(params));
+    final list = res.data as List<dynamic>;
+    return list.map((e) {
+      final map = e as Map<String, dynamic>;
+      return UserModel.fromJson(
+        map['followee'] as Map<String, dynamic>,
+        host: host,
+      );
+    }).toList();
+  }
+
+  Future<List<UserModel>> getFollowers(
+    String userId, {
+    int limit = 30,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'userId': userId, 'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('users/followers', data: _body(params));
+    final list = res.data as List<dynamic>;
+    return list.map((e) {
+      final map = e as Map<String, dynamic>;
+      return UserModel.fromJson(
+        map['follower'] as Map<String, dynamic>,
+        host: host,
+      );
+    }).toList();
+  }
+
+  Future<void> followUser(String userId) async {
+    await _dio.post('following/create', data: _body({'userId': userId}));
+  }
+
+  Future<void> unfollowUser(String userId) async {
+    await _dio.post('following/delete', data: _body({'userId': userId}));
+  }
+
   // ---- ドライブ ----
 
   /// ドライブのフォルダ一覧を取得する。

@@ -7,7 +7,11 @@ class UserModel {
   final String? bannerUrl;
   final int? followingCount;
   final int? followersCount;
+  final int? notesCount;
   final String? description;
+  final List<String> pinnedNoteIds;
+  final bool isFollowing;
+  final bool isFollowed;
 
   const UserModel({
     required this.id,
@@ -18,7 +22,11 @@ class UserModel {
     this.bannerUrl,
     this.followingCount,
     this.followersCount,
+    this.notesCount,
     this.description,
+    this.pinnedNoteIds = const [],
+    this.isFollowing = false,
+    this.isFollowed = false,
   });
 
   String get acct => host.isEmpty ? '@$username' : '@$username@$host';
@@ -33,7 +41,12 @@ class UserModel {
       bannerUrl: json['bannerUrl'] as String?,
       followingCount: json['followingCount'] as int?,
       followersCount: json['followersCount'] as int?,
+      notesCount: json['notesCount'] as int?,
       description: json['description'] as String?,
+      pinnedNoteIds:
+          (json['pinnedNoteIds'] as List<dynamic>?)?.cast<String>() ?? const [],
+      isFollowing: json['isFollowing'] as bool? ?? false,
+      isFollowed: json['isFollowed'] as bool? ?? false,
     );
   }
 }

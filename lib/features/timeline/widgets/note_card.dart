@@ -38,6 +38,7 @@ class NoteCard extends ConsumerStatefulWidget {
   final UserModel? renoteUser;
   final bool isMyRenote;
   final String? renoteWrapperNoteId;
+  final UserModel? pinnedByUser;
   const NoteCard({
     super.key,
     required this.note,
@@ -45,6 +46,7 @@ class NoteCard extends ConsumerStatefulWidget {
     this.renoteUser,
     this.isMyRenote = false,
     this.renoteWrapperNoteId,
+    this.pinnedByUser,
   });
 
   @override
@@ -152,10 +154,40 @@ class _NoteCardState extends ConsumerState<NoteCard> {
     final card = Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Padding(
-        padding: EdgeInsets.fromLTRB(12, 12, 12, 4),
+        padding: EdgeInsets.fromLTRB(
+          12,
+          widget.renoteUser != null ||
+                  note.reply != null ||
+                  widget.pinnedByUser != null
+              ? 4
+              : 12,
+          12,
+          4,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ピン留めヘッダー
+            if (widget.pinnedByUser != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.push_pin_outlined,
+                      size: 14,
+                      color: theme.colorScheme.secondary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${widget.pinnedByUser!.name} がピン留め',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.secondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             // リノートヘッダー
             if (widget.renoteUser != null)
               Padding(
