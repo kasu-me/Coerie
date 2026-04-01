@@ -70,6 +70,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       next.whenData((status) {
         final messenger = ScaffoldMessenger.of(context);
         if (status == StreamingStatus.serverDown) {
+          messenger.hideCurrentMaterialBanner();
           messenger.showMaterialBanner(
             MaterialBanner(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -81,9 +82,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
               actions: [
                 TextButton(
-                  onPressed: () => messenger.hideCurrentMaterialBanner(),
+                  onPressed: () {
+                    ref.read(streamingServiceProvider)?.retryConnect();
+                  },
                   child: Text(
-                    '閉じる',
+                    '再接続',
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.onError,
                     ),
@@ -92,6 +95,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ],
             ),
           );
+        } else if (status == StreamingStatus.reconnecting) {
+          // 再接続中はバナーを一旦閉じる（二重表示防止）
+          messenger.hideCurrentMaterialBanner();
         } else if (status == StreamingStatus.connected) {
           // 再接続に成功したらバナーを閉じる
           messenger.hideCurrentMaterialBanner();

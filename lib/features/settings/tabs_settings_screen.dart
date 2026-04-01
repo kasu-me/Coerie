@@ -21,12 +21,16 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
   void initState() {
     super.initState();
     final accountId = ref.read(activeAccountProvider)?.id ?? '';
-    _tabs = List.from(ref.read(accountTabsProvider(accountId)));
+    // List.unmodifiableで保存されているため、必ず可変リストにコピーする
+    _tabs = List<TabConfigModel>.from(ref.read(accountTabsProvider(accountId)));
   }
 
   Future<void> _save() async {
     final accountId = ref.read(activeAccountProvider)?.id ?? '';
-    await ref.read(accountTabsProvider(accountId).notifier).setTabs(_tabs);
+    // setTabs に渡す際も新しいコピーを渡して同一参照を避ける
+    await ref
+        .read(accountTabsProvider(accountId).notifier)
+        .setTabs(List<TabConfigModel>.from(_tabs));
   }
 
   void _addTab() {

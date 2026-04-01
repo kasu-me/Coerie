@@ -39,7 +39,8 @@ class AccountTabsNotifier extends StateNotifier<List<TabConfigModel>> {
   }
 
   Future<void> setTabs(List<TabConfigModel> tabs) async {
-    state = tabs;
+    // 常に新しいリストオブジェクトを生成してRiverpodに変更を確実に通知する
+    state = List.unmodifiable(tabs);
     if (accountId.isEmpty) return;
     await _prefs.setString(
       'tabs_$accountId',

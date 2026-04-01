@@ -232,6 +232,20 @@ class StreamingService {
     }
   }
 
+  /// 手動で再接続を試みる（バナーの「再接続」ボタン用）
+  void retryConnect() {
+    if (_disposed || _reconnecting) return;
+    _connected = false;
+    _reconnecting = true;
+    _channel?.sink.close();
+    _channel = null;
+    _channelSubscriptions.clear();
+    if (!_statusController.isClosed) {
+      _statusController.add(StreamingStatus.reconnecting);
+    }
+    _tryReconnect();
+  }
+
   Stream<NoteModel>? subscribeTimeline(String timelineType) {
     final channelName = _channelMap[timelineType];
     if (channelName == null) return null;
