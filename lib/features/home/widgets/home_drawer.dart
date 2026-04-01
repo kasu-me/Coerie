@@ -58,6 +58,14 @@ class HomeDrawer extends ConsumerWidget {
                 context.push('/settings');
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('アプリ情報'),
+              onTap: () {
+                Navigator.of(context).pop();
+                context.push('/app-info');
+              },
+            ),
           ],
         ),
       ),

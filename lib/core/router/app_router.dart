@@ -10,6 +10,8 @@ import '../../features/draft/draft_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/settings/tabs_settings_screen.dart';
 import '../../features/settings/mute_block_screen.dart';
+import '../../features/settings/app_info_screen.dart';
+import '../../features/settings/privacy_policy_screen.dart';
 import '../../features/notifications/notification_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/timeline/note_detail_screen.dart';
@@ -84,6 +86,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/mute-block',
         builder: (context, state) => const MuteBlockScreen(),
+      ),
+      GoRoute(
+        path: '/app-info',
+        builder: (context, state) => const AppInfoScreen(),
+      ),
+      GoRoute(
+        path: '/privacy-policy',
+        builder: (context, state) => const PrivacyPolicyScreen(),
       ),
       GoRoute(
         path: '/notifications',
