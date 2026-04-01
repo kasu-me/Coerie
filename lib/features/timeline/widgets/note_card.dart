@@ -152,7 +152,12 @@ class _NoteCardState extends ConsumerState<NoteCard> {
     final card = Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+        padding: EdgeInsets.fromLTRB(
+          12,
+          widget.renoteUser != null ? 4 : 12,
+          12,
+          4,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
