@@ -87,6 +87,11 @@ class _ProfileNotesNotifier extends StateNotifier<_ProfileNotesState> {
       state = state.copyWith(isLoading: false);
     }
   }
+
+  Future<void> refresh() async {
+    state = const _ProfileNotesState();
+    await fetch();
+  }
 }
 
 typedef _NotesProviderKey = ({String userId, bool withFiles});
@@ -203,6 +208,29 @@ class _ProfileBody extends ConsumerStatefulWidget {
 }
 
 class _ProfileBodyState extends ConsumerState<_ProfileBody> {
+  Future<void> _handleRefresh() async {
+    ref.invalidate(userProfileProvider(widget.userId));
+    ref.invalidate(_pinnedNotesProvider(widget.userId));
+    await Future.wait([
+      ref
+          .read(
+            _profileNotesProvider((
+              userId: widget.userId,
+              withFiles: false,
+            )).notifier,
+          )
+          .refresh(),
+      ref
+          .read(
+            _profileNotesProvider((
+              userId: widget.userId,
+              withFiles: true,
+            )).notifier,
+          )
+          .refresh(),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -219,155 +247,164 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
 
     return DefaultTabController(
       length: 2,
-      child: NestedScrollView(
-        headerSliverBuilder: (context, _) => [
-          SliverAppBar(
-            expandedHeight: 200,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (user.bannerUrl != null)
-                    CachedNetworkImage(
-                      imageUrl: user.bannerUrl!,
-                      fit: BoxFit.cover,
-                      errorWidget: (context, error, stack) =>
-                          Container(color: theme.colorScheme.primaryContainer),
-                    )
-                  else
-                    Container(color: theme.colorScheme.primaryContainer),
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Colors.black45],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      CircleAvatar(
-                        radius: 36,
-                        backgroundImage: user.avatarUrl != null
-                            ? CachedNetworkImageProvider(user.avatarUrl!)
-                            : null,
-                        child: user.avatarUrl == null
-                            ? const Icon(Icons.person, size: 36)
-                            : null,
-                      ),
-                      const Spacer(),
-                      if (!isOwnProfile)
-                        _FollowButton(
-                          userId: widget.userId,
-                          initialIsFollowing: user.isFollowing,
+      child: RefreshIndicator(
+        onRefresh: _handleRefresh,
+        // NestedScrollView の外側では、タブ内（内側スクロール）の
+        // OverscrollNotification は depth==2 で届く。
+        // ヘッダー部 (depth==0) と合わせて両方検知する。
+        notificationPredicate: (notification) =>
+            notification.depth == 0 || notification.depth == 2,
+        child: NestedScrollView(
+          headerSliverBuilder: (context, _) => [
+            SliverAppBar(
+              expandedHeight: 200,
+              pinned: true,
+              flexibleSpace: FlexibleSpaceBar(
+                background: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (user.bannerUrl != null)
+                      CachedNetworkImage(
+                        imageUrl: user.bannerUrl!,
+                        fit: BoxFit.cover,
+                        errorWidget: (context, error, stack) => Container(
+                          color: theme.colorScheme.primaryContainer,
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    user.name,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
+                      )
+                    else
+                      Container(color: theme.colorScheme.primaryContainer),
+                    const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.transparent, Colors.black45],
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '@${user.username}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.outline,
-                    ),
-                  ),
-                  if (user.description != null) ...[
-                    const SizedBox(height: 8),
-                    Text(user.description!),
                   ],
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      if (user.notesCount != null) ...[
-                        _CountChip(count: user.notesCount!, label: '投稿'),
-                        const SizedBox(width: 16),
-                      ],
-                      if (user.followingCount != null) ...[
-                        _TappableCountChip(
-                          count: user.followingCount!,
-                          label: 'フォロー',
-                          onTap: () =>
-                              _showFollowList(context, isFollowing: true),
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        CircleAvatar(
+                          radius: 36,
+                          backgroundImage: user.avatarUrl != null
+                              ? CachedNetworkImageProvider(user.avatarUrl!)
+                              : null,
+                          child: user.avatarUrl == null
+                              ? const Icon(Icons.person, size: 36)
+                              : null,
                         ),
-                        const SizedBox(width: 16),
+                        const Spacer(),
+                        if (!isOwnProfile)
+                          _FollowButton(
+                            userId: widget.userId,
+                            initialIsFollowing: user.isFollowing,
+                          ),
                       ],
-                      if (user.followersCount != null)
-                        _TappableCountChip(
-                          count: user.followersCount!,
-                          label: 'フォロワー',
-                          onTap: () =>
-                              _showFollowList(context, isFollowing: false),
-                        ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      user.name,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '@${user.username}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                    if (user.description != null) ...[
+                      const SizedBox(height: 8),
+                      Text(user.description!),
                     ],
-                  ),
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        if (user.notesCount != null) ...[
+                          _CountChip(count: user.notesCount!, label: '投稿'),
+                          const SizedBox(width: 16),
+                        ],
+                        if (user.followingCount != null) ...[
+                          _TappableCountChip(
+                            count: user.followingCount!,
+                            label: 'フォロー',
+                            onTap: () =>
+                                _showFollowList(context, isFollowing: true),
+                          ),
+                          const SizedBox(width: 16),
+                        ],
+                        if (user.followersCount != null)
+                          _TappableCountChip(
+                            count: user.followersCount!,
+                            label: 'フォロワー',
+                            onTap: () =>
+                                _showFollowList(context, isFollowing: false),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            ),
+            // カウント行とピン留め投稿の区切り
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  const Divider(height: 1),
+                  if (pinnedAsync.valueOrNull?.isNotEmpty == true)
+                    const SizedBox(height: 4),
                 ],
               ),
             ),
-          ),
-          // カウント行とピン留め投稿の区切り
-          SliverToBoxAdapter(
-            child: Column(
-              children: [
-                const Divider(height: 1),
-                if (pinnedAsync.valueOrNull?.isNotEmpty == true)
-                  const SizedBox(height: 4),
-              ],
-            ),
-          ),
-          if (pinnedAsync.valueOrNull?.isNotEmpty == true) ...[
-            SliverList(
-              delegate: SliverChildBuilderDelegate((context, i) {
-                final notes = pinnedAsync.value!;
-                if (i >= notes.length) return null;
-                return NoteCard(note: notes[i], pinnedByUser: user);
-              }, childCount: pinnedAsync.value!.length),
-            ),
-            const SliverToBoxAdapter(child: Divider(height: 1)),
-          ],
-          // タブバー
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _TabBarDelegate(
-              TabBar(
-                tabs: const [
-                  Tab(text: '投稿'),
-                  Tab(text: 'メディア'),
-                ],
+            if (pinnedAsync.valueOrNull?.isNotEmpty == true) ...[
+              SliverList(
+                delegate: SliverChildBuilderDelegate((context, i) {
+                  final notes = pinnedAsync.value!;
+                  if (i >= notes.length) return null;
+                  return NoteCard(note: notes[i], pinnedByUser: user);
+                }, childCount: pinnedAsync.value!.length),
+              ),
+              const SliverToBoxAdapter(child: Divider(height: 1)),
+            ],
+            // タブバー
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _TabBarDelegate(
+                TabBar(
+                  tabs: const [
+                    Tab(text: '投稿'),
+                    Tab(text: 'メディア'),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-        body: TabBarView(
-          children: [
-            _buildNotesList(notesState, (
-              userId: widget.userId,
-              withFiles: false,
-            ), '投稿がありません'),
-            _buildNotesList(mediaState, (
-              userId: widget.userId,
-              withFiles: true,
-            ), 'メディア付きの投稿がありません'),
           ],
+          body: TabBarView(
+            children: [
+              _buildNotesList(notesState, (
+                userId: widget.userId,
+                withFiles: false,
+              ), '投稿がありません'),
+              _buildNotesList(mediaState, (
+                userId: widget.userId,
+                withFiles: true,
+              ), 'メディア付きの投稿がありません'),
+            ],
+          ),
         ),
       ),
     );
@@ -400,7 +437,11 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
       return const Center(child: CircularProgressIndicator());
     }
     if (state.notes.isEmpty) {
-      return Center(child: Text(emptyMessage));
+      return CustomScrollView(
+        slivers: [
+          SliverFillRemaining(child: Center(child: Text(emptyMessage))),
+        ],
+      );
     }
     return NotificationListener<ScrollNotification>(
       onNotification: (n) {

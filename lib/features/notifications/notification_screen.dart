@@ -255,41 +255,48 @@ class _NotificationTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 通知種別アイコン（重ね表示）
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                n.user?.avatarUrl != null
-                    ? CircleAvatar(
-                        radius: 22,
-                        backgroundImage: CachedNetworkImageProvider(
-                          n.user!.avatarUrl!,
+            GestureDetector(
+              onTap: () {
+                if (n.user != null) {
+                  context.push('/profile/${n.user!.id}');
+                }
+              },
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  n.user?.avatarUrl != null
+                      ? CircleAvatar(
+                          radius: 22,
+                          backgroundImage: CachedNetworkImageProvider(
+                            n.user!.avatarUrl!,
+                          ),
+                        )
+                      : const CircleAvatar(
+                          radius: 22,
+                          child: Icon(Icons.person, size: 20),
                         ),
-                      )
-                    : const CircleAvatar(
-                        radius: 22,
-                        child: Icon(Icons.person, size: 20),
+                  Positioned(
+                    bottom: -4,
+                    right: -4,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: _typeColor(n.type, theme),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: theme.colorScheme.surface,
+                          width: 1.5,
+                        ),
                       ),
-                Positioned(
-                  bottom: -4,
-                  right: -4,
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: _typeColor(n.type, theme),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: theme.colorScheme.surface,
-                        width: 1.5,
+                      child: Icon(
+                        _typeIcon(n.type),
+                        size: 12,
+                        color: Colors.white,
                       ),
-                    ),
-                    child: Icon(
-                      _typeIcon(n.type),
-                      size: 12,
-                      color: Colors.white,
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(width: 14),
             // テキスト部分

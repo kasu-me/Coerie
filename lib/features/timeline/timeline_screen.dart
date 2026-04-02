@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'timeline_provider.dart';
 import 'widgets/note_card.dart';
 import '../../core/streaming/streaming_service.dart';
+import '../../shared/providers/account_provider.dart';
 
 class TimelineScreen extends ConsumerStatefulWidget {
   final String timelineType;
@@ -74,6 +75,16 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+
+    // アカウント切り替え時にUIをリセットする
+    ref.listen(activeAccountProvider, (prev, next) {
+      if (prev?.id != next?.id) {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(0);
+        }
+        setState(() => _newNotesCount = 0);
+      }
+    });
 
     // アカウント切り替え時にストリーミングサービスが変わるため再購読する
     ref.listen<StreamingService?>(streamingServiceProvider, (prev, next) {
