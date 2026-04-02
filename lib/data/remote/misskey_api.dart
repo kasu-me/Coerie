@@ -375,6 +375,14 @@ class MisskeyApi {
         .toList();
   }
 
+  /// プロフィールを更新する
+  Future<void> updateProfile({String? name, String? description}) async {
+    final params = <String, dynamic>{};
+    if (name != null) params['name'] = name;
+    if (description != null) params['description'] = description;
+    await _dio.post('i/update', data: _body(params));
+  }
+
   /// ワードミュートを更新する
   Future<void> setMutedWords(List<List<String>> words) async {
     await _dio.post('i/update', data: _body({'mutedWords': words}));

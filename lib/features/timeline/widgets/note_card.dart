@@ -858,7 +858,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
       builder: (_) => const EmojiPickerSheet(),
     );
     if (name == null || !mounted) return;
-    await widget.onReaction(':$name:');
+    await widget.onReaction(name);
   }
 
   @override

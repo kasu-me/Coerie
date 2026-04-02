@@ -7,6 +7,7 @@ import '../../core/streaming/streaming_service.dart';
 import '../../data/models/notification_model.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/widgets/scroll_to_top_fab.dart';
 
 // ---- Provider ----
 
@@ -163,7 +164,19 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
 
     if (widget.embedded) {
       // タブ埋め込み時: AppBarなし、リフレッシュはプルのみ
-      return _buildBody(context, state);
+      return Stack(
+        children: [
+          _buildBody(context, state),
+          Positioned(
+            bottom: 16,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: ScrollToTopFab(scrollController: _scrollController),
+            ),
+          ),
+        ],
+      );
     }
 
     return Scaffold(
@@ -177,7 +190,19 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
           ),
         ],
       ),
-      body: _buildBody(context, state),
+      body: Stack(
+        children: [
+          _buildBody(context, state),
+          Positioned(
+            bottom: 16,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: ScrollToTopFab(scrollController: _scrollController),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

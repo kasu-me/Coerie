@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/widgets/scroll_to_top_fab.dart';
 import 'widgets/note_card.dart';
 
 // 先祖ノートチェーン（古い順）を再帰的に取得する
@@ -41,19 +42,36 @@ final _noteRepliesProvider = FutureProvider.family<List<NoteModel>, String>((
   return api.getNoteReplies(noteId);
 });
 
-class NoteDetailScreen extends ConsumerWidget {
+class NoteDetailScreen extends ConsumerStatefulWidget {
   final NoteModel note;
   const NoteDetailScreen({super.key, required this.note});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NoteDetailScreen> createState() => _NoteDetailScreenState();
+}
+
+class _NoteDetailScreenState extends ConsumerState<NoteDetailScreen> {
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final note = widget.note;
     final ancestorsAsync = ref.watch(_ancestorsProvider(note));
     final repliesAsync = ref.watch(_noteRepliesProvider(note.id));
     final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('スレッド')),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: ScrollToTopFab(scrollController: _scrollController),
       body: ListView(
+        controller: _scrollController,
         children: [
           // ── 先祖ノート（上）: opacity を落とし文脈であることを示す ──
           ...ancestorsAsync.maybeWhen(

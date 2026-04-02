@@ -789,7 +789,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                         if (name != null && mounted) {
                           final pos = _textController.selection.baseOffset;
                           final text = _textController.text;
-                          final insert = ':$name:';
+                          final insert = name;
                           final newText = pos < 0
                               ? text + insert
                               : text.substring(0, pos) +

@@ -1,10 +1,12 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:go_router/go_router.dart';
 import '../../data/models/user_model.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
+import '../../shared/widgets/scroll_to_top_fab.dart';
 import '../timeline/widgets/note_card.dart';
 
 // ユーザー情報プロバイダー
@@ -208,6 +210,24 @@ class _ProfileBody extends ConsumerStatefulWidget {
 }
 
 class _ProfileBodyState extends ConsumerState<_ProfileBody> {
+  final _scrollController = ScrollController();
+  late bool _isBlocking;
+  late bool _isMuted;
+  bool _isLoadingAction = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isBlocking = widget.user.isBlocking;
+    _isMuted = widget.user.isMuted;
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   Future<void> _handleRefresh() async {
     ref.invalidate(userProfileProvider(widget.userId));
     ref.invalidate(_pinnedNotesProvider(widget.userId));
@@ -231,6 +251,160 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
     ]);
   }
 
+  Future<void> _toggleMute() async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null || _isLoadingAction) return;
+    setState(() => _isLoadingAction = true);
+    try {
+      if (_isMuted) {
+        await api.unmuteUser(widget.userId);
+      } else {
+        await api.muteUser(widget.userId);
+      }
+      if (mounted) setState(() => _isMuted = !_isMuted);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('操作に失敗しました')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingAction = false);
+    }
+  }
+
+  Future<void> _toggleBlock() async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null || _isLoadingAction) return;
+    if (!_isBlocking) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('ユーザーをブロック'),
+          content: Text(
+            '@${widget.user.username} をブロックしますか？\n'
+            'ブロックすると相手からもフォロー解除されます。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('キャンセル'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('ブロック'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+    setState(() => _isLoadingAction = true);
+    try {
+      if (_isBlocking) {
+        await api.unblockUser(widget.userId);
+      } else {
+        await api.blockUser(widget.userId);
+      }
+      if (mounted) setState(() => _isBlocking = !_isBlocking);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('操作に失敗しました')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingAction = false);
+    }
+  }
+
+  Future<void> _showEditProfileSheet() async {
+    final nameController = TextEditingController(text: widget.user.name);
+    final descController = TextEditingController(
+      text: widget.user.description ?? '',
+    );
+    try {
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (ctx) {
+          bool saving = false;
+          return StatefulBuilder(
+            builder: (ctx, setSheet) => Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                16 + MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('プロフィールを編集', style: Theme.of(ctx).textTheme.titleMedium),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: '名前',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descController,
+                    decoration: const InputDecoration(
+                      labelText: '自己紹介',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 4,
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: saving
+                        ? null
+                        : () async {
+                            setSheet(() => saving = true);
+                            try {
+                              final api = ref.read(misskeyApiProvider);
+                              await api?.updateProfile(
+                                name: nameController.text.trim(),
+                                description: descController.text.trim(),
+                              );
+                              if (ctx.mounted) Navigator.pop(ctx);
+                              ref.invalidate(
+                                userProfileProvider(widget.userId),
+                              );
+                            } catch (_) {
+                              setSheet(() => saving = false);
+                              if (ctx.mounted) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  const SnackBar(content: Text('保存に失敗しました')),
+                                );
+                              }
+                            }
+                          },
+                    child: saving
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('保存'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } finally {
+      nameController.dispose();
+      descController.dispose();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -247,165 +421,250 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
 
     return DefaultTabController(
       length: 2,
-      child: RefreshIndicator(
-        onRefresh: _handleRefresh,
-        // NestedScrollView の外側では、タブ内（内側スクロール）の
-        // OverscrollNotification は depth==2 で届く。
-        // ヘッダー部 (depth==0) と合わせて両方検知する。
-        notificationPredicate: (notification) =>
-            notification.depth == 0 || notification.depth == 2,
-        child: NestedScrollView(
-          headerSliverBuilder: (context, _) => [
-            SliverAppBar(
-              expandedHeight: 200,
-              pinned: true,
-              flexibleSpace: FlexibleSpaceBar(
-                background: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (user.bannerUrl != null)
-                      CachedNetworkImage(
-                        imageUrl: user.bannerUrl!,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, error, stack) => Container(
-                          color: theme.colorScheme.primaryContainer,
-                        ),
-                      )
-                    else
-                      Container(color: theme.colorScheme.primaryContainer),
-                    const DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [Colors.transparent, Colors.black45],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        CircleAvatar(
-                          radius: 36,
-                          backgroundImage: user.avatarUrl != null
-                              ? CachedNetworkImageProvider(user.avatarUrl!)
-                              : null,
-                          child: user.avatarUrl == null
-                              ? const Icon(Icons.person, size: 36)
-                              : null,
-                        ),
-                        const Spacer(),
-                        if (!isOwnProfile)
-                          _FollowButton(
-                            userId: widget.userId,
-                            initialIsFollowing: user.isFollowing,
+      child: Stack(
+        children: [
+          RefreshIndicator(
+            onRefresh: _handleRefresh,
+            // NestedScrollView の外側では、タブ内（内側スクロール）の
+            // OverscrollNotification は depth==2 で届く。
+            // ヘッダー部 (depth==0) と合わせて両方検知する。
+            notificationPredicate: (notification) =>
+                notification.depth == 0 || notification.depth == 2,
+            child: NestedScrollView(
+              controller: _scrollController,
+              headerSliverBuilder: (context, _) => [
+                SliverAppBar(
+                  expandedHeight: 200,
+                  pinned: true,
+                  actions: isOwnProfile
+                      ? [
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: _showEditProfileSheet,
+                            tooltip: 'プロフィールを編集',
                           ),
+                        ]
+                      : [
+                          if (_isLoadingAction)
+                            const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            )
+                          else
+                            PopupMenuButton<String>(
+                              icon: const Icon(Icons.more_vert),
+                              onSelected: (value) {
+                                if (value == 'mute') _toggleMute();
+                                if (value == 'block') _toggleBlock();
+                              },
+                              itemBuilder: (ctx) => [
+                                PopupMenuItem(
+                                  value: 'mute',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        _isMuted
+                                            ? Icons.volume_up_outlined
+                                            : Icons.volume_off_outlined,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(_isMuted ? 'ミュートを解除' : 'ミュートする'),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'block',
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.block),
+                                      const SizedBox(width: 8),
+                                      Text(_isBlocking ? 'ブロックを解除' : 'ブロックする'),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (user.bannerUrl != null)
+                          CachedNetworkImage(
+                            imageUrl: user.bannerUrl!,
+                            fit: BoxFit.cover,
+                            errorWidget: (context, error, stack) => Container(
+                              color: theme.colorScheme.primaryContainer,
+                            ),
+                          )
+                        else
+                          Container(color: theme.colorScheme.primaryContainer),
+                        const DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Colors.transparent, Colors.black45],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      user.name,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            CircleAvatar(
+                              radius: 36,
+                              backgroundImage: user.avatarUrl != null
+                                  ? CachedNetworkImageProvider(user.avatarUrl!)
+                                  : null,
+                              child: user.avatarUrl == null
+                                  ? const Icon(Icons.person, size: 36)
+                                  : null,
+                            ),
+                            const Spacer(),
+                            if (!isOwnProfile)
+                              _FollowButton(
+                                userId: widget.userId,
+                                initialIsFollowing: user.isFollowing,
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          user.name,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '@${user.username}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                        if (user.description != null) ...[
+                          const SizedBox(height: 8),
+                          Text(user.description!),
+                        ],
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            if (user.notesCount != null) ...[
+                              _CountChip(count: user.notesCount!, label: '投稿'),
+                              const SizedBox(width: 16),
+                            ],
+                            if (user.followingCount != null) ...[
+                              _TappableCountChip(
+                                count: user.followingCount!,
+                                label: 'フォロー',
+                                onTap: () =>
+                                    _showFollowList(context, isFollowing: true),
+                              ),
+                              const SizedBox(width: 16),
+                            ],
+                            if (user.followersCount != null)
+                              _TappableCountChip(
+                                count: user.followersCount!,
+                                label: 'フォロワー',
+                                onTap: () => _showFollowList(
+                                  context,
+                                  isFollowing: false,
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '@${user.username}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.outline,
-                      ),
-                    ),
-                    if (user.description != null) ...[
-                      const SizedBox(height: 8),
-                      Text(user.description!),
+                  ),
+                ),
+                // カウント行とピン留め投稿の区切り
+                SliverToBoxAdapter(
+                  child: Column(
+                    children: [
+                      const Divider(height: 1),
+                      if (pinnedAsync.valueOrNull?.isNotEmpty == true)
+                        const SizedBox(height: 4),
                     ],
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        if (user.notesCount != null) ...[
-                          _CountChip(count: user.notesCount!, label: '投稿'),
-                          const SizedBox(width: 16),
-                        ],
-                        if (user.followingCount != null) ...[
-                          _TappableCountChip(
-                            count: user.followingCount!,
-                            label: 'フォロー',
-                            onTap: () =>
-                                _showFollowList(context, isFollowing: true),
-                          ),
-                          const SizedBox(width: 16),
-                        ],
-                        if (user.followersCount != null)
-                          _TappableCountChip(
-                            count: user.followersCount!,
-                            label: 'フォロワー',
-                            onTap: () =>
-                                _showFollowList(context, isFollowing: false),
-                          ),
+                  ),
+                ),
+                if (pinnedAsync.valueOrNull?.isNotEmpty == true) ...[
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate((context, i) {
+                      final notes = pinnedAsync.value!;
+                      if (i >= notes.length) return null;
+                      return NoteCard(note: notes[i], pinnedByUser: user);
+                    }, childCount: pinnedAsync.value!.length),
+                  ),
+                  const SliverToBoxAdapter(child: Divider(height: 1)),
+                ],
+                // タブバー
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _TabBarDelegate(
+                    TabBar(
+                      tabs: const [
+                        Tab(text: '投稿'),
+                        Tab(text: 'メディア'),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-            // カウント行とピン留め投稿の区切り
-            SliverToBoxAdapter(
-              child: Column(
+              ],
+              body: TabBarView(
                 children: [
-                  const Divider(height: 1),
-                  if (pinnedAsync.valueOrNull?.isNotEmpty == true)
-                    const SizedBox(height: 4),
+                  _buildNotesList(notesState, (
+                    userId: widget.userId,
+                    withFiles: false,
+                  ), '投稿がありません'),
+                  _buildNotesList(mediaState, (
+                    userId: widget.userId,
+                    withFiles: true,
+                  ), 'メディア付きの投稿がありません'),
                 ],
               ),
             ),
-            if (pinnedAsync.valueOrNull?.isNotEmpty == true) ...[
-              SliverList(
-                delegate: SliverChildBuilderDelegate((context, i) {
-                  final notes = pinnedAsync.value!;
-                  if (i >= notes.length) return null;
-                  return NoteCard(note: notes[i], pinnedByUser: user);
-                }, childCount: pinnedAsync.value!.length),
-              ),
-              const SliverToBoxAdapter(child: Divider(height: 1)),
-            ],
-            // タブバー
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _TabBarDelegate(
-                TabBar(
-                  tabs: const [
-                    Tab(text: '投稿'),
-                    Tab(text: 'メディア'),
-                  ],
+          ),
+          Positioned(
+            bottom: 16,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: ScrollToTopFab(scrollController: _scrollController),
+            ),
+          ),
+          if (!isOwnProfile)
+            Positioned(
+              bottom: 16,
+              right: 16,
+              child: FloatingActionButton(
+                heroTag: 'profileMention',
+                onPressed: () => context.push(
+                  '/compose',
+                  extra: {'initialText': '${widget.user.acct} '},
                 ),
+                tooltip: 'メンションして投稿',
+                child: const Icon(Icons.alternate_email),
               ),
             ),
-          ],
-          body: TabBarView(
-            children: [
-              _buildNotesList(notesState, (
-                userId: widget.userId,
-                withFiles: false,
-              ), '投稿がありません'),
-              _buildNotesList(mediaState, (
-                userId: widget.userId,
-                withFiles: true,
-              ), 'メディア付きの投稿がありません'),
-            ],
-          ),
-        ),
+        ],
       ),
     );
   }

@@ -5,6 +5,7 @@ import 'timeline_provider.dart';
 import 'widgets/note_card.dart';
 import '../../core/streaming/streaming_service.dart';
 import '../../shared/providers/account_provider.dart';
+import '../../shared/widgets/scroll_to_top_fab.dart';
 
 class TimelineScreen extends ConsumerStatefulWidget {
   final String timelineType;
@@ -198,6 +199,14 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
               child: Text('$_newNotesCount件の新しい投稿'),
             ),
           ),
+        Positioned(
+          bottom: 16,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: ScrollToTopFab(scrollController: _scrollController),
+          ),
+        ),
       ],
     );
   }

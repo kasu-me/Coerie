@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../shared/providers/misskey_api_provider.dart';
@@ -12,8 +12,225 @@ final customEmojisProvider = FutureProvider<List<Map<String, dynamic>>>((
   return api.getEmojis();
 });
 
-/// サーバーのカスタム絵文字ピッカー。
-/// 選択した絵文字の `name`（`:emoji_name:` 形式の中身）を返す。
+// Unicode 絵文字データ（カテゴリ名: [絵文字文字列, ...] — Unicode 15.1 全件）
+const _unicodeEmojiCategories = <String, List<String>>{
+  '😀 顔・感情': [
+    '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
+    '🫠', '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '☺️',
+    '😚', '😙', '🥲', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗',
+    '🤭', '🫢', '🫣', '🤫', '🤔', '🫡', '🤐', '🤨', '😐', '😑',
+    '😶', '🫥', '😶‍🌫️', '😏', '😒', '🙄', '😬', '😮‍💨', '🤥', '🫨',
+    '🙂‍↔️', '🙂‍↕️', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕',
+    '🤢', '🤮', '🤧', '🥵', '🥶', '🥴', '😵', '😵‍💫', '🤯', '🤠',
+    '🥳', '🥸', '😎', '🤓', '🧐', '😕', '🫤', '😟', '🙁', '☹️',
+    '😮', '😯', '😲', '😳', '🥺', '🥹', '😦', '😧', '😨', '😰',
+    '😥', '😢', '😭', '😱', '😖', '😣', '😞', '😓', '😩', '😫',
+    '🥱', '😤', '😡', '😠', '🤬', '😈', '👿', '💀', '☠️', '💩',
+    '🤡', '👹', '👺', '👻', '👽', '👾', '🤖', '😺', '😸', '😹',
+    '😻', '😼', '😽', '🙀', '😿', '😾', '🙈', '🙉', '🙊', '💌',
+    '💘', '💝', '💖', '💗', '💓', '💞', '💕', '💟', '❣️', '💔',
+    '❤️‍🔥', '❤️‍🩹', '❤️', '🩷', '🧡', '💛', '💚', '💙', '🩵', '💜',
+    '🤎', '🖤', '🩶', '🤍', '💋', '💯', '💢', '💥', '💫', '💦',
+    '💨', '🕳️', '💬', '👁️‍🗨️', '🗨️', '🗯️', '💭', '💤',
+  ],
+  '🙋 人・ジェスチャー': [
+    '👋', '🤚', '🖐️', '✋', '🖖', '🫱', '🫲', '🫳', '🫴', '🫷',
+    '🫸', '👌', '🤌', '🤏', '✌️', '🤞', '🫰', '🤟', '🤘', '🤙',
+    '👈', '👉', '👆', '🖕', '👇', '☝️', '🫵', '👍', '👎', '✊',
+    '👊', '🤛', '🤜', '👏', '🙌', '🫶', '👐', '🤲', '🤝', '🙏',
+    '✍️', '💅', '🤳', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻',
+    '👃', '🧠', '🫀', '🫁', '🦷', '🦴', '👀', '👁️', '👅', '👄',
+    '🫦', '👶', '🧒', '👦', '👧', '🧑', '👱', '👨', '🧔', '🧔‍♂️',
+    '🧔‍♀️', '👨‍🦰', '👨‍🦱', '👨‍🦳', '👨‍🦲', '👩', '👩‍🦰', '🧑‍🦰', '👩‍🦱', '🧑‍🦱',
+    '👩‍🦳', '🧑‍🦳', '👩‍🦲', '🧑‍🦲', '👱‍♀️', '👱‍♂️', '🧓', '👴', '👵', '🙍',
+    '🙍‍♂️', '🙍‍♀️', '🙎', '🙎‍♂️', '🙎‍♀️', '🙅', '🙅‍♂️', '🙅‍♀️', '🙆', '🙆‍♂️',
+    '🙆‍♀️', '💁', '💁‍♂️', '💁‍♀️', '🙋', '🙋‍♂️', '🙋‍♀️', '🧏', '🧏‍♂️', '🧏‍♀️',
+    '🙇', '🙇‍♂️', '🙇‍♀️', '🤦', '🤦‍♂️', '🤦‍♀️', '🤷', '🤷‍♂️', '🤷‍♀️', '🧑‍⚕️',
+    '👨‍⚕️', '👩‍⚕️', '🧑‍🎓', '👨‍🎓', '👩‍🎓', '🧑‍🏫', '👨‍🏫', '👩‍🏫', '🧑‍⚖️', '👨‍⚖️',
+    '👩‍⚖️', '🧑‍🌾', '👨‍🌾', '👩‍🌾', '🧑‍🍳', '👨‍🍳', '👩‍🍳', '🧑‍🔧', '👨‍🔧', '👩‍🔧',
+    '🧑‍🏭', '👨‍🏭', '👩‍🏭', '🧑‍💼', '👨‍💼', '👩‍💼', '🧑‍🔬', '👨‍🔬', '👩‍🔬', '🧑‍💻',
+    '👨‍💻', '👩‍💻', '🧑‍🎤', '👨‍🎤', '👩‍🎤', '🧑‍🎨', '👨‍🎨', '👩‍🎨', '🧑‍✈️', '👨‍✈️',
+    '👩‍✈️', '🧑‍🚀', '👨‍🚀', '👩‍🚀', '🧑‍🚒', '👨‍🚒', '👩‍🚒', '👮', '👮‍♂️', '👮‍♀️',
+    '🕵️', '🕵️‍♂️', '🕵️‍♀️', '💂', '💂‍♂️', '💂‍♀️', '🥷', '👷', '👷‍♂️', '👷‍♀️',
+    '🫅', '🤴', '👸', '👳', '👳‍♂️', '👳‍♀️', '👲', '🧕', '🤵', '🤵‍♂️',
+    '🤵‍♀️', '👰', '👰‍♂️', '👰‍♀️', '🤰', '🫃', '🫄', '🤱', '👩‍🍼', '👨‍🍼',
+    '🧑‍🍼', '👼', '🎅', '🤶', '🧑‍🎄', '🦸', '🦸‍♂️', '🦸‍♀️', '🦹', '🦹‍♂️',
+    '🦹‍♀️', '🧙', '🧙‍♂️', '🧙‍♀️', '🧚', '🧚‍♂️', '🧚‍♀️', '🧛', '🧛‍♂️', '🧛‍♀️',
+    '🧜', '🧜‍♂️', '🧜‍♀️', '🧝', '🧝‍♂️', '🧝‍♀️', '🧞', '🧞‍♂️', '🧞‍♀️', '🧟',
+    '🧟‍♂️', '🧟‍♀️', '🧌', '💆', '💆‍♂️', '💆‍♀️', '💇', '💇‍♂️', '💇‍♀️', '🚶',
+    '🚶‍♂️', '🚶‍♀️', '🚶‍➡️', '🚶‍♀️‍➡️', '🚶‍♂️‍➡️', '🧍', '🧍‍♂️', '🧍‍♀️', '🧎', '🧎‍♂️',
+    '🧎‍♀️', '🧎‍➡️', '🧎‍♀️‍➡️', '🧎‍♂️‍➡️', '🧑‍🦯', '🧑‍🦯‍➡️', '👨‍🦯', '👨‍🦯‍➡️', '👩‍🦯', '👩‍🦯‍➡️',
+    '🧑‍🦼', '🧑‍🦼‍➡️', '👨‍🦼', '👨‍🦼‍➡️', '👩‍🦼', '👩‍🦼‍➡️', '🧑‍🦽', '🧑‍🦽‍➡️', '👨‍🦽', '👨‍🦽‍➡️',
+    '👩‍🦽', '👩‍🦽‍➡️', '🏃', '🏃‍♂️', '🏃‍♀️', '🏃‍➡️', '🏃‍♀️‍➡️', '🏃‍♂️‍➡️', '💃', '🕺',
+    '🕴️', '👯', '👯‍♂️', '👯‍♀️', '🧖', '🧖‍♂️', '🧖‍♀️', '🧗', '🧗‍♂️', '🧗‍♀️',
+    '🤺', '🏇', '⛷️', '🏂', '🏌️', '🏌️‍♂️', '🏌️‍♀️', '🏄', '🏄‍♂️', '🏄‍♀️',
+    '🚣', '🚣‍♂️', '🚣‍♀️', '🏊', '🏊‍♂️', '🏊‍♀️', '⛹️', '⛹️‍♂️', '⛹️‍♀️', '🏋️',
+    '🏋️‍♂️', '🏋️‍♀️', '🚴', '🚴‍♂️', '🚴‍♀️', '🚵', '🚵‍♂️', '🚵‍♀️', '🤸', '🤸‍♂️',
+    '🤸‍♀️', '🤼', '🤼‍♂️', '🤼‍♀️', '🤽', '🤽‍♂️', '🤽‍♀️', '🤾', '🤾‍♂️', '🤾‍♀️',
+    '🤹', '🤹‍♂️', '🤹‍♀️', '🧘', '🧘‍♂️', '🧘‍♀️', '🛀', '🛌', '🧑‍🤝‍🧑', '👭',
+    '👫', '👬', '💏', '👩‍❤️‍💋‍👨', '👨‍❤️‍💋‍👨', '👩‍❤️‍💋‍👩', '💑', '👩‍❤️‍👨', '👨‍❤️‍👨', '👩‍❤️‍👩',
+    '👨‍👩‍👦', '👨‍👩‍👧', '👨‍👩‍👧‍👦', '👨‍👩‍👦‍👦', '👨‍👩‍👧‍👧', '👨‍👨‍👦', '👨‍👨‍👧', '👨‍👨‍👧‍👦', '👨‍👨‍👦‍👦', '👨‍👨‍👧‍👧',
+    '👩‍👩‍👦', '👩‍👩‍👧', '👩‍👩‍👧‍👦', '👩‍👩‍👦‍👦', '👩‍👩‍👧‍👧', '👨‍👦', '👨‍👦‍👦', '👨‍👧', '👨‍👧‍👦', '👨‍👧‍👧',
+    '👩‍👦', '👩‍👦‍👦', '👩‍👧', '👩‍👧‍👦', '👩‍👧‍👧', '🗣️', '👤', '👥', '🫂', '👪',
+    '🧑‍🧑‍🧒', '🧑‍🧑‍🧒‍🧒', '🧑‍🧒', '🧑‍🧒‍🧒', '👣',
+  ],
+  '🐶 動物・自然': [
+    '🐵', '🐒', '🦍', '🦧', '🐶', '🐕', '🦮', '🐕‍🦺', '🐩', '🐺',
+    '🦊', '🦝', '🐱', '🐈', '🐈‍⬛', '🦁', '🐯', '🐅', '🐆', '🐴',
+    '🫎', '🫏', '🐎', '🦄', '🦓', '🦌', '🦬', '🐮', '🐂', '🐃',
+    '🐄', '🐷', '🐖', '🐗', '🐽', '🐏', '🐑', '🐐', '🐪', '🐫',
+    '🦙', '🦒', '🐘', '🦣', '🦏', '🦛', '🐭', '🐁', '🐀', '🐹',
+    '🐰', '🐇', '🐿️', '🦫', '🦔', '🦇', '🐻', '🐻‍❄️', '🐨', '🐼',
+    '🦥', '🦦', '🦨', '🦘', '🦡', '🐾', '🦃', '🐔', '🐓', '🐣',
+    '🐤', '🐥', '🐦', '🐧', '🕊️', '🦅', '🦆', '🦢', '🦉', '🦤',
+    '🪶', '🦩', '🦚', '🦜', '🪽', '🐦‍⬛', '🪿', '🐦‍🔥', '🐸', '🐊',
+    '🐢', '🦎', '🐍', '🐲', '🐉', '🦕', '🦖', '🐳', '🐋', '🐬',
+    '🦭', '🐟', '🐠', '🐡', '🦈', '🐙', '🐚', '🪸', '🪼', '🐌',
+    '🦋', '🐛', '🐜', '🐝', '🪲', '🐞', '🦗', '🪳', '🕷️', '🕸️',
+    '🦂', '🦟', '🪰', '🪱', '🦠', '💐', '🌸', '💮', '🪷', '🏵️',
+    '🌹', '🥀', '🌺', '🌻', '🌼', '🌷', '🪻', '🌱', '🪴', '🌲',
+    '🌳', '🌴', '🌵', '🌾', '🌿', '☘️', '🍀', '🍁', '🍂', '🍃',
+    '🪹', '🪺', '🍄',
+  ],
+  '🍎 食べ物・飲み物': [
+    '🍇', '🍈', '🍉', '🍊', '🍋', '🍋‍🟩', '🍌', '🍍', '🥭', '🍎',
+    '🍏', '🍐', '🍑', '🍒', '🍓', '🫐', '🥝', '🍅', '🫒', '🥥',
+    '🥑', '🍆', '🥔', '🥕', '🌽', '🌶️', '🫑', '🥒', '🥬', '🥦',
+    '🧄', '🧅', '🥜', '🫘', '🌰', '🫚', '🫛', '🍄‍🟫', '🍞', '🥐',
+    '🥖', '🫓', '🥨', '🥯', '🥞', '🧇', '🧀', '🍖', '🍗', '🥩',
+    '🥓', '🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🫔', '🥙',
+    '🧆', '🥚', '🍳', '🥘', '🍲', '🫕', '🥣', '🥗', '🍿', '🧈',
+    '🧂', '🥫', '🍱', '🍘', '🍙', '🍚', '🍛', '🍜', '🍝', '🍠',
+    '🍢', '🍣', '🍤', '🍥', '🥮', '🍡', '🥟', '🥠', '🥡', '🦀',
+    '🦞', '🦐', '🦑', '🦪', '🍦', '🍧', '🍨', '🍩', '🍪', '🎂',
+    '🍰', '🧁', '🥧', '🍫', '🍬', '🍭', '🍮', '🍯', '🍼', '🥛',
+    '☕', '🫖', '🍵', '🍶', '🍾', '🍷', '🍸', '🍹', '🍺', '🍻',
+    '🥂', '🥃', '🫗', '🥤', '🧋', '🧃', '🧉', '🧊', '🥢', '🍽️',
+    '🍴', '🥄', '🔪', '🫙', '🏺',
+  ],
+  '🚗 乗り物・場所': [
+    '🌍', '🌎', '🌏', '🌐', '🗺️', '🗾', '🧭', '🏔️', '⛰️', '🌋',
+    '🗻', '🏕️', '🏖️', '🏜️', '🏝️', '🏞️', '🏟️', '🏛️', '🏗️', '🧱',
+    '🪨', '🪵', '🛖', '🏘️', '🏚️', '🏠', '🏡', '🏢', '🏣', '🏤',
+    '🏥', '🏦', '🏨', '🏩', '🏪', '🏫', '🏬', '🏭', '🏯', '🏰',
+    '💒', '🗼', '🗽', '⛪', '🕌', '🛕', '🕍', '⛩️', '🕋', '⛲',
+    '⛺', '🌁', '🌃', '🏙️', '🌄', '🌅', '🌆', '🌇', '🌉', '♨️',
+    '🎠', '🛝', '🎡', '🎢', '💈', '🎪', '🚂', '🚃', '🚄', '🚅',
+    '🚆', '🚇', '🚈', '🚉', '🚊', '🚝', '🚞', '🚋', '🚌', '🚍',
+    '🚎', '🚐', '🚑', '🚒', '🚓', '🚔', '🚕', '🚖', '🚗', '🚘',
+    '🚙', '🛻', '🚚', '🚛', '🚜', '🏎️', '🏍️', '🛵', '🦽', '🦼',
+    '🛺', '🚲', '🛴', '🛹', '🛼', '🚏', '🛣️', '🛤️', '🛢️', '⛽',
+    '🛞', '🚨', '🚥', '🚦', '🛑', '🚧', '⚓', '🛟', '⛵', '🛶',
+    '🚤', '🛳️', '⛴️', '🛥️', '🚢', '✈️', '🛩️', '🛫', '🛬', '🪂',
+    '💺', '🚁', '🚟', '🚠', '🚡', '🛰️', '🚀', '🛸', '🛎️', '🧳',
+    '⌛', '⏳', '⌚', '⏰', '⏱️', '⏲️', '🕰️', '🕛', '🕧', '🕐',
+    '🕜', '🕑', '🕝', '🕒', '🕞', '🕓', '🕟', '🕔', '🕠', '🕕',
+    '🕡', '🕖', '🕢', '🕗', '🕣', '🕘', '🕤', '🕙', '🕥', '🕚',
+    '🕦', '🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘', '🌙',
+    '🌚', '🌛', '🌜', '🌡️', '☀️', '🌝', '🌞', '🪐', '⭐', '🌟',
+    '🌠', '🌌', '☁️', '⛅', '⛈️', '🌤️', '🌥️', '🌦️', '🌧️', '🌨️',
+    '🌩️', '🌪️', '🌫️', '🌬️', '🌀', '🌈', '🌂', '☂️', '☔', '⛱️',
+    '⚡', '❄️', '☃️', '⛄', '☄️', '🔥', '💧', '🌊',
+  ],
+  '⚽ スポーツ・活動': [
+    '🎃', '🎄', '🎆', '🎇', '🧨', '✨', '🎈', '🎉', '🎊', '🎋',
+    '🎍', '🎎', '🎏', '🎐', '🎑', '🧧', '🎀', '🎁', '🎗️', '🎟️',
+    '🎫', '🎖️', '🏆', '🏅', '🥇', '🥈', '🥉', '⚽', '⚾', '🥎',
+    '🏀', '🏐', '🏈', '🏉', '🎾', '🥏', '🎳', '🏏', '🏑', '🏒',
+    '🥍', '🏓', '🏸', '🥊', '🥋', '🥅', '⛳', '⛸️', '🎣', '🤿',
+    '🎽', '🎿', '🛷', '🥌', '🎯', '🪀', '🪁', '🔫', '🎱', '🔮',
+    '🪄', '🎮', '🕹️', '🎰', '🎲', '🧩', '🧸', '🪅', '🪩', '🪆',
+    '♠️', '♥️', '♦️', '♣️', '♟️', '🃏', '🀄', '🎴', '🎭', '🖼️',
+    '🎨', '🧵', '🪡', '🧶', '🪢',
+  ],
+  '💡 物・道具': [
+    '👓', '🕶️', '🥽', '🥼', '🦺', '👔', '👕', '👖', '🧣', '🧤',
+    '🧥', '🧦', '👗', '👘', '🥻', '🩱', '🩲', '🩳', '👙', '👚',
+    '🪭', '👛', '👜', '👝', '🛍️', '🎒', '🩴', '👞', '👟', '🥾',
+    '🥿', '👠', '👡', '🩰', '👢', '🪮', '👑', '👒', '🎩', '🎓',
+    '🧢', '🪖', '⛑️', '📿', '💄', '💍', '💎', '🔇', '🔈', '🔉',
+    '🔊', '📢', '📣', '📯', '🔔', '🔕', '🎼', '🎵', '🎶', '🎙️',
+    '🎚️', '🎛️', '🎤', '🎧', '📻', '🎷', '🪗', '🎸', '🎹', '🎺',
+    '🎻', '🪕', '🥁', '🪘', '🪇', '🪈', '📱', '📲', '☎️', '📞',
+    '📟', '📠', '🔋', '🪫', '🔌', '💻', '🖥️', '🖨️', '⌨️', '🖱️',
+    '🖲️', '💽', '💾', '💿', '📀', '🧮', '🎥', '🎞️', '📽️', '🎬',
+    '📺', '📷', '📸', '📹', '📼', '🔍', '🔎', '🕯️', '💡', '🔦',
+    '🏮', '🪔', '📔', '📕', '📖', '📗', '📘', '📙', '📚', '📓',
+    '📒', '📃', '📜', '📄', '📰', '🗞️', '📑', '🔖', '🏷️', '💰',
+    '🪙', '💴', '💵', '💶', '💷', '💸', '💳', '🧾', '💹', '✉️',
+    '📧', '📨', '📩', '📤', '📥', '📦', '📫', '📪', '📬', '📭',
+    '📮', '🗳️', '✏️', '✒️', '🖋️', '🖊️', '🖌️', '🖍️', '📝', '💼',
+    '📁', '📂', '🗂️', '📅', '📆', '🗒️', '🗓️', '📇', '📈', '📉',
+    '📊', '📋', '📌', '📍', '📎', '🖇️', '📏', '📐', '✂️', '🗃️',
+    '🗄️', '🗑️', '🔒', '🔓', '🔏', '🔐', '🔑', '🗝️', '🔨', '🪓',
+    '⛏️', '⚒️', '🛠️', '🗡️', '⚔️', '💣', '🪃', '🏹', '🛡️', '🪚',
+    '🔧', '🪛', '🔩', '⚙️', '🗜️', '⚖️', '🦯', '🔗', '⛓️‍💥', '⛓️',
+    '🪝', '🧰', '🧲', '🪜', '⚗️', '🧪', '🧫', '🧬', '🔬', '🔭',
+    '📡', '💉', '🩸', '💊', '🩹', '🩼', '🩺', '🩻', '🚪', '🛗',
+    '🪞', '🪟', '🛏️', '🛋️', '🪑', '🚽', '🪠', '🚿', '🛁', '🪤',
+    '🪒', '🧴', '🧷', '🧹', '🧺', '🧻', '🪣', '🧼', '🫧', '🪥',
+    '🧽', '🧯', '🛒', '🚬', '⚰️', '🪦', '⚱️', '🧿', '🪬', '🗿',
+    '🪧', '🪪',
+  ],
+  '❤️ 記号・マーク': [
+    '🏧', '🚮', '🚰', '♿', '🚹', '🚺', '🚻', '🚼', '🚾', '🛂',
+    '🛃', '🛄', '🛅', '⚠️', '🚸', '⛔', '🚫', '🚳', '🚭', '🚯',
+    '🚱', '🚷', '📵', '🔞', '☢️', '☣️', '⬆️', '↗️', '➡️', '↘️',
+    '⬇️', '↙️', '⬅️', '↖️', '↕️', '↔️', '↩️', '↪️', '⤴️', '⤵️',
+    '🔃', '🔄', '🔙', '🔚', '🔛', '🔜', '🔝', '🛐', '⚛️', '🕉️',
+    '✡️', '☸️', '☯️', '✝️', '☦️', '☪️', '☮️', '🕎', '🔯', '🪯',
+    '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑',
+    '♒', '♓', '⛎', '🔀', '🔁', '🔂', '▶️', '⏩', '⏭️', '⏯️',
+    '◀️', '⏪', '⏮️', '🔼', '⏫', '🔽', '⏬', '⏸️', '⏹️', '⏺️',
+    '⏏️', '🎦', '🔅', '🔆', '📶', '🛜', '📳', '📴', '♀️', '♂️',
+    '⚧️', '✖️', '➕', '➖', '➗', '🟰', '♾️', '‼️', '⁉️', '❓',
+    '❔', '❕', '❗', '〰️', '💱', '💲', '⚕️', '♻️', '⚜️', '🔱',
+    '📛', '🔰', '⭕', '✅', '☑️', '✔️', '❌', '❎', '➰', '➿',
+    '〽️', '✳️', '✴️', '❇️', '©️', '®️', '™️', '#️⃣', '*️⃣', '0️⃣',
+    '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟',
+    '🔠', '🔡', '🔢', '🔣', '🔤', '🅰️', '🆎', '🅱️', '🆑', '🆒',
+    '🆓', 'ℹ️', '🆔', 'Ⓜ️', '🆕', '🆖', '🅾️', '🆗', '🅿️', '🆘',
+    '🆙', '🆚', '🈁', '🈂️', '🈷️', '🈶', '🈯', '🉐', '🈹', '🈚',
+    '🈲', '🉑', '🈸', '🈴', '🈳', '㊗️', '㊙️', '🈺', '🈵', '🔴',
+    '🟠', '🟡', '🟢', '🔵', '🟣', '🟤', '⚫', '⚪', '🟥', '🟧',
+    '🟨', '🟩', '🟦', '🟪', '🟫', '⬛', '⬜', '◼️', '◻️', '◾',
+    '◽', '▪️', '▫️', '🔶', '🔷', '🔸', '🔹', '🔺', '🔻', '💠',
+    '🔘', '🔳', '🔲',
+  ],
+  '🏳️ 旗': [
+    '🏁', '🚩', '🎌', '🏴', '🏳️', '🏳️‍🌈', '🏳️‍⚧️', '🏴‍☠️', '🇦🇨', '🇦🇩',
+    '🇦🇪', '🇦🇫', '🇦🇬', '🇦🇮', '🇦🇱', '🇦🇲', '🇦🇴', '🇦🇶', '🇦🇷', '🇦🇸',
+    '🇦🇹', '🇦🇺', '🇦🇼', '🇦🇽', '🇦🇿', '🇧🇦', '🇧🇧', '🇧🇩', '🇧🇪', '🇧🇫',
+    '🇧🇬', '🇧🇭', '🇧🇮', '🇧🇯', '🇧🇱', '🇧🇲', '🇧🇳', '🇧🇴', '🇧🇶', '🇧🇷',
+    '🇧🇸', '🇧🇹', '🇧🇻', '🇧🇼', '🇧🇾', '🇧🇿', '🇨🇦', '🇨🇨', '🇨🇩', '🇨🇫',
+    '🇨🇬', '🇨🇭', '🇨🇮', '🇨🇰', '🇨🇱', '🇨🇲', '🇨🇳', '🇨🇴', '🇨🇵', '🇨🇷',
+    '🇨🇺', '🇨🇻', '🇨🇼', '🇨🇽', '🇨🇾', '🇨🇿', '🇩🇪', '🇩🇬', '🇩🇯', '🇩🇰',
+    '🇩🇲', '🇩🇴', '🇩🇿', '🇪🇦', '🇪🇨', '🇪🇪', '🇪🇬', '🇪🇭', '🇪🇷', '🇪🇸',
+    '🇪🇹', '🇪🇺', '🇫🇮', '🇫🇯', '🇫🇰', '🇫🇲', '🇫🇴', '🇫🇷', '🇬🇦', '🇬🇧',
+    '🇬🇩', '🇬🇪', '🇬🇫', '🇬🇬', '🇬🇭', '🇬🇮', '🇬🇱', '🇬🇲', '🇬🇳', '🇬🇵',
+    '🇬🇶', '🇬🇷', '🇬🇸', '🇬🇹', '🇬🇺', '🇬🇼', '🇬🇾', '🇭🇰', '🇭🇲', '🇭🇳',
+    '🇭🇷', '🇭🇹', '🇭🇺', '🇮🇨', '🇮🇩', '🇮🇪', '🇮🇱', '🇮🇲', '🇮🇳', '🇮🇴',
+    '🇮🇶', '🇮🇷', '🇮🇸', '🇮🇹', '🇯🇪', '🇯🇲', '🇯🇴', '🇯🇵', '🇰🇪', '🇰🇬',
+    '🇰🇭', '🇰🇮', '🇰🇲', '🇰🇳', '🇰🇵', '🇰🇷', '🇰🇼', '🇰🇾', '🇰🇿', '🇱🇦',
+    '🇱🇧', '🇱🇨', '🇱🇮', '🇱🇰', '🇱🇷', '🇱🇸', '🇱🇹', '🇱🇺', '🇱🇻', '🇱🇾',
+    '🇲🇦', '🇲🇨', '🇲🇩', '🇲🇪', '🇲🇫', '🇲🇬', '🇲🇭', '🇲🇰', '🇲🇱', '🇲🇲',
+    '🇲🇳', '🇲🇴', '🇲🇵', '🇲🇶', '🇲🇷', '🇲🇸', '🇲🇹', '🇲🇺', '🇲🇻', '🇲🇼',
+    '🇲🇽', '🇲🇾', '🇲🇿', '🇳🇦', '🇳🇨', '🇳🇪', '🇳🇫', '🇳🇬', '🇳🇮', '🇳🇱',
+    '🇳🇴', '🇳🇵', '🇳🇷', '🇳🇺', '🇳🇿', '🇴🇲', '🇵🇦', '🇵🇪', '🇵🇫', '🇵🇬',
+    '🇵🇭', '🇵🇰', '🇵🇱', '🇵🇲', '🇵🇳', '🇵🇷', '🇵🇸', '🇵🇹', '🇵🇼', '🇵🇾',
+    '🇶🇦', '🇷🇪', '🇷🇴', '🇷🇸', '🇷🇺', '🇷🇼', '🇸🇦', '🇸🇧', '🇸🇨', '🇸🇩',
+    '🇸🇪', '🇸🇬', '🇸🇭', '🇸🇮', '🇸🇯', '🇸🇰', '🇸🇱', '🇸🇲', '🇸🇳', '🇸🇴',
+    '🇸🇷', '🇸🇸', '🇸🇹', '🇸🇻', '🇸🇽', '🇸🇾', '🇸🇿', '🇹🇦', '🇹🇨', '🇹🇩',
+    '🇹🇫', '🇹🇬', '🇹🇭', '🇹🇯', '🇹🇰', '🇹🇱', '🇹🇲', '🇹🇳', '🇹🇴', '🇹🇷',
+    '🇹🇹', '🇹🇻', '🇹🇼', '🇹🇿', '🇺🇦', '🇺🇬', '🇺🇲', '🇺🇳', '🇺🇸', '🇺🇾',
+    '🇺🇿', '🇻🇦', '🇻🇨', '🇻🇪', '🇻🇬', '🇻🇮', '🇻🇳', '🇻🇺', '🇼🇫', '🇼🇸',
+    '🇽🇰', '🇾🇪', '🇾🇹', '🇿🇦', '🇿🇲', '🇿🇼', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', '🏴󠁧󠁢󠁳󠁣󠁴󠁿', '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+  ],
+};
+
+/// サーバーのカスタム絵文字と通常の Unicode 絵文字をまとめて選択できるピッカー。
+/// カスタム絵文字は :name: 形式（例: :party_popper:）、
+/// 通常の Unicode 絵文字はそのまま（例: 👍）で結果を返す。
 class EmojiPickerSheet extends ConsumerStatefulWidget {
   const EmojiPickerSheet({super.key});
 
@@ -22,27 +239,38 @@ class EmojiPickerSheet extends ConsumerStatefulWidget {
 }
 
 class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _searchController = TextEditingController();
   String _query = '';
-  TabController? _tabController;
-  List<String> _categories = [];
-  Map<String, List<Map<String, dynamic>>> _byCategory = {};
+
+  // カスタム絵文字のカテゴリタブ用
+  TabController? _customTabController;
+  List<String> _customCategories = [];
+  Map<String, List<Map<String, dynamic>>> _customByCategory = {};
+
+  // 上位タブ（カスタム / 通常）
+  late final TabController _mainTabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _mainTabController = TabController(length: 2, vsync: this);
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _tabController?.dispose();
+    _customTabController?.dispose();
+    _mainTabController.dispose();
     super.dispose();
   }
 
-  void _buildCategories(List<Map<String, dynamic>> emojis) {
+  void _buildCustomCategories(List<Map<String, dynamic>> emojis) {
     final map = <String, List<Map<String, dynamic>>>{};
     for (final e in emojis) {
       final cat = (e['category'] as String?)?.trim() ?? '';
       map.putIfAbsent(cat, () => []).add(e);
     }
-    // カテゴリ名順にソート（空文字は末尾）
     final cats = map.keys.toList()
       ..sort((a, b) {
         if (a.isEmpty) return 1;
@@ -50,16 +278,16 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
         return a.compareTo(b);
       });
 
-    if (_categories.length != cats.length ||
-        !_categories.every((c) => cats.contains(c))) {
-      _tabController?.dispose();
-      _tabController = TabController(length: cats.length, vsync: this);
-      _categories = cats;
+    if (_customCategories.length != cats.length ||
+        !_customCategories.every((c) => cats.contains(c))) {
+      _customTabController?.dispose();
+      _customTabController = TabController(length: cats.length, vsync: this);
+      _customCategories = cats;
     }
-    _byCategory = map;
+    _customByCategory = map;
   }
 
-  Widget _emojiGrid(
+  Widget _customEmojiGrid(
     List<Map<String, dynamic>> emojis,
     ScrollController scrollController,
   ) {
@@ -82,7 +310,7 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
         return Tooltip(
           message: ':$name:',
           child: InkWell(
-            onTap: () => Navigator.pop(context, name),
+            onTap: () => Navigator.pop(context, ':$name:'),
             borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.all(4),
@@ -101,6 +329,116 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
     );
   }
 
+  Widget _unicodeEmojiGrid(
+    List<String> emojis,
+    ScrollController scrollController,
+  ) {
+    if (emojis.isEmpty) {
+      return const Center(child: Text('絵文字が見つかりません'));
+    }
+    return GridView.builder(
+      controller: scrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 8,
+        mainAxisSpacing: 2,
+        crossAxisSpacing: 2,
+      ),
+      itemCount: emojis.length,
+      itemBuilder: (_, i) {
+        final ch = emojis[i];
+        return InkWell(
+          onTap: () => Navigator.pop(context, ch),
+          borderRadius: BorderRadius.circular(8),
+          child: Center(
+            child: Text(ch, style: const TextStyle(fontSize: 24)),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCustomTab(
+    List<Map<String, dynamic>> emojis,
+    ScrollController scrollController,
+  ) {
+    _buildCustomCategories(emojis);
+
+    if (_query.isNotEmpty) {
+      final filtered = emojis.where((e) {
+        final name = (e['name'] as String? ?? '').toLowerCase();
+        final aliases = (e['aliases'] as List<dynamic>? ?? []);
+        return name.contains(_query) ||
+            aliases.any((a) => a.toString().toLowerCase().contains(_query));
+      }).toList();
+      return _customEmojiGrid(filtered, scrollController);
+    }
+
+    if (_customCategories.isEmpty) {
+      return const Center(child: Text('絵文字が見つかりません'));
+    }
+
+    final tabCtrl = _customTabController!;
+    return Column(
+      children: [
+        TabBar(
+          controller: tabCtrl,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          tabs: _customCategories.map((c) {
+            final label = c.isEmpty ? '未分類' : c;
+            return Tab(
+              child: Text(label, style: const TextStyle(fontSize: 12)),
+            );
+          }).toList(),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: tabCtrl,
+            children: _customCategories.map((c) {
+              final list = _customByCategory[c] ?? [];
+              return _customEmojiGrid(list, scrollController);
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUnicodeTab(ScrollController scrollController) {
+    if (_query.isNotEmpty) {
+      final all = _unicodeEmojiCategories.values.expand((l) => l).toList();
+      return _unicodeEmojiGrid(all, scrollController);
+    }
+    final cats = _unicodeEmojiCategories.keys.toList();
+    return DefaultTabController(
+      length: cats.length,
+      child: Column(
+        children: [
+          TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: cats
+                .map(
+                  (c) => Tab(
+                    child: Text(c, style: const TextStyle(fontSize: 12)),
+                  ),
+                )
+                .toList(),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: cats.map((c) {
+                final list = _unicodeEmojiCategories[c]!;
+                return _unicodeEmojiGrid(list, scrollController);
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final emojisAsync = ref.watch(customEmojisProvider);
@@ -113,7 +451,6 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
       expand: false,
       builder: (_, scrollController) => Column(
         children: [
-          // ハンドル
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Container(
@@ -125,7 +462,6 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
               ),
             ),
           ),
-          // タイトル
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Row(
@@ -144,7 +480,6 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
               ],
             ),
           ),
-          // 検索
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: TextField(
@@ -158,62 +493,25 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
               onChanged: (v) => setState(() => _query = v.toLowerCase()),
             ),
           ),
-          // 一覧
+          TabBar(
+            controller: _mainTabController,
+            tabs: const [
+              Tab(text: 'カスタム'),
+              Tab(text: '通常'),
+            ],
+          ),
           Expanded(
-            child: emojisAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('読み込みエラー: $e')),
-              data: (emojis) {
-                _buildCategories(emojis);
-
-                // 検索中はフラットなグリッドを表示
-                if (_query.isNotEmpty) {
-                  final filtered = emojis.where((e) {
-                    final name = (e['name'] as String? ?? '').toLowerCase();
-                    final aliases = (e['aliases'] as List<dynamic>? ?? []);
-                    return name.contains(_query) ||
-                        aliases.any(
-                          (a) =>
-                              a.toString().toLowerCase().contains(_query),
-                        );
-                  }).toList();
-                  return _emojiGrid(filtered, scrollController);
-                }
-
-                // カテゴリタブ表示
-                if (_categories.isEmpty) {
-                  return const Center(child: Text('絵文字が見つかりません'));
-                }
-
-                final tabCtrl = _tabController!;
-                return Column(
-                  children: [
-                    TabBar(
-                      controller: tabCtrl,
-                      isScrollable: true,
-                      tabAlignment: TabAlignment.start,
-                      tabs: _categories.map((c) {
-                        final label = c.isEmpty ? '未分類' : c;
-                        return Tab(
-                          child: Text(
-                            label,
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    Expanded(
-                      child: TabBarView(
-                        controller: tabCtrl,
-                        children: _categories.map((c) {
-                          final list = _byCategory[c] ?? [];
-                          return _emojiGrid(list, scrollController);
-                        }).toList(),
-                      ),
-                    ),
-                  ],
-                );
-              },
+            child: TabBarView(
+              controller: _mainTabController,
+              children: [
+                emojisAsync.when(
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => Center(child: Text('読み込みエラー: $e')),
+                  data: (emojis) => _buildCustomTab(emojis, scrollController),
+                ),
+                _buildUnicodeTab(scrollController),
+              ],
             ),
           ),
         ],

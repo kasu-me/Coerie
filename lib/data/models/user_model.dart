@@ -12,6 +12,8 @@ class UserModel {
   final List<String> pinnedNoteIds;
   final bool isFollowing;
   final bool isFollowed;
+  final bool isBlocking;
+  final bool isMuted;
 
   const UserModel({
     required this.id,
@@ -27,6 +29,8 @@ class UserModel {
     this.pinnedNoteIds = const [],
     this.isFollowing = false,
     this.isFollowed = false,
+    this.isBlocking = false,
+    this.isMuted = false,
   });
 
   String get acct => host.isEmpty ? '@$username' : '@$username@$host';
@@ -47,6 +51,8 @@ class UserModel {
           (json['pinnedNoteIds'] as List<dynamic>?)?.cast<String>() ?? const [],
       isFollowing: json['isFollowing'] as bool? ?? false,
       isFollowed: json['isFollowed'] as bool? ?? false,
+      isBlocking: json['isBlocking'] as bool? ?? false,
+      isMuted: json['isMuted'] as bool? ?? false,
     );
   }
 }
