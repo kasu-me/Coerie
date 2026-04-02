@@ -534,6 +534,13 @@ class _ReactionChip extends StatelessWidget {
     return host != '.';
   }
 
+  /// Unicode絵文字をtwemoji CDN PNG URLに変換する
+  /// 例: ❤️ → https://cdn.../2764-fe0f.png
+  static String _twemojiUrl(String emoji) {
+    final hex = emoji.runes.map((r) => r.toRadixString(16)).join('-');
+    return 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/$hex.png';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -580,7 +587,14 @@ class _ReactionChip extends StatelessWidget {
           else
             Opacity(
               opacity: isRemote ? 0.5 : 1.0,
-              child: Text(reactionKey, style: const TextStyle(fontSize: 14)),
+              child: CachedNetworkImage(
+                imageUrl: _twemojiUrl(reactionKey),
+                height: 18,
+                width: 18,
+                fit: BoxFit.contain,
+                errorWidget: (context, url, error) =>
+                    Text(reactionKey, style: const TextStyle(fontSize: 14)),
+              ),
             ),
           const SizedBox(width: 3),
           Text(

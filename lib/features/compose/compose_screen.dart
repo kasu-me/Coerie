@@ -5,10 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/constants/app_constants.dart';
+import '../../data/models/account_model.dart';
 import '../../data/models/note_model.dart';
+import '../../data/remote/misskey_api.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_visibility_provider.dart';
-import '../../shared/providers/misskey_api_provider.dart';
 import '../draft/draft_provider.dart';
 import '../timeline/timeline_provider.dart';
 import 'emoji_picker_sheet.dart';
@@ -64,6 +65,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   bool _cwEnabled = false;
   bool _isSensitive = false;
   List<Map<String, dynamic>> _emojiSuggestions = [];
+  AccountModel? _selectedAccount;
 
   @override
   void initState() {
@@ -71,8 +73,10 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     _textController = TextEditingController();
     _cwController = TextEditingController();
     _currentDraftId = widget.draftId;
+    // 投稿アカウントを現在のアクティブアカウントで初期化（グローバル切り替えなし）
+    _selectedAccount = ref.read(activeAccountProvider);
     // アカウント別のデフォルト公開範囲で初期化
-    final accountId = ref.read(activeAccountProvider)?.id ?? '';
+    final accountId = _selectedAccount?.id ?? '';
     _visibility =
         widget.initialVisibility ??
         ref.read(accountVisibilityProvider(accountId));
@@ -281,8 +285,10 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     if (_textController.text.trim().isEmpty && _attachedMedia.isEmpty) return;
     if (_isOverLimit || _isPosting) return;
 
-    final api = ref.read(misskeyApiProvider);
-    if (api == null) return;
+    // 投稿に使用するAPIは _selectedAccount から生成（グローバル切り替えなし）
+    final account = _selectedAccount;
+    if (account == null) return;
+    final api = MisskeyApi(host: account.host, token: account.token);
 
     setState(() => _isPosting = true);
 
@@ -416,16 +422,18 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                     : const CircleAvatar(child: Icon(Icons.person)),
                 title: Text(a.name),
                 subtitle: Text(a.acct),
-                trailing: a.isActive
+                trailing: a.id == (_selectedAccount?.id)
                     ? const Icon(Icons.check, color: Colors.green)
                     : null,
                 onTap: () {
-                  ref.read(accountProvider.notifier).switchAccount(a.id);
-                  // 切り替え先アカウントのデフォルト公開範囲を反映
+                  // グローバルアカウントは切り替えず、この投稿のみに適用
                   final newVisibility = ref.read(
                     accountVisibilityProvider(a.id),
                   );
-                  setState(() => _visibility = newVisibility);
+                  setState(() {
+                    _selectedAccount = a;
+                    _visibility = newVisibility;
+                  });
                   Navigator.pop(context);
                 },
               ),
@@ -438,7 +446,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final account = ref.watch(activeAccountProvider);
+    final account = _selectedAccount ?? ref.read(activeAccountProvider);
     final theme = Theme.of(context);
 
     return TooltipTheme(

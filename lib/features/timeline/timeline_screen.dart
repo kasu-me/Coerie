@@ -33,6 +33,19 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) => _subscribeStream());
   }
 
+  @override
+  void didUpdateWidget(TimelineScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.timelineType != widget.timelineType) {
+      _streamSub?.cancel();
+      _streamSub = null;
+      setState(() => _newNotesCount = 0);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _subscribeStream();
+      });
+    }
+  }
+
   void _subscribeStream() {
     final streaming = ref.read(streamingServiceProvider);
     if (streaming == null) return;
@@ -42,6 +55,10 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
       note,
     ) {
       if (!mounted) return;
+      // ミュートユーザーの投稿はリアルタイムでも表示しない
+      if (note.user.isMuted) return;
+      // リノートの場合、リノート元の投稿者もミュートチェック
+      if (note.renote != null && note.renote!.user.isMuted) return;
       // スクロールが先頭付近なら即追加、それ以外はバッジで通知
       if (_scrollController.hasClients &&
           _scrollController.position.pixels < 100) {
@@ -200,7 +217,8 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
             ),
           ),
         Positioned(
-          bottom: 16,
+          key: const ValueKey('timelineScrollToTopFab'),
+          bottom: MediaQuery.viewPaddingOf(context).bottom + 16,
           left: 0,
           right: 0,
           child: Center(

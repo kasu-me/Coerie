@@ -20,21 +20,19 @@ String _apiErrorMessage(Object e) {
 
 // ---- プロバイダー ----
 
-final _mutingListProvider = FutureProvider<List<Map<String, dynamic>>>((
-  ref,
-) async {
-  final api = ref.watch(misskeyApiProvider);
-  if (api == null) return [];
-  return api.getMutingList();
-});
+final _mutingListProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+      final api = ref.watch(misskeyApiProvider);
+      if (api == null) return [];
+      return api.getMutingList();
+    });
 
-final _blockingListProvider = FutureProvider<List<Map<String, dynamic>>>((
-  ref,
-) async {
-  final api = ref.watch(misskeyApiProvider);
-  if (api == null) return [];
-  return api.getBlockingList();
-});
+final _blockingListProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+      final api = ref.watch(misskeyApiProvider);
+      if (api == null) return [];
+      return api.getBlockingList();
+    });
 
 final _mutedWordsProvider = FutureProvider<List<List<String>>>((ref) async {
   final api = ref.watch(misskeyApiProvider);
@@ -214,40 +212,56 @@ class _UserMuteTab extends ConsumerWidget {
         message: _apiErrorMessage(e),
         onRetry: () => ref.invalidate(_mutingListProvider),
       ),
-      data: (list) {
-        if (list.isEmpty) {
-          return const Center(child: Text('ミュートしているユーザーはいません'));
-        }
-        return ListView.builder(
-          itemCount: list.length,
-          itemBuilder: (_, i) {
-            final mutee = list[i]['mutee'] as Map<String, dynamic>?;
-            if (mutee == null) return const SizedBox.shrink();
-            final name =
-                mutee['name'] as String? ?? mutee['username'] as String? ?? '';
-            final username = mutee['username'] as String? ?? '';
-            final host = mutee['host'] as String? ?? '';
-            final acct = host.isEmpty ? '@$username' : '@$username@$host';
-            final avatarUrl = mutee['avatarUrl'] as String?;
-            final userId = mutee['id'] as String? ?? '';
+      data: (list) => RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(_mutingListProvider);
+          await ref.read(_mutingListProvider.future).catchError((_) {});
+        },
+        child: list.isEmpty
+            ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: const [
+                  Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: Text('ミュートしているユーザーはいません')),
+                  ),
+                ],
+              )
+            : ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                itemCount: list.length,
+                itemBuilder: (_, i) {
+                  final mutee = list[i]['mutee'] as Map<String, dynamic>?;
+                  if (mutee == null) return const SizedBox.shrink();
+                  final name =
+                      mutee['name'] as String? ??
+                      mutee['username'] as String? ??
+                      '';
+                  final username = mutee['username'] as String? ?? '';
+                  final host = mutee['host'] as String? ?? '';
+                  final acct = host.isEmpty ? '@$username' : '@$username@$host';
+                  final avatarUrl = mutee['avatarUrl'] as String?;
+                  final userId = mutee['id'] as String? ?? '';
 
-            return ListTile(
-              leading: avatarUrl != null
-                  ? CircleAvatar(
-                      backgroundImage: CachedNetworkImageProvider(avatarUrl),
-                    )
-                  : const CircleAvatar(child: Icon(Icons.person)),
-              title: Text(name),
-              subtitle: Text(acct),
-              onTap: () => context.push('/profile/$userId'),
-              trailing: TextButton(
-                onPressed: () => _unmute(context, ref, userId),
-                child: const Text('解除'),
+                  return ListTile(
+                    leading: avatarUrl != null
+                        ? CircleAvatar(
+                            backgroundImage: CachedNetworkImageProvider(
+                              avatarUrl,
+                            ),
+                          )
+                        : const CircleAvatar(child: Icon(Icons.person)),
+                    title: Text(name),
+                    subtitle: Text(acct),
+                    onTap: () => context.push('/profile/$userId'),
+                    trailing: TextButton(
+                      onPressed: () => _unmute(context, ref, userId),
+                      child: const Text('解除'),
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        );
-      },
+      ),
     );
   }
 
@@ -286,42 +300,56 @@ class _UserBlockTab extends ConsumerWidget {
         message: _apiErrorMessage(e),
         onRetry: () => ref.invalidate(_blockingListProvider),
       ),
-      data: (list) {
-        if (list.isEmpty) {
-          return const Center(child: Text('ブロックしているユーザーはいません'));
-        }
-        return ListView.builder(
-          itemCount: list.length,
-          itemBuilder: (_, i) {
-            final blockee = list[i]['blockee'] as Map<String, dynamic>?;
-            if (blockee == null) return const SizedBox.shrink();
-            final name =
-                blockee['name'] as String? ??
-                blockee['username'] as String? ??
-                '';
-            final username = blockee['username'] as String? ?? '';
-            final host = blockee['host'] as String? ?? '';
-            final acct = host.isEmpty ? '@$username' : '@$username@$host';
-            final avatarUrl = blockee['avatarUrl'] as String?;
-            final userId = blockee['id'] as String? ?? '';
+      data: (list) => RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(_blockingListProvider);
+          await ref.read(_blockingListProvider.future).catchError((_) {});
+        },
+        child: list.isEmpty
+            ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: const [
+                  Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(child: Text('ブロックしているユーザーはいません')),
+                  ),
+                ],
+              )
+            : ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                itemCount: list.length,
+                itemBuilder: (_, i) {
+                  final blockee = list[i]['blockee'] as Map<String, dynamic>?;
+                  if (blockee == null) return const SizedBox.shrink();
+                  final name =
+                      blockee['name'] as String? ??
+                      blockee['username'] as String? ??
+                      '';
+                  final username = blockee['username'] as String? ?? '';
+                  final host = blockee['host'] as String? ?? '';
+                  final acct = host.isEmpty ? '@$username' : '@$username@$host';
+                  final avatarUrl = blockee['avatarUrl'] as String?;
+                  final userId = blockee['id'] as String? ?? '';
 
-            return ListTile(
-              leading: avatarUrl != null
-                  ? CircleAvatar(
-                      backgroundImage: CachedNetworkImageProvider(avatarUrl),
-                    )
-                  : const CircleAvatar(child: Icon(Icons.person)),
-              title: Text(name),
-              subtitle: Text(acct),
-              onTap: () => context.push('/profile/$userId'),
-              trailing: TextButton(
-                onPressed: () => _unblock(context, ref, userId),
-                child: const Text('解除'),
+                  return ListTile(
+                    leading: avatarUrl != null
+                        ? CircleAvatar(
+                            backgroundImage: CachedNetworkImageProvider(
+                              avatarUrl,
+                            ),
+                          )
+                        : const CircleAvatar(child: Icon(Icons.person)),
+                    title: Text(name),
+                    subtitle: Text(acct),
+                    onTap: () => context.push('/profile/$userId'),
+                    trailing: TextButton(
+                      onPressed: () => _unblock(context, ref, userId),
+                      child: const Text('解除'),
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        );
-      },
+      ),
     );
   }
 

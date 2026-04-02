@@ -11,13 +11,12 @@ import '../../shared/widgets/scroll_to_top_fab.dart';
 
 // ---- Provider ----
 
-final _notificationsProvider =
-    StateNotifierProvider.autoDispose<
-      _NotificationsNotifier,
-      _NotificationsState
-    >((ref) {
-      return _NotificationsNotifier(ref);
-    });
+// アカウントID をキーとして使うことでアカウント切り替え時に
+// 自動的に新しい Notifier が生成され、旧アカウントのキャッシュは破棄される。
+final _notificationsProvider = StateNotifierProvider.autoDispose
+    .family<_NotificationsNotifier, _NotificationsState, String>(
+      (ref, accountId) => _NotificationsNotifier(ref),
+    );
 
 class _NotificationsState {
   final List<NotificationModel> items;
@@ -52,15 +51,6 @@ class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
   _NotificationsNotifier(this._ref) : super(const _NotificationsState()) {
     fetch();
     _subscribeStream();
-    // アカウント切り替え時にリセット＆再購読
-    _ref.listen(activeAccountProvider, (prev, next) {
-      if (prev?.id != next?.id) {
-        state = const _NotificationsState();
-        fetch();
-        _streamSub?.cancel();
-        _subscribeStream();
-      }
-    });
     // ストリーミングサービス変更時に再購読
     _ref.listen<StreamingService?>(streamingServiceProvider, (prev, next) {
       _streamSub?.cancel();
@@ -147,7 +137,10 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 300) {
-      ref.read(_notificationsProvider.notifier).fetch(loadMore: true);
+      final accountId = ref.read(activeAccountProvider)?.id ?? '';
+      ref
+          .read(_notificationsProvider(accountId).notifier)
+          .fetch(loadMore: true);
     }
   }
 
@@ -160,15 +153,18 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final state = ref.watch(_notificationsProvider);
+    // アカウントIDをキーとして使うことで、アカウント切り替え時に
+    // 自動的に新しい Provider インスタンス（新しい Notifier）が使われる。
+    final accountId = ref.watch(activeAccountProvider)?.id ?? '';
+    final state = ref.watch(_notificationsProvider(accountId));
 
     if (widget.embedded) {
       // タブ埋め込み時: AppBarなし、リフレッシュはプルのみ
       return Stack(
         children: [
-          _buildBody(context, state),
+          _buildBody(context, state, accountId),
           Positioned(
-            bottom: 16,
+            bottom: MediaQuery.viewPaddingOf(context).bottom + 16,
             left: 0,
             right: 0,
             child: Center(
@@ -186,15 +182,15 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () =>
-                ref.read(_notificationsProvider.notifier).refresh(),
+                ref.read(_notificationsProvider(accountId).notifier).refresh(),
           ),
         ],
       ),
       body: Stack(
         children: [
-          _buildBody(context, state),
+          _buildBody(context, state, accountId),
           Positioned(
-            bottom: 16,
+            bottom: MediaQuery.viewPaddingOf(context).bottom + 16,
             left: 0,
             right: 0,
             child: Center(
@@ -206,7 +202,11 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
     );
   }
 
-  Widget _buildBody(BuildContext context, _NotificationsState state) {
+  Widget _buildBody(
+    BuildContext context,
+    _NotificationsState state,
+    String accountId,
+  ) {
     if (state.isLoading && state.items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -218,8 +218,9 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
             Text('読み込みに失敗しました', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             FilledButton(
-              onPressed: () =>
-                  ref.read(_notificationsProvider.notifier).refresh(),
+              onPressed: () => ref
+                  .read(_notificationsProvider(accountId).notifier)
+                  .refresh(),
               child: const Text('再読み込み'),
             ),
           ],
@@ -230,7 +231,8 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
       return const Center(child: Text('通知はありません'));
     }
     return RefreshIndicator(
-      onRefresh: () => ref.read(_notificationsProvider.notifier).refresh(),
+      onRefresh: () =>
+          ref.read(_notificationsProvider(accountId).notifier).refresh(),
       child: ListView.separated(
         controller: _scrollController,
         itemCount: state.items.length + (state.hasMore ? 1 : 0),

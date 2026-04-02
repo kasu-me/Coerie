@@ -425,11 +425,18 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
         children: [
           RefreshIndicator(
             onRefresh: _handleRefresh,
-            // NestedScrollView の外側では、タブ内（内側スクロール）の
-            // OverscrollNotification は depth==2 で届く。
-            // ヘッダー部 (depth==0) と合わせて両方検知する。
-            notificationPredicate: (notification) =>
-                notification.depth == 0 || notification.depth == 2,
+            // 最上部に到達したときだけ RefreshIndicator を発火させる。
+            // depth==0: NestedScrollView 外側のオーバースクロール
+            // depth==2: タブ内のリストがトップかつ NestedScrollView もトップの場合のみ許可
+            notificationPredicate: (notification) {
+              if (notification.depth == 0) return true;
+              if (notification.depth == 2) {
+                return notification.metrics.pixels <= 0 &&
+                    _scrollController.hasClients &&
+                    _scrollController.position.pixels <= 0;
+              }
+              return false;
+            },
             child: NestedScrollView(
               controller: _scrollController,
               headerSliverBuilder: (context, _) => [
@@ -643,7 +650,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
             ),
           ),
           Positioned(
-            bottom: 16,
+            bottom: MediaQuery.viewPaddingOf(context).bottom + 16,
             left: 0,
             right: 0,
             child: Center(
@@ -652,7 +659,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
           ),
           if (!isOwnProfile)
             Positioned(
-              bottom: 16,
+              bottom: MediaQuery.viewPaddingOf(context).bottom + 16,
               right: 16,
               child: FloatingActionButton(
                 heroTag: 'profileMention',

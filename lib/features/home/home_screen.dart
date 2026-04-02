@@ -125,7 +125,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         .map(
                           (t) => t.type == AppConstants.tabTypeNotifications
                               ? const NotificationScreen(embedded: true)
-                              : TimelineScreen(timelineType: _timelineKey(t)),
+                              : TimelineScreen(
+                                  // アカウントIDをKeyに含めることで、アカウント切り替え時に
+                                  // ウィジェットを強制的に再作成して古いデータを即座にクリアする
+                                  key: ValueKey(
+                                    '$accountId:${_timelineKey(t)}',
+                                  ),
+                                  timelineType: _timelineKey(t),
+                                ),
                         )
                         .toList(),
                   ),
