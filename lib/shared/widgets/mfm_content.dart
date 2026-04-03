@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -14,12 +15,14 @@ class MfmContent extends StatelessWidget {
   final String text;
   final Map<String, String> emojiUrlMap;
   final TextStyle? style;
+  final bool enableAnimations;
 
   const MfmContent({
     super.key,
     required this.text,
     this.emojiUrlMap = const {},
     this.style,
+    this.enableAnimations = false,
   });
 
   // ---- 静的ユーティリティ ----
@@ -568,11 +571,73 @@ class MfmContent extends StatelessWidget {
           ),
         ];
 
-      // アニメーション系（jelly/tada/jump/bounce/spin/shake/twitch/rainbow）
-      // および未対応の関数名 → 子ノードをそのまま表示
+      // アニメーション系
+      case 'jelly':
+      case 'tada':
+      case 'jump':
+      case 'bounce':
+      case 'spin':
+      case 'shake':
+      case 'twitch':
+      case 'rainbow':
+      case 'fall':
+      case 'sparkle':
+        if (!enableAnimations) return _buildSpans(children, style, ctx);
+        return _buildAnimationSpans(node.name, node.args, children, style, ctx);
+
+      // 未対応の関数名 → 子ノードをそのまま表示
       default:
         return _buildSpans(children, style, ctx);
     }
+  }
+
+  List<InlineSpan> _buildAnimationSpans(
+    String name,
+    Map<String, dynamic> args,
+    List<mfm.MfmNode> children,
+    TextStyle style,
+    BuildContext ctx,
+  ) {
+    final childWidget = RichText(
+      text: TextSpan(style: style, children: _buildSpans(children, style, ctx)),
+    );
+    final speed = double.tryParse(args['speed']?.toString() ?? '') ?? 1.0;
+
+    Widget animated;
+    switch (name) {
+      case 'spin':
+        animated = _SpinWidget(
+          alternate: args.containsKey('alternate'),
+          speed: speed,
+          child: childWidget,
+        );
+        break;
+      case 'shake':
+        animated = _ShakeWidget(speed: speed, child: childWidget);
+        break;
+      case 'jump':
+      case 'fall':
+        animated = _JumpWidget(speed: speed, child: childWidget);
+        break;
+      case 'bounce':
+        animated = _BounceWidget(speed: speed, child: childWidget);
+        break;
+      case 'jelly':
+      case 'tada':
+        animated = _JellyWidget(speed: speed, child: childWidget);
+        break;
+      case 'twitch':
+        animated = _TwitchWidget(speed: speed, child: childWidget);
+        break;
+      case 'rainbow':
+        animated = _RainbowWidget(speed: speed, child: childWidget);
+        break;
+      default:
+        animated = childWidget;
+    }
+    return [
+      WidgetSpan(alignment: PlaceholderAlignment.middle, child: animated),
+    ];
   }
 
   // ---- build ----
@@ -594,5 +659,316 @@ class MfmContent extends StatelessWidget {
     }
 
     return _buildNodeList(nodes, base, context);
+  }
+}
+
+// ---- MFM アニメーションウィジェット ----
+
+class _SpinWidget extends StatefulWidget {
+  final Widget child;
+  final bool alternate;
+  final double speed;
+  const _SpinWidget({
+    required this.child,
+    this.alternate = false,
+    this.speed = 1.0,
+  });
+
+  @override
+  State<_SpinWidget> createState() => _SpinWidgetState();
+}
+
+class _SpinWidgetState extends State<_SpinWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: (1500 / widget.speed).round()),
+    )..repeat(reverse: widget.alternate);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.alternate) {
+      return AnimatedBuilder(
+        animation: _ctrl,
+        builder: (_, child) => Transform.rotate(
+          angle: (_ctrl.value - 0.5) * math.pi,
+          child: child,
+        ),
+        child: widget.child,
+      );
+    }
+    return RotationTransition(turns: _ctrl, child: widget.child);
+  }
+}
+
+class _ShakeWidget extends StatefulWidget {
+  final Widget child;
+  final double speed;
+  const _ShakeWidget({required this.child, this.speed = 1.0});
+
+  @override
+  State<_ShakeWidget> createState() => _ShakeWidgetState();
+}
+
+class _ShakeWidgetState extends State<_ShakeWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: (500 / widget.speed).round()),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, child) => Transform.translate(
+        offset: Offset(3 * math.sin(_ctrl.value * 2 * math.pi * 3), 0),
+        child: child,
+      ),
+      child: widget.child,
+    );
+  }
+}
+
+class _JumpWidget extends StatefulWidget {
+  final Widget child;
+  final double speed;
+  const _JumpWidget({required this.child, this.speed = 1.0});
+
+  @override
+  State<_JumpWidget> createState() => _JumpWidgetState();
+}
+
+class _JumpWidgetState extends State<_JumpWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: (750 / widget.speed).round()),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, child) => Transform.translate(
+        offset: Offset(
+          0,
+          -16 * math.sin(_ctrl.value * math.pi).clamp(0.0, 1.0),
+        ),
+        child: child,
+      ),
+      child: widget.child,
+    );
+  }
+}
+
+class _BounceWidget extends StatefulWidget {
+  final Widget child;
+  final double speed;
+  const _BounceWidget({required this.child, this.speed = 1.0});
+
+  @override
+  State<_BounceWidget> createState() => _BounceWidgetState();
+}
+
+class _BounceWidgetState extends State<_BounceWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: (500 / widget.speed).round()),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, child) => Transform.translate(
+        offset: Offset(0, -12 * math.sin(_ctrl.value * math.pi)),
+        child: child,
+      ),
+      child: widget.child,
+    );
+  }
+}
+
+class _JellyWidget extends StatefulWidget {
+  final Widget child;
+  final double speed;
+  const _JellyWidget({required this.child, this.speed = 1.0});
+
+  @override
+  State<_JellyWidget> createState() => _JellyWidgetState();
+}
+
+class _JellyWidgetState extends State<_JellyWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: (1000 / widget.speed).round()),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, child) {
+        final scale = 1.0 + 0.15 * math.sin(_ctrl.value * 2 * math.pi);
+        return Transform.scale(scale: scale, child: child);
+      },
+      child: widget.child,
+    );
+  }
+}
+
+class _TwitchWidget extends StatefulWidget {
+  final Widget child;
+  final double speed;
+  const _TwitchWidget({required this.child, this.speed = 1.0});
+
+  @override
+  State<_TwitchWidget> createState() => _TwitchWidgetState();
+}
+
+class _TwitchWidgetState extends State<_TwitchWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: (200 / widget.speed).round()),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, child) {
+        final t = _ctrl.value;
+        final dx = 3 * math.sin(t * 2 * math.pi * 7);
+        final dy = 2 * math.sin(t * 2 * math.pi * 13);
+        return Transform.translate(offset: Offset(dx, dy), child: child);
+      },
+      child: widget.child,
+    );
+  }
+}
+
+class _RainbowWidget extends StatefulWidget {
+  final Widget child;
+  final double speed;
+  const _RainbowWidget({required this.child, this.speed = 1.0});
+
+  @override
+  State<_RainbowWidget> createState() => _RainbowWidgetState();
+}
+
+class _RainbowWidgetState extends State<_RainbowWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: (3000 / widget.speed).round()),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, child) {
+        final hue = _ctrl.value * 360;
+        return ShaderMask(
+          blendMode: BlendMode.srcIn,
+          shaderCallback: (rect) => LinearGradient(
+            colors: List.generate(
+              6,
+              (i) => HSVColor.fromAHSV(1, (hue + i * 60) % 360, 1, 1).toColor(),
+            ),
+          ).createShader(rect),
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
   }
 }

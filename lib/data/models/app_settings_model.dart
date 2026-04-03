@@ -53,6 +53,8 @@ class AppSettingsModel {
   final String defaultVisibility; // 投稿のデフォルト公開範囲
   final int? timezoneOffsetHours; // null=デバイスのローカルタイムゾーン, 数値=UTC+N
   final bool confirmDestructive; // 破壊的操作の確認ダイアログを表示する
+  final bool mfmAnimation; // MFMアニメーションを有効にする（デフォルト: false=静的表示）
+  final bool collapseNote; // 長い投稿を省略表示する（デフォルト: true）
 
   const AppSettingsModel({
     this.theme = 'system',
@@ -67,6 +69,8 @@ class AppSettingsModel {
     this.defaultVisibility = 'public',
     this.timezoneOffsetHours,
     this.confirmDestructive = false,
+    this.mfmAnimation = false,
+    this.collapseNote = true,
   });
 
   AppSettingsModel copyWith({
@@ -82,6 +86,8 @@ class AppSettingsModel {
     String? defaultVisibility,
     Object? timezoneOffsetHours = _sentinel,
     bool? confirmDestructive,
+    bool? mfmAnimation,
+    bool? collapseNote,
   }) => AppSettingsModel(
     theme: theme ?? this.theme,
     fontSize: fontSize ?? this.fontSize,
@@ -97,6 +103,8 @@ class AppSettingsModel {
         ? this.timezoneOffsetHours
         : timezoneOffsetHours as int?,
     confirmDestructive: confirmDestructive ?? this.confirmDestructive,
+    mfmAnimation: mfmAnimation ?? this.mfmAnimation,
+    collapseNote: collapseNote ?? this.collapseNote,
   );
 
   static const Object _sentinel = Object();
@@ -114,6 +122,8 @@ class AppSettingsModel {
     'defaultVisibility': defaultVisibility,
     if (timezoneOffsetHours != null) 'timezoneOffsetHours': timezoneOffsetHours,
     'confirmDestructive': confirmDestructive,
+    'mfmAnimation': mfmAnimation,
+    'collapseNote': collapseNote,
   };
 
   factory AppSettingsModel.fromJson(Map<String, dynamic> json) =>
@@ -132,6 +142,8 @@ class AppSettingsModel {
         defaultVisibility: json['defaultVisibility'] as String? ?? 'public',
         timezoneOffsetHours: json['timezoneOffsetHours'] as int?,
         confirmDestructive: json['confirmDestructive'] as bool? ?? false,
+        mfmAnimation: json['mfmAnimation'] as bool? ?? false,
+        collapseNote: json['collapseNote'] as bool? ?? true,
       );
 
   factory AppSettingsModel.fromJsonString(String jsonString) =>

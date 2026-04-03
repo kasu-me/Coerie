@@ -91,6 +91,20 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () =>
                   _pickTimezone(context, ref, settings.timezoneOffsetHours),
             ),
+          SwitchListTile(
+            title: const Text('MFMアニメーション'),
+            subtitle: const Text('スピン・レインボーなどのアニメーション効果を有効にする'),
+            value: settings.mfmAnimation,
+            onChanged: (v) =>
+                ref.read(settingsProvider.notifier).setMfmAnimation(v),
+          ),
+          SwitchListTile(
+            title: const Text('長い投稿を省略表示'),
+            subtitle: const Text('一定の高さを超えた投稿を折りたたみ「続きを読む」ボタンを表示する'),
+            value: settings.collapseNote,
+            onChanged: (v) =>
+                ref.read(settingsProvider.notifier).setCollapseNote(v),
+          ),
 
           // --- タブ設定 ---
           _SectionHeader('タブ'),

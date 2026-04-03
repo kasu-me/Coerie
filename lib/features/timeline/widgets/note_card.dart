@@ -188,6 +188,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
   Widget build(BuildContext context) {
     final note = widget.note;
     final theme = Theme.of(context);
+    final settings = ref.watch(settingsProvider);
     // ローカル絵文字マップにノート固有の絵文字（リモート含む）をマージする
     final localEmojiMap = ref.watch(_emojiUrlMapProvider);
     final emojiUrlMap = {
@@ -336,8 +337,8 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                 Text(
                   _formatDateTime(
                     note.createdAt,
-                    ref.watch(settingsProvider).dateTimeRelative,
-                    ref.watch(settingsProvider).timezoneOffsetHours,
+                    settings.dateTimeRelative,
+                    settings.timezoneOffsetHours,
                   ),
                   style: theme.textTheme.bodySmall,
                 ),
@@ -411,7 +412,22 @@ class _NoteCardState extends ConsumerState<NoteCard> {
             if (note.text != null && (note.cw == null || _cwExpanded))
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: MfmContent(text: note.text!, emojiUrlMap: emojiUrlMap),
+                child: settings.collapseNote
+                    ? _CollapsibleNoteContent(
+                        maxHeight: 300,
+                        child: MfmContent(
+                          text: note.text!,
+                          emojiUrlMap: emojiUrlMap,
+                          style: TextStyle(fontSize: settings.fontSize),
+                          enableAnimations: settings.mfmAnimation,
+                        ),
+                      )
+                    : MfmContent(
+                        text: note.text!,
+                        emojiUrlMap: emojiUrlMap,
+                        style: TextStyle(fontSize: settings.fontSize),
+                        enableAnimations: settings.mfmAnimation,
+                      ),
               ),
 
             // OGPカード（本文にURLが含まれる場合）
@@ -1398,5 +1414,120 @@ class _UnrenoteButtonState extends ConsumerState<_UnrenoteButton> {
               ),
             ),
           );
+  }
+}
+
+// ---- 省略表示ウィジェット ----
+
+class _CollapsibleNoteContent extends StatefulWidget {
+  final Widget child;
+  final double maxHeight;
+
+  const _CollapsibleNoteContent({required this.child, required this.maxHeight});
+
+  @override
+  State<_CollapsibleNoteContent> createState() =>
+      _CollapsibleNoteContentState();
+}
+
+class _CollapsibleNoteContentState extends State<_CollapsibleNoteContent> {
+  final _scrollController = ScrollController();
+  bool _expanded = false;
+  bool _overflows = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_scrollController.hasClients &&
+          _scrollController.position.maxScrollExtent > 0) {
+        setState(() => _overflows = true);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    if (_expanded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          widget.child,
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: () => setState(() => _expanded = false),
+              child: const Text('折りたたむ'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Stack(
+          children: [
+            ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: widget.maxHeight),
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                physics: const NeverScrollableScrollPhysics(),
+                child: widget.child,
+              ),
+            ),
+            if (_overflows)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: Container(
+                    height: 48,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          theme.colorScheme.surface.withValues(alpha: 0),
+                          theme.colorScheme.surface,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        if (_overflows)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: () => setState(() => _expanded = true),
+              child: const Text('続きを読む'),
+            ),
+          ),
+      ],
+    );
   }
 }
