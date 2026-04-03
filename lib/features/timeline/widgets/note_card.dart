@@ -1054,6 +1054,7 @@ class _MediaGridState extends State<_MediaGrid> {
             final count = imageFiles.length.clamp(1, 4);
             return GridView.builder(
               shrinkWrap: true,
+              padding: EdgeInsets.zero,
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: count == 1 ? 1 : 2,
