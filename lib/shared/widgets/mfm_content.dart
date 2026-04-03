@@ -395,14 +395,15 @@ class MfmContent extends StatelessWidget {
 
     if (node is mfm.MfmEmojiCode) {
       final url = _resolveEmojiUrl(node.name);
+      final emojiSize = style.fontSize ?? 20.0;
       if (url != null) {
         return [
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
             child: CachedNetworkImage(
               imageUrl: url,
-              height: 20,
-              width: 20,
+              height: emojiSize,
+              width: emojiSize,
               fit: BoxFit.contain,
               errorWidget: (_, _, _) => Text(':${node.name}:', style: style),
             ),
@@ -413,13 +414,14 @@ class MfmContent extends StatelessWidget {
     }
 
     if (node is mfm.MfmUnicodeEmoji) {
+      final emojiSize = style.fontSize ?? 20.0;
       return [
         WidgetSpan(
           alignment: PlaceholderAlignment.middle,
           child: CachedNetworkImage(
             imageUrl: _twemojiUrl(node.emoji),
-            height: 20,
-            width: 20,
+            height: emojiSize,
+            width: emojiSize,
             fit: BoxFit.contain,
             errorWidget: (_, _, _) => Text(node.emoji, style: style),
           ),
