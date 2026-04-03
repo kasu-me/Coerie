@@ -685,6 +685,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.17.0"
+  mfm_parser:
+    dependency: "direct main"
+    description:
+      name: mfm_parser
+      sha256: "733a69d14f75c8c15c5b961f2428bd42c7118bbe0b271c03666a7941435fb691"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.6"
   mime:
     dependency: transitive
     description:

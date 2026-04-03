@@ -64,6 +64,8 @@ dependencies:
   path_provider: ^2.1.5
   # ファイル選択
   file_picker: ^8.1.7
+  # MFM (Markup language For Misskey) パーサー
+  mfm_parser: ^1.0.6
 
 dev_dependencies:
   flutter_test:

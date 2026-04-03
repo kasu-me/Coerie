@@ -1,7 +1,6 @@
 ﻿import 'dart:async';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +14,7 @@ import '../../../shared/providers/account_provider.dart';
 import '../../../shared/providers/misskey_api_provider.dart';
 import '../../../shared/providers/settings_provider.dart';
 import '../../../core/streaming/streaming_service.dart';
+import '../../../shared/widgets/mfm_content.dart';
 import '../../compose/emoji_picker_sheet.dart';
 import '../ogp_provider.dart';
 import '../timeline_provider.dart';
@@ -407,20 +407,19 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                 ),
               ),
 
-            // 本文（URLをタップ可能リンクとして表示）
+            // 本文（MFM レンダリング）
             if (note.text != null && (note.cw == null || _cwExpanded))
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: _LinkedText(text: note.text!, emojiUrlMap: emojiUrlMap),
+                child: MfmContent(text: note.text!, emojiUrlMap: emojiUrlMap),
               ),
 
             // OGPカード（本文にURLが含まれる場合）
             if (note.text != null && (note.cw == null || _cwExpanded))
               Builder(
                 builder: (_) {
-                  final match = _LinkedText._urlRegex.firstMatch(note.text!);
-                  if (match == null) return const SizedBox.shrink();
-                  final url = match.group(0)!;
+                  final url = MfmContent.extractFirstUrl(note.text!);
+                  if (url == null) return const SizedBox.shrink();
                   return Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: OgpCard(url: url),
@@ -1296,133 +1295,6 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
           ),
         ),
       ),
-    );
-  }
-}
-
-// ---- URLをタップ可能リンクとして表示するウィジェット ----
-class _LinkedText extends StatelessWidget {
-  final String text;
-  final Map<String, String> emojiUrlMap;
-
-  // OgpCard から参照されるため public static で保持
-  static final _urlRegex = RegExp(
-    r'https?://[^\s\u3000\u300c\u300d\uff08\uff09\u300e\u300f]+',
-    caseSensitive: false,
-  );
-
-  // URL と絵文字の両方を一括でマッチ（unicode モード）
-  static final _tokenRegex = RegExp(
-    // URLs
-    r'(?:https?://[^\s\u3000\u300c\u300d\uff08\uff09\u300e\u300f]+)'
-    // カスタム絵文字 :name: / :name@server:
-    r'|(?::[a-zA-Z0-9_]+(?:@[a-zA-Z0-9._-]*)?:)'
-    // 国旗 (regional indicator ペア)
-    r'|(?:[\u{1F1E6}-\u{1F1FF}]{2})'
-    // SMP 絵文字 (肌色修飾子 + ZWJシーケンス含む)
-    r'|(?:[\u{1F004}-\u{1FAFF}](?:\u{FE0F})?(?:[\u{1F3FB}-\u{1F3FF}])?'
-    r'(?:\u{200D}(?:[\u{1F004}-\u{1FAFF}]|[\u2640\u2642\u2695\u2696\u2708\u2764])(?:\u{FE0F})?(?:[\u{1F3FB}-\u{1F3FF}])?)*)'
-    // BMP 記号絵文字 (☀️ 等) + 任意 VS16
-    r'|(?:[\u2194-\u27BF]\u{FE0F}?)',
-    unicode: true,
-    caseSensitive: false,
-  );
-
-  static const _maxUrlDisplayLength = 40;
-
-  static String _twemojiUrl(String emoji) {
-    final parts = emoji.runes.map((r) => r.toRadixString(16)).join('-');
-    return 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/$parts.png';
-  }
-
-  const _LinkedText({required this.text, required this.emojiUrlMap});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final spans = <InlineSpan>[];
-    int lastEnd = 0;
-
-    for (final match in _tokenRegex.allMatches(text)) {
-      if (match.start > lastEnd) {
-        spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
-      }
-      final token = match.group(0)!;
-      if (token.startsWith(':')) {
-        // カスタム絵文字: フルキー (name@.) 優先、なければ名前のみでフォールバック
-        final inner = token.substring(
-          1,
-          token.length - 1,
-        ); // e.g., "name@." or "name"
-        String? url = emojiUrlMap[inner];
-        if (url == null) {
-          final atIdx = inner.indexOf('@');
-          final nameOnly = atIdx >= 0 ? inner.substring(0, atIdx) : inner;
-          url = emojiUrlMap[nameOnly];
-        }
-        if (url != null) {
-          spans.add(
-            WidgetSpan(
-              alignment: PlaceholderAlignment.middle,
-              child: CachedNetworkImage(
-                imageUrl: url,
-                height: 20,
-                width: 20,
-                fit: BoxFit.contain,
-                errorWidget: (_, _, _) => Text(token),
-              ),
-            ),
-          );
-        } else {
-          spans.add(TextSpan(text: token));
-        }
-      } else if (token.startsWith('http')) {
-        // URL → 長い場合は短縮表示
-        final display = token.length > _maxUrlDisplayLength
-            ? '${token.substring(0, _maxUrlDisplayLength - 1)}\u2026'
-            : token;
-        spans.add(
-          TextSpan(
-            text: display,
-            style: TextStyle(
-              color: theme.colorScheme.primary,
-              decoration: TextDecoration.underline,
-              decorationColor: theme.colorScheme.primary,
-            ),
-            recognizer: TapGestureRecognizer()
-              ..onTap = () async {
-                final uri = Uri.tryParse(token);
-                if (uri != null) {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                }
-              },
-          ),
-        );
-      } else {
-        // Unicode 絵文字 → Twemoji CDN で描画
-        spans.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: CachedNetworkImage(
-              imageUrl: _twemojiUrl(token),
-              height: 20,
-              width: 20,
-              fit: BoxFit.contain,
-              errorWidget: (_, _, _) =>
-                  Text(token, style: theme.textTheme.bodyMedium),
-            ),
-          ),
-        );
-      }
-      lastEnd = match.end;
-    }
-
-    if (lastEnd < text.length) {
-      spans.add(TextSpan(text: text.substring(lastEnd)));
-    }
-
-    return RichText(
-      text: TextSpan(style: theme.textTheme.bodyMedium, children: spans),
     );
   }
 }
