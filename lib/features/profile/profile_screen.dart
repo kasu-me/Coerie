@@ -319,90 +319,16 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
   }
 
   Future<void> _showEditProfileSheet() async {
-    final nameController = TextEditingController(text: widget.user.name);
-    final descController = TextEditingController(
-      text: widget.user.description ?? '',
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _EditProfileSheet(
+        initialName: widget.user.name ?? '',
+        initialDescription: widget.user.description ?? '',
+        userId: widget.userId,
+      ),
     );
-    try {
-      await showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        builder: (ctx) {
-          bool saving = false;
-          return StatefulBuilder(
-            builder: (ctx, setSheet) => Padding(
-              padding: EdgeInsets.fromLTRB(
-                16,
-                16,
-                16,
-                16 + MediaQuery.of(ctx).viewInsets.bottom,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text('プロフィールを編集', style: Theme.of(ctx).textTheme.titleMedium),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(
-                      labelText: '名前',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: descController,
-                    decoration: const InputDecoration(
-                      labelText: '自己紹介',
-                      border: OutlineInputBorder(),
-                    ),
-                    maxLines: 4,
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton(
-                    onPressed: saving
-                        ? null
-                        : () async {
-                            setSheet(() => saving = true);
-                            try {
-                              final api = ref.read(misskeyApiProvider);
-                              await api?.updateProfile(
-                                name: nameController.text.trim(),
-                                description: descController.text.trim(),
-                              );
-                              if (ctx.mounted) Navigator.pop(ctx);
-                              ref.invalidate(
-                                userProfileProvider(widget.userId),
-                              );
-                            } catch (_) {
-                              setSheet(() => saving = false);
-                              if (ctx.mounted) {
-                                ScaffoldMessenger.of(ctx).showSnackBar(
-                                  const SnackBar(content: Text('保存に失敗しました')),
-                                );
-                              }
-                            }
-                          },
-                    child: saving
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('保存'),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-    } finally {
-      nameController.dispose();
-      descController.dispose();
-    }
   }
 
   @override
@@ -955,6 +881,127 @@ class _FollowButtonState extends ConsumerState<_FollowButton> {
     return FilledButton.tonal(
       onPressed: _toggle,
       child: Text(_isFollowing ? 'フォロー中' : 'フォロー'),
+    );
+  }
+}
+
+// プロフィール編集シート
+// build() 内で MediaQuery.of(context).viewInsets を使うと、シート dismissal 時に
+// 要素が deactivate → unmount される前にキーボードアニメーションで MediaQuery が
+// 変化し、非アクティブな要素が _dirtyElements に追加される。
+// BuildOwner.buildScope がその要素をビルドしようとすると _elements.contains(element)
+// アサーションが失敗するため、WidgetsBindingObserver.didChangeMetrics で
+// キーボード高さをローカル状態として管理し InheritedWidget 依存を完全に排除する。
+class _EditProfileSheet extends ConsumerStatefulWidget {
+  final String initialName;
+  final String initialDescription;
+  final String userId;
+
+  const _EditProfileSheet({
+    required this.initialName,
+    required this.initialDescription,
+    required this.userId,
+  });
+
+  @override
+  ConsumerState<_EditProfileSheet> createState() => _EditProfileSheetState();
+}
+
+class _EditProfileSheetState extends ConsumerState<_EditProfileSheet>
+    with WidgetsBindingObserver {
+  late final TextEditingController _nameController;
+  late final TextEditingController _descController;
+  bool _saving = false;
+  double _keyboardHeight = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.initialName);
+    _descController = TextEditingController(text: widget.initialDescription);
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _nameController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    if (!mounted) return;
+    final view = WidgetsBinding.instance.platformDispatcher.implicitView;
+    if (view == null) return;
+    final newHeight = view.viewInsets.bottom / view.devicePixelRatio;
+    if (newHeight != _keyboardHeight) {
+      setState(() => _keyboardHeight = newHeight);
+    }
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      final api = ref.read(misskeyApiProvider);
+      await api?.updateProfile(
+        name: _nameController.text.trim(),
+        description: _descController.text.trim(),
+      );
+      if (mounted) {
+        Navigator.pop(context);
+        ref.invalidate(userProfileProvider(widget.userId));
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('保存に失敗しました')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + _keyboardHeight),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('プロフィールを編集', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              labelText: '名前',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _descController,
+            decoration: const InputDecoration(
+              labelText: '自己紹介',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 4,
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('保存'),
+          ),
+        ],
+      ),
     );
   }
 }
