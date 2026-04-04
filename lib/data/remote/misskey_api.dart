@@ -358,6 +358,70 @@ class MisskeyApi {
     await _dio.post('blocking/delete', data: _body({'userId': userId}));
   }
 
+  // ---- 検索 ----
+
+  /// notes/search: ノートをキーワード検索する
+  Future<List<NoteModel>> searchNotes({
+    required String query,
+    int limit = 20,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'query': query, 'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('notes/search', data: _body(params));
+    final list = res.data as List<dynamic>;
+    return list
+        .map((n) => NoteModel.fromJson(n as Map<String, dynamic>, host: host))
+        .toList();
+  }
+
+  /// notes/search-by-tag: タグでノートを検索する
+  Future<List<NoteModel>> searchNotesByTag({
+    required String tag,
+    int limit = 20,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'tag': tag, 'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('notes/search-by-tag', data: _body(params));
+    final list = res.data as List<dynamic>;
+    return list
+        .map((n) => NoteModel.fromJson(n as Map<String, dynamic>, host: host))
+        .toList();
+  }
+
+  /// users/search: ユーザーをキーワード検索する
+  Future<List<UserModel>> searchUsers({
+    required String query,
+    int limit = 20,
+    int? offset,
+  }) async {
+    final params = <String, dynamic>{
+      'query': query,
+      'limit': limit,
+      'detail': true,
+    };
+    if (offset != null) params['offset'] = offset;
+    final res = await _dio.post('users/search', data: _body(params));
+    final list = res.data as List<dynamic>;
+    return list
+        .map((u) => UserModel.fromJson(u as Map<String, dynamic>, host: host))
+        .toList();
+  }
+
+  /// hashtags/search: ハッシュタグを検索する
+  Future<List<String>> searchHashtags({
+    required String query,
+    int limit = 20,
+    int? offset,
+  }) async {
+    final params = <String, dynamic>{'query': query, 'limit': limit};
+    if (offset != null) params['offset'] = offset;
+    final res = await _dio.post('hashtags/search', data: _body(params));
+    final list = res.data as List<dynamic>;
+    return list.cast<String>();
+  }
+
   // ---- ワードミュート ----
 
   /// 現在のワードミュート設定を取得する（i エンドポイントから）

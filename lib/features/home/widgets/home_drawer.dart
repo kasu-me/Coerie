@@ -34,6 +34,15 @@ class HomeDrawer extends ConsumerWidget {
             ),
             const Divider(),
             ListTile(
+              leading: const Icon(Icons.search),
+              title: const Text('検索'),
+              onTap: () {
+                Navigator.of(context).pop();
+                context.push('/search');
+              },
+            ),
+            const Divider(),
+            ListTile(
               leading: const Icon(Icons.folder_open),
               title: const Text('ドライブ'),
               onTap: () {

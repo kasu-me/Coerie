@@ -324,7 +324,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => _EditProfileSheet(
-        initialName: widget.user.name ?? '',
+        initialName: widget.user.name,
         initialDescription: widget.user.description ?? '',
         userId: widget.userId,
       ),

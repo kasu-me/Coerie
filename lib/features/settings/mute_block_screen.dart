@@ -215,7 +215,9 @@ class _UserMuteTab extends ConsumerWidget {
       data: (list) => RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(_mutingListProvider);
-          await ref.read(_mutingListProvider.future).catchError((_) {});
+          await ref
+              .read(_mutingListProvider.future)
+              .catchError((_) => <Map<String, dynamic>>[]);
         },
         child: list.isEmpty
             ? ListView(
@@ -303,7 +305,9 @@ class _UserBlockTab extends ConsumerWidget {
       data: (list) => RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(_blockingListProvider);
-          await ref.read(_blockingListProvider.future).catchError((_) {});
+          await ref
+              .read(_blockingListProvider.future)
+              .catchError((_) => <Map<String, dynamic>>[]);
         },
         child: list.isEmpty
             ? ListView(

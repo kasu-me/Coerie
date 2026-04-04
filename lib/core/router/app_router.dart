@@ -16,6 +16,7 @@ import '../../features/settings/privacy_policy_screen.dart';
 import '../../features/notifications/notification_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/timeline/note_detail_screen.dart';
+import '../../features/search/search_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final accountState = ref.watch(accountProvider);
@@ -124,6 +125,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final note = state.extra as NoteModel;
           return NoteDetailScreen(note: note);
+        },
+      ),
+      GoRoute(
+        path: '/search',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          final initialTab = extra?['tab'] as int? ?? 0;
+          final initialQuery = extra?['query'] as String?;
+          return SearchScreen(
+            initialTab: initialTab,
+            initialQuery: initialQuery,
+          );
         },
       ),
     ],
