@@ -941,9 +941,10 @@ class _RainbowWidgetState extends State<_RainbowWidget>
   @override
   void initState() {
     super.initState();
+    final s = widget.speed <= 0 ? 1.0 : widget.speed;
     _ctrl = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: (3000 / widget.speed).round()),
+      duration: Duration(milliseconds: (3000 / s).round()),
     )..repeat();
   }
 
@@ -953,20 +954,58 @@ class _RainbowWidgetState extends State<_RainbowWidget>
     super.dispose();
   }
 
+  List<double> _hueRotationMatrix(double degrees) {
+    final rad = degrees * math.pi / 180.0;
+    final cosA = math.cos(rad);
+    final sinA = math.sin(rad);
+    const double lumR = 0.213;
+    const double lumG = 0.715;
+    const double lumB = 0.072;
+
+    final a00 = lumR + (1 - lumR) * cosA + (-lumR) * sinA;
+    final a01 = lumG + (-lumG) * cosA + (-lumG) * sinA;
+    final a02 = lumB + (-lumB) * cosA + (1 - lumB) * sinA;
+
+    final a10 = lumR + (-lumR) * cosA + (0.143) * sinA;
+    final a11 = lumG + (1 - lumG) * cosA + (0.140) * sinA;
+    final a12 = lumB + (-lumB) * cosA + (-0.283) * sinA;
+
+    final a20 = lumR + (-lumR) * cosA + (-(1 - lumR)) * sinA;
+    final a21 = lumG + (-lumG) * cosA + (lumG) * sinA;
+    final a22 = lumB + (1 - lumB) * cosA + (lumB) * sinA;
+
+    return [
+      a00,
+      a01,
+      a02,
+      0,
+      0,
+      a10,
+      a11,
+      a12,
+      0,
+      0,
+      a20,
+      a21,
+      a22,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (_, child) {
         final hue = _ctrl.value * 360;
-        return ShaderMask(
-          blendMode: BlendMode.srcIn,
-          shaderCallback: (rect) => LinearGradient(
-            colors: List.generate(
-              6,
-              (i) => HSVColor.fromAHSV(1, (hue + i * 60) % 360, 1, 1).toColor(),
-            ),
-          ).createShader(rect),
+        return ColorFiltered(
+          colorFilter: ColorFilter.matrix(_hueRotationMatrix(hue)),
           child: child,
         );
       },
