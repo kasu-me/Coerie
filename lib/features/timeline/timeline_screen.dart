@@ -82,8 +82,9 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 300) {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 300) {
       ref
           .read(timelineProvider(widget.timelineType).notifier)
           .fetchNotes(loadMore: true);

@@ -11,7 +11,6 @@ import '../../data/remote/misskey_api.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_visibility_provider.dart';
 import '../draft/draft_provider.dart';
-import '../timeline/timeline_provider.dart';
 import 'emoji_picker_sheet.dart';
 
 sealed class _AttachedMedia {}
@@ -323,16 +322,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
       if (_currentDraftId != null) {
         await ref.read(draftProvider.notifier).deleteDraft(_currentDraftId!);
-      }
-
-      // 投稿後にすべてのメインTLを最新ノートで更新
-      for (final type in [
-        AppConstants.tabTypeHome,
-        AppConstants.tabTypeLocal,
-        AppConstants.tabTypeSocial,
-        AppConstants.tabTypeGlobal,
-      ]) {
-        ref.read(timelineProvider(type).notifier).fetchNew();
       }
 
       if (mounted) context.pop();

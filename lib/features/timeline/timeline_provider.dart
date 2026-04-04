@@ -146,7 +146,30 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
   }
 
   Future<void> refresh() async {
-    await fetchNotes();
+    final api = _ref.read(misskeyApiProvider);
+    if (api == null) return;
+
+    // isLoading を立てずにリフレッシュすることで、リスト表示を維持したまま
+    // スクロール位置・ScrollController のアタッチ状態を壊さない。
+    // isLoadingMore を一時的に使って二重実行を防ぐ。
+    if (state.isLoading || state.isLoadingMore) return;
+    state = state.copyWith(isLoadingMore: true, error: null);
+
+    try {
+      final endpoint = getEndpoint(timelineType);
+      final extraParams = getExtraParams(timelineType);
+      final notes = await api.getTimeline(
+        endpoint: endpoint,
+        limit: 20,
+        extraParams: extraParams,
+      );
+      state = state.copyWith(isLoadingMore: false, notes: notes);
+    } catch (e) {
+      state = state.copyWith(
+        isLoadingMore: false,
+        error: e.toString().replaceFirst('Exception: ', ''),
+      );
+    }
   }
 
   void prependNote(NoteModel note) {
