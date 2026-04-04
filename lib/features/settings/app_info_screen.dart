@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/constants/app_constants.dart';
 
 class AppInfoScreen extends StatelessWidget {
   const AppInfoScreen({super.key});
 
-  static const _version = '1.0.0';
+  // version is loaded from platform info (pubspec) at runtime
   static const _author = 'M_Kasumi';
   static const _githubUrl = 'https://github.com/kasu-me/Coerie/tree/main';
 
@@ -32,7 +33,11 @@ class AppInfoScreen extends StatelessWidget {
           Center(
             child: Column(
               children: [
-                const Icon(Icons.star_rounded, size: 72),
+                Image.asset(
+                  'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png',
+                  width: 72,
+                  height: 72,
+                ),
                 const SizedBox(height: 12),
                 Text(
                   AppConstants.appName,
@@ -41,11 +46,19 @@ class AppInfoScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  'バージョン $_version',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                FutureBuilder<PackageInfo>(
+                  future: PackageInfo.fromPlatform(),
+                  builder: (context, snapshot) {
+                    final versionText = snapshot.hasData
+                        ? '${snapshot.data!.version}'
+                        : '読み込み中';
+                    return Text(
+                      'バージョン $versionText',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
