@@ -8,6 +8,7 @@ import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../../shared/providers/notifications_badge_provider.dart';
+import '../../shared/providers/notifications_tab_visibility_provider.dart';
 import 'widgets/home_app_bar.dart';
 import 'widgets/home_drawer.dart';
 import '../timeline/timeline_screen.dart';
@@ -26,6 +27,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   TabController? _tabController;
   int _tabCount = 0;
+  int? _lastTabIndex;
 
   @override
   void didChangeDependencies() {
@@ -47,10 +49,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           // 前のインデックスが範囲外の場合は0に戻す
           initialIndex: prevIndex < newCount ? prevIndex : 0,
         );
+        _lastTabIndex = _tabController?.index;
+        _tabController?.addListener(() {
+          // Wait until animation settled
+          if (_tabController == null) return;
+          if (_tabController!.indexIsChanging) return;
+          final idx = _tabController!.index;
+          if (_lastTabIndex == idx) return;
+          _lastTabIndex = idx;
+          _handleTabChanged(idx);
+        });
+        // 初期表示時の可視フラグ設定
+        final accountId = ref.read(activeAccountProvider)?.id ?? '';
+        final tabs = ref.read(accountTabsProvider(accountId));
+        final currentIdx = _tabController!.index;
+        final isNotificationsTab =
+            currentIdx >= 0 &&
+            currentIdx < tabs.length &&
+            tabs[currentIdx].type == AppConstants.tabTypeNotifications;
+        ref.read(notificationsTabVisibilityProvider(accountId).notifier).state =
+            isNotificationsTab;
       } else {
         _tabController = null;
       }
     }
+  }
+
+  void _handleTabChanged(int newIndex) {
+    final accountId = ref.read(activeAccountProvider)?.id ?? '';
+    final tabs = ref.read(accountTabsProvider(accountId));
+    if (newIndex < 0 || newIndex >= tabs.length) return;
+    final tab = tabs[newIndex];
+    // 通知タブの表示状態を更新する
+    final isNotifications = tab.type == AppConstants.tabTypeNotifications;
+    ref.read(notificationsTabVisibilityProvider(accountId).notifier).state =
+        isNotifications;
   }
 
   @override

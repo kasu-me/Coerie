@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,17 +7,16 @@ import '../../core/streaming/streaming_service.dart';
 import '../../data/models/notification_model.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/notifications_badge_provider.dart';
+import '../../shared/providers/notifications_tab_visibility_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
 
 // ---- Provider ----
 
-// アカウントID をキーとして使うことでアカウント切り替え時に
-// 自動的に新しい Notifier が生成され、旧アカウントのキャッシュは破棄される。
 final _notificationsProvider = StateNotifierProvider.autoDispose
     .family<_NotificationsNotifier, _NotificationsState, String>(
-      (ref, accountId) => _NotificationsNotifier(ref),
-    );
+  (ref, accountId) => _NotificationsNotifier(ref),
+);
 
 class _NotificationsState {
   final List<NotificationModel> items;
@@ -38,11 +37,11 @@ class _NotificationsState {
     bool? hasMore,
     String? error,
   }) => _NotificationsState(
-    items: items ?? this.items,
-    isLoading: isLoading ?? this.isLoading,
-    hasMore: hasMore ?? this.hasMore,
-    error: error,
-  );
+        items: items ?? this.items,
+        isLoading: isLoading ?? this.isLoading,
+        hasMore: hasMore ?? this.hasMore,
+        error: error,
+      );
 }
 
 class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
@@ -52,7 +51,6 @@ class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
   _NotificationsNotifier(this._ref) : super(const _NotificationsState()) {
     fetch();
     _subscribeStream();
-    // ストリーミングサービス変更時に再購読
     _ref.listen<StreamingService?>(streamingServiceProvider, (prev, next) {
       _streamSub?.cancel();
       _streamSub = null;
@@ -67,7 +65,6 @@ class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
   }
 
   void _onRealtimeNotification(NotificationModel notification) {
-    // 重複チェック
     if (state.items.any((n) => n.id == notification.id)) return;
     state = state.copyWith(items: [notification, ...state.items]);
   }
@@ -81,9 +78,8 @@ class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
 
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final untilId = loadMore && state.items.isNotEmpty
-          ? state.items.last.id
-          : null;
+      final untilId =
+          loadMore && state.items.isNotEmpty ? state.items.last.id : null;
       final items = await api.getNotifications(untilId: untilId);
       state = state.copyWith(
         isLoading: false,
@@ -119,7 +115,7 @@ class NotificationScreen extends ConsumerStatefulWidget {
 
 class _NotificationScreenState extends ConsumerState<NotificationScreen>
     with AutomaticKeepAliveClientMixin {
-  final _scrollController = ScrollController();
+  final ScrollController _scrollController = ScrollController();
 
   @override
   bool get wantKeepAlive => true;
@@ -128,13 +124,6 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    // 開いたら既読にする
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final api = ref.read(misskeyApiProvider);
-      await api?.markNotificationsRead().catchError((_) {});
-      final accountId = ref.read(activeAccountProvider)?.id ?? '';
-      ref.read(notificationsBadgeProvider(accountId).notifier).clear();
-    });
   }
 
   void _onScroll() {
@@ -156,13 +145,28 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    // アカウントIDをキーとして使うことで、アカウント切り替え時に
-    // 自動的に新しい Provider インスタンス（新しい Notifier）が使われる。
     final accountId = ref.watch(activeAccountProvider)?.id ?? '';
     final state = ref.watch(_notificationsProvider(accountId));
 
+    // タブ可視フラグと未読数を両方 watch することで、
+    // タブ切替時や新着時に確実に rebuild されてバッジ消去処理が走る。
+    final isVisible = ref.watch(notificationsTabVisibilityProvider(accountId));
+    final unreadCount = ref.watch(notificationsBadgeProvider(accountId));
+
+    // 通知タブが表示中 かつ 一番上の通知がレンダリングされていて 未読がある場合、
+    // 次フレームで既読化してバッジを消す。
+    if (isVisible && unreadCount > 0 && state.items.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        final api = ref.read(misskeyApiProvider);
+        await api?.markNotificationsRead().catchError((_) {});
+        await ref
+            .read(notificationsBadgeProvider(accountId).notifier)
+            .clear();
+      });
+    }
+
     if (widget.embedded) {
-      // タブ埋め込み時: AppBarなし、リフレッシュはプルのみ
       return Stack(
         children: [
           _buildBody(context, state, accountId),
@@ -184,8 +188,9 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () =>
-                ref.read(_notificationsProvider(accountId).notifier).refresh(),
+            onPressed: () => ref
+                .read(_notificationsProvider(accountId).notifier)
+                .refresh(),
           ),
         ],
       ),
@@ -218,7 +223,10 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('読み込みに失敗しました', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              '読み込みに失敗しました',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
             FilledButton(
               onPressed: () => ref
@@ -284,7 +292,6 @@ class _NotificationTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 通知種別アイコン（重ね表示）
             GestureDetector(
               onTap: () {
                 if (n.user != null) {
@@ -329,7 +336,6 @@ class _NotificationTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 14),
-            // テキスト部分
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -340,7 +346,8 @@ class _NotificationTile extends StatelessWidget {
                       children: [
                         TextSpan(
                           text: n.user?.name ?? '',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          style:
+                              const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         TextSpan(text: ' ${_typeLabel(n.type)}'),
                         if (n.type == 'reaction' && n.reaction != null)
@@ -379,33 +386,34 @@ class _NotificationTile extends StatelessWidget {
   }
 
   static String _typeLabel(String type) => switch (type) {
-    'follow' => 'がフォローしました',
-    'followRequestAccepted' => 'がフォローリクエストを承認しました',
-    'mention' => 'があなたにメンションしました',
-    'reply' => 'が返信しました',
-    'renote' => 'がリノートしました',
-    'quote' => 'が引用しました',
-    'reaction' => 'がリアクションしました',
-    'receiveFollowRequest' => 'がフォローリクエストを送りました',
-    _ => type,
-  };
+        'follow' => 'がフォローしました',
+        'followRequestAccepted' => 'がフォローリクエストを承認しました',
+        'mention' => 'があなたにメンションしました',
+        'reply' => 'が返信しました',
+        'renote' => 'がリノートしました',
+        'quote' => 'が引用しました',
+        'reaction' => 'がリアクションしました',
+        'receiveFollowRequest' => 'がフォローリクエストを送りました',
+        _ => type,
+      };
 
   static IconData _typeIcon(String type) => switch (type) {
-    'follow' ||
-    'followRequestAccepted' ||
-    'receiveFollowRequest' => Icons.person_add,
-    'mention' || 'reply' => Icons.reply,
-    'renote' || 'quote' => Icons.repeat,
-    'reaction' => Icons.add_reaction_outlined,
-    _ => Icons.notifications_outlined,
-  };
+        'follow' ||
+        'followRequestAccepted' ||
+        'receiveFollowRequest' =>
+          Icons.person_add,
+        'mention' || 'reply' => Icons.reply,
+        'renote' || 'quote' => Icons.repeat,
+        'reaction' => Icons.add_reaction_outlined,
+        _ => Icons.notifications_outlined,
+      };
 
   static Color _typeColor(String type, ThemeData theme) => switch (type) {
-    'follow' || 'followRequestAccepted' => Colors.green,
-    'reaction' => Colors.orange,
-    'renote' || 'quote' => theme.colorScheme.tertiary,
-    _ => theme.colorScheme.primary,
-  };
+        'follow' || 'followRequestAccepted' => Colors.green,
+        'reaction' => Colors.orange,
+        'renote' || 'quote' => theme.colorScheme.tertiary,
+        _ => theme.colorScheme.primary,
+      };
 
   static String _formatTime(DateTime dt) {
     final now = DateTime.now();
