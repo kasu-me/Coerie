@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/providers/account_provider.dart';
+import '../../../shared/providers/notifications_badge_provider.dart';
 
 class HomeAppBar extends ConsumerWidget implements PreferredSizeWidget {
   final GlobalKey<ScaffoldState> scaffoldKey;
@@ -15,6 +16,8 @@ class HomeAppBar extends ConsumerWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final account = ref.watch(activeAccountProvider);
+    final accountId = account?.id ?? '';
+    final unread = ref.watch(notificationsBadgeProvider(accountId));
 
     return AppBar(
       automaticallyImplyLeading: false,
@@ -37,9 +40,17 @@ class HomeAppBar extends ConsumerWidget implements PreferredSizeWidget {
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.notifications_outlined),
+          icon: unread > 0
+              ? Badge(
+                  label: Text('$unread'),
+                  child: const Icon(Icons.notifications_outlined),
+                )
+              : const Icon(Icons.notifications_outlined),
           tooltip: '通知',
-          onPressed: () => context.push('/notifications'),
+          onPressed: () {
+            ref.read(notificationsBadgeProvider(accountId).notifier).clear();
+            context.push('/notifications');
+          },
         ),
       ],
     );

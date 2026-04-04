@@ -7,6 +7,7 @@ import '../../data/models/app_settings_model.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/settings_provider.dart';
+import '../../shared/providers/notifications_badge_provider.dart';
 import 'widgets/home_app_bar.dart';
 import 'widgets/home_drawer.dart';
 import '../timeline/timeline_screen.dart';
@@ -115,7 +116,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 TabBar(
                   controller: _tabController,
                   isScrollable: tabs.length > 4,
-                  tabs: tabs.map((t) => Tab(text: t.label)).toList(),
+                  tabs: tabs.map((t) {
+                    if (t.type == AppConstants.tabTypeNotifications) {
+                      final unread = ref.watch(
+                        notificationsBadgeProvider(accountId),
+                      );
+                      return unread > 0
+                          ? Tab(
+                              child: Badge(
+                                label: Text('$unread'),
+                                child: Text(t.label),
+                              ),
+                            )
+                          : Tab(text: t.label);
+                    }
+                    return Tab(text: t.label);
+                  }).toList(),
                 ),
                 Expanded(
                   child: TabBarView(

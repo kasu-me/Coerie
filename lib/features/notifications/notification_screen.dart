@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/streaming/streaming_service.dart';
 import '../../data/models/notification_model.dart';
 import '../../shared/providers/account_provider.dart';
+import '../../shared/providers/notifications_badge_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
 
@@ -131,6 +132,8 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final api = ref.read(misskeyApiProvider);
       await api?.markNotificationsRead().catchError((_) {});
+      final accountId = ref.read(activeAccountProvider)?.id ?? '';
+      ref.read(notificationsBadgeProvider(accountId).notifier).clear();
     });
   }
 
