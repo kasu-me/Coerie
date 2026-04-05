@@ -16,4 +16,10 @@ class UserFieldModel {
       verified: json['verified'] as bool?,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'value': value,
+    if (verified != null) 'verified': verified,
+  };
 }

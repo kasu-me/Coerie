@@ -444,10 +444,15 @@ class MisskeyApi {
   }
 
   /// プロフィールを更新する
-  Future<void> updateProfile({String? name, String? description}) async {
+  Future<void> updateProfile({
+    String? name,
+    String? description,
+    List<Map<String, dynamic>>? fields,
+  }) async {
     final params = <String, dynamic>{};
     if (name != null) params['name'] = name;
     if (description != null) params['description'] = description;
+    if (fields != null) params['fields'] = fields;
     await _dio.post('i/update', data: _body(params));
   }
 

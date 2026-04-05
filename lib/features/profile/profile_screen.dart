@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/widgets/mfm_content.dart';
 import '../../data/models/user_model.dart';
+import '../../data/models/user_field_model.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
@@ -359,6 +360,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
         initialName: widget.user.name,
         initialDescription: widget.user.description ?? '',
         userId: widget.userId,
+        initialFields: widget.user.fields,
       ),
     );
   }
@@ -1028,21 +1030,36 @@ class _EditProfileSheet extends ConsumerStatefulWidget {
   final String initialName;
   final String initialDescription;
   final String userId;
+  final List<UserFieldModel> initialFields;
 
   const _EditProfileSheet({
     required this.initialName,
     required this.initialDescription,
     required this.userId,
+    this.initialFields = const [],
   });
 
   @override
   ConsumerState<_EditProfileSheet> createState() => _EditProfileSheetState();
 }
 
+class _FieldEntry {
+  final TextEditingController nameController;
+  final TextEditingController valueController;
+  _FieldEntry({String name = '', String value = ''})
+    : nameController = TextEditingController(text: name),
+      valueController = TextEditingController(text: value);
+  void dispose() {
+    nameController.dispose();
+    valueController.dispose();
+  }
+}
+
 class _EditProfileSheetState extends ConsumerState<_EditProfileSheet>
     with WidgetsBindingObserver {
   late final TextEditingController _nameController;
   late final TextEditingController _descController;
+  late final List<_FieldEntry> _fields;
   bool _saving = false;
   double _keyboardHeight = 0;
 
@@ -1051,6 +1068,9 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet>
     super.initState();
     _nameController = TextEditingController(text: widget.initialName);
     _descController = TextEditingController(text: widget.initialDescription);
+    _fields = widget.initialFields
+        .map((f) => _FieldEntry(name: f.name, value: f.value))
+        .toList();
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -1059,8 +1079,12 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet>
     WidgetsBinding.instance.removeObserver(this);
     _nameController.dispose();
     _descController.dispose();
+    for (final e in _fields) e.dispose();
     super.dispose();
   }
+
+  void _addField() => setState(() => _fields.add(_FieldEntry()));
+  void _removeFieldAt(int i) => setState(() => _fields.removeAt(i));
 
   @override
   void didChangeMetrics() {
@@ -1077,9 +1101,23 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet>
     setState(() => _saving = true);
     try {
       final api = ref.read(misskeyApiProvider);
+      final fieldsPayload = _fields
+          .map(
+            (e) => {
+              'name': e.nameController.text.trim(),
+              'value': e.valueController.text.trim(),
+            },
+          )
+          .where(
+            (m) =>
+                (m['name'] as String).isNotEmpty ||
+                (m['value'] as String).isNotEmpty,
+          )
+          .toList();
       await api?.updateProfile(
         name: _nameController.text.trim(),
         description: _descController.text.trim(),
+        fields: fieldsPayload.isNotEmpty ? fieldsPayload : null,
       );
       if (mounted) {
         Navigator.pop(context);
@@ -1121,7 +1159,53 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet>
             ),
             maxLines: 4,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          Text('追加情報', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          ..._fields.asMap().entries.map((entry) {
+            final i = entry.key;
+            final e = entry.value;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 140,
+                    child: TextField(
+                      controller: e.nameController,
+                      decoration: const InputDecoration(
+                        labelText: '項目',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: e.valueController,
+                      decoration: const InputDecoration(
+                        labelText: '値',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () => _removeFieldAt(i),
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: '削除',
+                  ),
+                ],
+              ),
+            );
+          }),
+          FilledButton.tonal(
+            onPressed: _addField,
+            child: const Text('フィールドを追加'),
+          ),
+          const SizedBox(height: 12),
           FilledButton(
             onPressed: _saving ? null : _save,
             child: _saving
