@@ -602,8 +602,11 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
     );
   }
 
-  void _showFollowList(BuildContext context, {required bool isFollowing}) {
-    showModalBottomSheet(
+  Future<void> _showFollowList(
+    BuildContext context, {
+    required bool isFollowing,
+  }) async {
+    final selected = await showModalBottomSheet<String?>(
       context: context,
       isScrollControlled: true,
       builder: (ctx) => DraggableScrollableSheet(
@@ -618,6 +621,9 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
         ),
       ),
     );
+    if (selected != null) {
+      context.push('/profile/$selected');
+    }
   }
 
   Widget _buildNotesList(
@@ -772,6 +778,7 @@ class _FollowUserTileState extends ConsumerState<_FollowUserTile> {
     final isOwnAccount = activeAccount?.userId == widget.user.id;
 
     return ListTile(
+      onTap: () => Navigator.pop(context, widget.user.id),
       leading: CircleAvatar(
         backgroundImage: widget.user.avatarUrl != null
             ? CachedNetworkImageProvider(widget.user.avatarUrl!)
