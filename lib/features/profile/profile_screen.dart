@@ -9,6 +9,37 @@ import '../../shared/providers/account_provider.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
 import '../timeline/widgets/note_card.dart';
 
+class _AppBarIcon extends StatelessWidget {
+  final IconData icon;
+  final double size;
+  final Color color;
+  final Color shadowColor;
+  final Offset offset;
+
+  const _AppBarIcon(
+    this.icon, {
+    this.size = 24,
+    this.color = Colors.white,
+    this.shadowColor = const Color(0x66000000),
+    this.offset = const Offset(0, 1),
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Transform.translate(
+          offset: offset,
+          child: Icon(icon, size: size, color: shadowColor),
+        ),
+        Icon(icon, size: size, color: color),
+      ],
+    );
+  }
+}
+
 // ユーザー情報プロバイダー
 final userProfileProvider = FutureProvider.family<UserModel, String>((
   ref,
@@ -367,12 +398,17 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
               controller: _scrollController,
               headerSliverBuilder: (context, _) => [
                 SliverAppBar(
+                  leading: IconButton(
+                    icon: const _AppBarIcon(Icons.arrow_back),
+                    onPressed: () => context.pop(),
+                    tooltip: '戻る',
+                  ),
                   expandedHeight: 200,
                   pinned: true,
                   actions: isOwnProfile
                       ? [
                           IconButton(
-                            icon: const Icon(Icons.edit_outlined),
+                            icon: const _AppBarIcon(Icons.edit_outlined),
                             onPressed: _showEditProfileSheet,
                             tooltip: 'プロフィールを編集',
                           ),
@@ -392,7 +428,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                             )
                           else
                             PopupMenuButton<String>(
-                              icon: const Icon(Icons.more_vert),
+                              icon: const _AppBarIcon(Icons.more_vert),
                               onSelected: (value) {
                                 if (value == 'mute') _toggleMute();
                                 if (value == 'block') _toggleBlock();
