@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/widgets/media_player_screen.dart';
@@ -48,6 +51,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
   final _scrollController = ScrollController();
   final Set<String> _selectedIds = {};
   bool _managingMode = false;
+  bool _isUploading = false;
 
   String? get _currentFolderId => _breadcrumbs.last.id;
 
@@ -406,6 +410,39 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     }
   }
 
+  Future<void> _pickAndUploadFile() async {
+    final result = await FilePicker.platform.pickFiles();
+    if (result == null || result.files.isEmpty) return;
+    final path = result.files.single.path;
+    if (path == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('ファイルの選択に失敗しました')));
+      return;
+    }
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+    try {
+      setState(() => _isUploading = true);
+      final file = File(path);
+      final name = result.files.single.name;
+      await api.uploadFile(file, name: name);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('アップロードしました')));
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('アップロードに失敗しました: $e')));
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isRoot = _breadcrumbs.length == 1;
@@ -473,6 +510,23 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
                     ),
                 ],
               ),
+        floatingActionButton: (!widget.selectionMode && !_managingMode)
+            ? FloatingActionButton.extended(
+                heroTag: 'driveAddFile',
+                onPressed: _isUploading ? null : _pickAndUploadFile,
+                icon: _isUploading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.upload_file),
+                label: const Text('ファイル追加'),
+              )
+            : null,
         body: RefreshIndicator(onRefresh: _load, child: _buildBody(context)),
       ),
     );
