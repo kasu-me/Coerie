@@ -895,8 +895,9 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     final theme = Theme.of(context);
     final activeAccount = ref.read(activeAccountProvider);
     final canRenote =
-        !(widget.note.visibility == AppConstants.visibilityFollowers &&
-            widget.note.user.id != activeAccount?.userId);
+        !((widget.note.visibility == AppConstants.visibilityFollowers &&
+                widget.note.user.id != activeAccount?.userId) ||
+            widget.note.visibility == AppConstants.visibilitySpecified);
     return Row(
       children: [
         _ActionButton(
