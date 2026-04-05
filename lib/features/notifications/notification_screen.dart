@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/streaming/streaming_service.dart';
 import '../../data/models/notification_model.dart';
+import '../compose/emoji_picker_sheet.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/notifications_badge_provider.dart';
 import '../../shared/providers/notifications_tab_visibility_provider.dart';
@@ -241,6 +242,21 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
     if (state.items.isEmpty) {
       return const Center(child: Text('通知はありません'));
     }
+    // カスタム絵文字のローカルマップを取得
+    var localEmojiMap = <String, String>{};
+    final customEmojisAsync = ref.watch(customEmojisProvider);
+    customEmojisAsync.when(
+      data: (list) {
+        localEmojiMap = {
+          for (final e in list)
+            if (e['name'] != null && e['url'] != null)
+              e['name'] as String: e['url'] as String,
+        };
+      },
+      loading: () {},
+      error: (_, __) {},
+    );
+
     return RefreshIndicator(
       onRefresh: () =>
           ref.read(_notificationsProvider(accountId).notifier).refresh(),
@@ -257,7 +273,16 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
                   )
                 : const SizedBox.shrink();
           }
-          return _NotificationTile(notification: state.items[index]);
+          final note = state.items[index].note;
+          final emojiUrlMap = {
+            ...localEmojiMap,
+            if (note != null) ...note.emojis,
+            if (note != null) ...note.reactionEmojis,
+          };
+          return _NotificationTile(
+            notification: state.items[index],
+            emojiUrlMap: emojiUrlMap,
+          );
         },
       ),
     );
@@ -268,7 +293,9 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
 
 class _NotificationTile extends StatelessWidget {
   final NotificationModel notification;
-  const _NotificationTile({required this.notification});
+  final Map<String, String> emojiUrlMap;
+
+  const _NotificationTile({required this.notification, this.emojiUrlMap = const {}});
 
   @override
   Widget build(BuildContext context) {
@@ -340,24 +367,78 @@ class _NotificationTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  RichText(
-                    text: TextSpan(
-                      style: theme.textTheme.bodyMedium,
-                      children: [
-                        TextSpan(
-                          text: n.user?.name ?? '',
-                          style:
-                              const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        TextSpan(text: ' ${_typeLabel(n.type)}'),
-                        if (n.type == 'reaction' && n.reaction != null)
-                          TextSpan(
-                            text: ' ${n.reaction}',
-                            style: const TextStyle(fontSize: 15),
+                  // ユーザー名 + 種別ラベル (+ リアクション絵文字は画像で表示)
+                  Builder(builder: (ctx) {
+                    final spans = <InlineSpan>[];
+                    spans.add(const TextSpan(
+                      style: TextStyle(),
+                    ));
+                    spans.add(TextSpan(
+                      text: n.user?.name ?? '',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ));
+                    spans.add(TextSpan(text: ' ${_typeLabel(n.type)}'));
+
+                    if (n.type == 'reaction' && n.reaction != null) {
+                      final reactionKey = n.reaction!;
+                      String? imageUrl;
+                      // :name: 形式のカスタム絵文字を探す
+                      String? inner;
+                      if (reactionKey.startsWith(':') && reactionKey.endsWith(':')) {
+                        inner = reactionKey.substring(1, reactionKey.length - 1);
+                      }
+                      if (inner != null) {
+                        imageUrl = emojiUrlMap[inner];
+                        if (imageUrl == null) {
+                          final atIdx = inner.indexOf('@');
+                          final nameOnly = atIdx >= 0 ? inner.substring(0, atIdx) : inner;
+                          imageUrl = emojiUrlMap[nameOnly];
+                        }
+                      }
+
+                      if (imageUrl != null) {
+                        spans.add(WidgetSpan(
+                          alignment: PlaceholderAlignment.middle,
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 6),
+                            child: CachedNetworkImage(
+                              imageUrl: imageUrl,
+                              height: 16,
+                              width: 16,
+                              fit: BoxFit.contain,
+                              errorWidget: (_, __, ___) => Text(' $reactionKey', style: const TextStyle(fontSize: 15)),
+                            ),
                           ),
-                      ],
-                    ),
-                  ),
+                        ));
+                      } else if (inner == null) {
+                        // Unicode絵文字は Twemoji CDN を使って画像化
+                        final hex = reactionKey.runes.map((r) => r.toRadixString(16)).join('-');
+                        final url = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/$hex.png';
+                        spans.add(WidgetSpan(
+                          alignment: PlaceholderAlignment.middle,
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 6),
+                            child: CachedNetworkImage(
+                              imageUrl: url,
+                              height: 16,
+                              width: 16,
+                              fit: BoxFit.contain,
+                              errorWidget: (_, __, ___) => Text(' $reactionKey', style: const TextStyle(fontSize: 15)),
+                            ),
+                          ),
+                        ));
+                      } else {
+                        spans.add(TextSpan(text: ' ${reactionKey}', style: const TextStyle(fontSize: 15)));
+                      }
+                    }
+
+                    return RichText(
+                      text: TextSpan(
+                        style: theme.textTheme.bodyMedium,
+                        children: spans,
+                      ),
+                    );
+                  }),
                   if (n.note?.text != null) ...[
                     const SizedBox(height: 4),
                     Text(
