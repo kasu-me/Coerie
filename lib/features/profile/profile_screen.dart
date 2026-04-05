@@ -895,6 +895,12 @@ class _FollowUserTileState extends ConsumerState<_FollowUserTile> {
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 minimumSize: const Size(0, 32),
+                backgroundColor: _isFollowing
+                    ? theme.colorScheme.secondaryContainer
+                    : theme.colorScheme.primary,
+                foregroundColor: _isFollowing
+                    ? theme.colorScheme.onSecondaryContainer
+                    : theme.colorScheme.onPrimary,
               ),
               child: Text(_isFollowing ? 'フォロー中' : 'フォロー'),
             ),
@@ -948,8 +954,19 @@ class _FollowButtonState extends ConsumerState<_FollowButton> {
         child: CircularProgressIndicator(strokeWidth: 2),
       );
     }
+    final theme = Theme.of(context);
     return FilledButton.tonal(
       onPressed: _toggle,
+      style: FilledButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        minimumSize: const Size(0, 32),
+        backgroundColor: _isFollowing
+            ? theme.colorScheme.secondaryContainer
+            : theme.colorScheme.primary,
+        foregroundColor: _isFollowing
+            ? theme.colorScheme.onSecondaryContainer
+            : theme.colorScheme.onPrimary,
+      ),
       child: Text(_isFollowing ? 'フォロー中' : 'フォロー'),
     );
   }
