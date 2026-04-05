@@ -1,3 +1,5 @@
+import 'user_field_model.dart';
+
 class UserModel {
   final String id;
   final String name;
@@ -10,6 +12,7 @@ class UserModel {
   final int? notesCount;
   final String? description;
   final List<String> pinnedNoteIds;
+  final List<UserFieldModel> fields;
   final bool isFollowing;
   final bool isFollowed;
   final bool isBlocking;
@@ -27,6 +30,7 @@ class UserModel {
     this.notesCount,
     this.description,
     this.pinnedNoteIds = const [],
+    this.fields = const [],
     this.isFollowing = false,
     this.isFollowed = false,
     this.isBlocking = false,
@@ -49,6 +53,11 @@ class UserModel {
       description: json['description'] as String?,
       pinnedNoteIds:
           (json['pinnedNoteIds'] as List<dynamic>?)?.cast<String>() ?? const [],
+      fields:
+          (json['fields'] as List<dynamic>?)
+              ?.map((e) => UserFieldModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
       isFollowing: json['isFollowing'] as bool? ?? false,
       isFollowed: json['isFollowed'] as bool? ?? false,
       isBlocking: json['isBlocking'] as bool? ?? false,

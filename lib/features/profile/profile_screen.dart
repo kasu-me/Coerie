@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
+import '../../shared/widgets/mfm_content.dart';
 import '../../data/models/user_model.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
@@ -60,6 +61,8 @@ final _pinnedNotesProvider = FutureProvider.family<List<NoteModel>, String>((
   return api.getUserPinnedNotes(userId);
 });
 
+// (リンク検出は MFM レンダラーに委ねるため、手動判定は削除しました)
+
 // ---- 投稿ページネーション ----
 class _ProfileNotesState {
   final List<NoteModel> notes;
@@ -71,7 +74,6 @@ class _ProfileNotesState {
     this.isLoading = false,
     this.hasMore = true,
   });
-
   _ProfileNotesState copyWith({
     List<NoteModel>? notes,
     bool? isLoading,
@@ -128,7 +130,6 @@ class _ProfileNotesNotifier extends StateNotifier<_ProfileNotesState> {
 }
 
 typedef _NotesProviderKey = ({String userId, bool withFiles});
-
 final _profileNotesProvider = StateNotifierProvider.autoDispose
     .family<_ProfileNotesNotifier, _ProfileNotesState, _NotesProviderKey>(
       (ref, p) => _ProfileNotesNotifier(ref, p.userId, withFiles: p.withFiles),
@@ -558,6 +559,50 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                         if (user.description != null) ...[
                           const SizedBox(height: 8),
                           Text(user.description!),
+                        ],
+                        if (user.fields.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Table(
+                            defaultVerticalAlignment:
+                                TableCellVerticalAlignment.middle,
+                            columnWidths: const {
+                              0: IntrinsicColumnWidth(),
+                              1: FlexColumnWidth(),
+                            },
+                            children: user.fields
+                                .map(
+                                  (f) => TableRow(
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: 12.0,
+                                          bottom: 8.0,
+                                        ),
+                                        child: Align(
+                                          alignment: Alignment.centerRight,
+                                          child: Text(
+                                            '${f.name}:',
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                          ),
+                                        ),
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 8.0,
+                                        ),
+                                        child: MfmContent(
+                                          text: f.value,
+                                          style: theme.textTheme.bodyMedium,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                                .toList(),
+                          ),
                         ],
                         const SizedBox(height: 12),
                         Row(
