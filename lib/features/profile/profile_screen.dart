@@ -1135,8 +1135,14 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet>
 
   @override
   Widget build(BuildContext context) {
+    final bottomSafe = MediaQuery.viewPaddingOf(context).bottom;
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + _keyboardHeight),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        16 + _keyboardHeight + bottomSafe,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
