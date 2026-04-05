@@ -5,6 +5,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/streaming/streaming_service.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
+import '../../shared/providers/notifications_badge_provider.dart';
 
 class TimelineState {
   final List<NoteModel> notes;
@@ -164,6 +165,20 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
         extraParams: extraParams,
       );
       state = state.copyWith(isLoadingMore: false, notes: notes);
+      // WebSocket が接続されていない場合は、通知を API から手動取得してバッジ等を更新する
+      final status = _ref
+          .read(streamingStatusProvider)
+          .maybeWhen(data: (s) => s, orElse: () => null);
+      if (status == null || status != StreamingStatus.connected) {
+        final account = _ref.read(activeAccountProvider);
+        if (account != null) {
+          try {
+            await _ref
+                .read(notificationsBadgeProvider(account.id).notifier)
+                .refreshFromApi();
+          } catch (_) {}
+        }
+      }
     } catch (e) {
       state = state.copyWith(
         isLoadingMore: false,

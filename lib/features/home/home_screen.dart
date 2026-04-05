@@ -116,8 +116,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
               actions: [
                 TextButton(
-                  onPressed: () {
+                  onPressed: () async {
                     ref.read(streamingServiceProvider)?.retryConnect();
+                    final account = ref.read(activeAccountProvider);
+                    if (account != null) {
+                      try {
+                        await ref
+                            .read(
+                              notificationsBadgeProvider(account.id).notifier,
+                            )
+                            .refreshFromApi();
+                      } catch (_) {}
+                    }
                   },
                   child: Text(
                     '再接続',

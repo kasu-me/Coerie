@@ -53,6 +53,35 @@ class _NotificationsBadgeNotifier extends StateNotifier<int> {
     _subscribeStream();
   }
 
+  /// API から通知を再取得してバッジ数を更新する。
+  /// 主に WebSocket が切断されているときのフォールバックとして利用する。
+  Future<void> refreshFromApi() async {
+    final api = _ref.read(misskeyApiProvider);
+    if (api == null) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastSeenKey = 'notifications_last_seen_$_accountId';
+      final lastSeenStr = prefs.getString(lastSeenKey);
+      DateTime? lastSeen;
+      if (lastSeenStr != null) {
+        try {
+          lastSeen = DateTime.parse(lastSeenStr);
+        } catch (_) {}
+      }
+
+      final items = await api.getNotifications(limit: 50);
+      final unread = items.where((n) {
+        final serverUnread = !(n.isRead);
+        final afterLastSeen = lastSeen == null || n.createdAt.isAfter(lastSeen);
+        return serverUnread && afterLastSeen;
+      }).length;
+      state = unread;
+    } catch (_) {
+      // ignore errors
+    }
+  }
+
   void _subscribeStream() {
     final streaming = _ref.read(streamingServiceProvider);
     if (streaming == null) return;
