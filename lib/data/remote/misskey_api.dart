@@ -59,12 +59,16 @@ class MisskeyApi {
     String visibility = 'public',
     String? replyId,
     List<String> fileIds = const [],
+    List<String>? visibleUserIds,
   }) async {
     final params = <String, dynamic>{'visibility': visibility};
     if (text != null && text.isNotEmpty) params['text'] = text;
     if (cw != null && cw.isNotEmpty) params['cw'] = cw;
     if (replyId != null) params['replyId'] = replyId;
     if (fileIds.isNotEmpty) params['fileIds'] = fileIds;
+    if (visibleUserIds != null && visibleUserIds.isNotEmpty) {
+      params['visibleUserIds'] = visibleUserIds;
+    }
 
     final res = await _dio.post('notes/create', data: _body(params));
     return NoteModel.fromJson(

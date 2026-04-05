@@ -63,6 +63,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   bool _isUploadingMedia = false;
   bool _cwEnabled = false;
   bool _isSensitive = false;
+  bool _isReplyToDirect = false;
   List<Map<String, dynamic>> _emojiSuggestions = [];
   AccountModel? _selectedAccount;
 
@@ -79,6 +80,13 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     _visibility =
         widget.initialVisibility ??
         ref.read(accountVisibilityProvider(accountId));
+
+    // 返信先がダイレクト（specified）の場合は公開範囲を強制して永続化しない
+    if (widget.replyToNote != null &&
+        widget.replyToNote!.visibility == AppConstants.visibilitySpecified) {
+      _visibility = AppConstants.visibilitySpecified;
+      _isReplyToDirect = true;
+    }
 
     if (widget.initialText != null) {
       _textController.text = widget.initialText!;
@@ -310,6 +318,12 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         setState(() => _isUploadingMedia = false);
       }
 
+      List<String>? visibleUserIds;
+      if (_visibility == AppConstants.visibilitySpecified &&
+          widget.replyToNote != null) {
+        visibleUserIds = [widget.replyToNote!.user.id];
+      }
+
       await api.createNote(
         text: _textController.text.trim().isEmpty ? null : _textController.text,
         cw: _cwEnabled && _cwController.text.isNotEmpty
@@ -318,6 +332,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         visibility: _visibility,
         fileIds: fileIds,
         replyId: widget.replyId,
+        visibleUserIds: visibleUserIds,
       );
 
       if (_currentDraftId != null) {
@@ -360,23 +375,33 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
             ),
-            ...AppConstants.visibilityLabels.entries.map(
-              (e) => ListTile(
-                leading: Icon(_visibilityIcon(e.key)),
-                title: Text(e.value),
-                trailing: _visibility == e.key
-                    ? const Icon(Icons.check, color: Colors.green)
-                    : null,
-                onTap: () {
-                  setState(() => _visibility = e.key);
-                  final accountId = ref.read(activeAccountProvider)?.id ?? '';
-                  ref
-                      .read(accountVisibilityProvider(accountId).notifier)
-                      .setVisibility(e.key);
-                  Navigator.pop(context);
-                },
-              ),
-            ),
+            ...(_isReplyToDirect
+                    ? AppConstants.visibilityLabels.entries.where(
+                        (entry) =>
+                            entry.key == AppConstants.visibilitySpecified,
+                      )
+                    : AppConstants.visibilityLabels.entries)
+                .map(
+                  (e) => ListTile(
+                    leading: Icon(_visibilityIcon(e.key)),
+                    title: Text(e.value),
+                    trailing: _visibility == e.key
+                        ? const Icon(Icons.check, color: Colors.green)
+                        : null,
+                    onTap: () {
+                      setState(() => _visibility = e.key);
+                      // 返信先がダイレクトの場合は変更を永続化しない
+                      if (!_isReplyToDirect) {
+                        final accountId =
+                            ref.read(activeAccountProvider)?.id ?? '';
+                        ref
+                            .read(accountVisibilityProvider(accountId).notifier)
+                            .setVisibility(e.key);
+                      }
+                      Navigator.pop(context);
+                    },
+                  ),
+                ),
           ],
         ),
       ),
@@ -421,7 +446,10 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                   );
                   setState(() {
                     _selectedAccount = a;
-                    _visibility = newVisibility;
+                    // 返信先がダイレクトの場合は公開範囲を強制（永続化しない）
+                    _visibility = _isReplyToDirect
+                        ? AppConstants.visibilitySpecified
+                        : newVisibility;
                   });
                   Navigator.pop(context);
                 },
