@@ -88,6 +88,16 @@ class AppInfoScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/privacy-policy'),
           ),
+          const Divider(indent: 16, endIndent: 16),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('ライセンス'),
+            subtitle: const Text('使用ライブラリとフォントのライセンスを表示'),
+            onTap: () => showLicensePage(
+              context: context,
+              applicationName: AppConstants.appName,
+            ),
+          ),
           const Divider(),
         ],
       ),

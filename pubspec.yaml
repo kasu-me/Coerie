@@ -94,6 +94,10 @@ flutter:
 
   assets:
     - android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+    - assets/licenses/noto-sans-jp-OFL.txt
+    - assets/licenses/twemoji-cc-by-4.0.txt
+    - assets/licenses/google_fonts-BSD-3-Clause.txt
+    - assets/licenses/twemoji-mit.txt
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
