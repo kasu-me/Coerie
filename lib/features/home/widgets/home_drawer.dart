@@ -43,7 +43,7 @@ class HomeDrawer extends ConsumerWidget {
             ),
             const Divider(),
             ListTile(
-              leading: const Icon(Icons.folder_open),
+              leading: const Icon(Icons.cloud_outlined),
               title: const Text('ドライブ'),
               onTap: () {
                 Navigator.of(context).pop();
