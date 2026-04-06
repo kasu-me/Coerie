@@ -810,9 +810,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
             // テキストコピー（全員）
             ListTile(
               leading: const Icon(Icons.copy),
-              title: const Text(
-                '\u30c6\u30ad\u30b9\u30c8\u3092\u30b3\u30d4\u30fc',
-              ),
+              title: const Text('テキストをコピー'),
               onTap: () async {
                 Navigator.pop(sheetCtx);
                 final text = widget.note.text ?? '';
@@ -820,9 +818,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text(
-                        '\u30c6\u30ad\u30b9\u30c8\u3092\u30b3\u30d4\u30fc\u3057\u307e\u3057\u305f',
-                      ),
+                      content: Text('テキストをコピーしました'),
                       duration: Duration(seconds: 1),
                     ),
                   );
@@ -851,7 +847,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                   color: Theme.of(context).colorScheme.error,
                 ),
                 title: Text(
-                  '\u524a\u9664',
+                  '削除',
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
                 onTap: () async {
@@ -861,7 +857,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
               ),
               ListTile(
                 leading: const Icon(Icons.edit_outlined),
-                title: const Text('\u524a\u9664\u3057\u3066\u518d\u7de8\u96c6'),
+                title: const Text('削除して再編集'),
                 onTap: () async {
                   Navigator.pop(sheetCtx);
                   await _deleteAndEdit(context);
@@ -917,22 +913,16 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              '\u6295\u7a3f\u3092\u524a\u9664\u3057\u307e\u3057\u305f',
-            ),
+            content: Text('投稿を削除しました'),
             duration: Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '\u524a\u9664\u306b\u5931\u6557\u3057\u307e\u3057\u305f: $e',
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
       }
     }
   }
@@ -967,13 +957,9 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '\u524a\u9664\u306b\u5931\u6557\u3057\u307e\u3057\u305f: $e',
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
       }
     }
   }
