@@ -14,6 +14,8 @@ import '../../features/settings/account_settings_screen.dart';
 import '../../features/settings/app_info_screen.dart';
 import '../../features/settings/privacy_policy_screen.dart';
 import '../../features/notifications/notification_screen.dart';
+import '../../features/notifications/announcements_screen.dart';
+import '../../data/models/announcement_model.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/timeline/note_detail_screen.dart';
 import '../../features/search/search_screen.dart';
@@ -112,6 +114,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/notifications',
         builder: (context, state) => const NotificationScreen(),
+      ),
+      GoRoute(
+        path: '/announcements',
+        builder: (context, state) => const AnnouncementsScreen(),
+      ),
+      GoRoute(
+        path: '/announcement/:id',
+        builder: (context, state) {
+          final ann = state.extra as AnnouncementModel;
+          return AnnouncementDetailScreen(announcement: ann);
+        },
       ),
       GoRoute(
         path: '/profile/:userId',

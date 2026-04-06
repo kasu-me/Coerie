@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/providers/account_provider.dart';
 import '../../../shared/providers/notifications_badge_provider.dart';
+import '../../../shared/providers/announcements_badge_provider.dart';
 
 class HomeAppBar extends ConsumerWidget implements PreferredSizeWidget {
   final GlobalKey<ScaffoldState> scaffoldKey;
@@ -18,6 +19,7 @@ class HomeAppBar extends ConsumerWidget implements PreferredSizeWidget {
     final account = ref.watch(activeAccountProvider);
     final accountId = account?.id ?? '';
     final unread = ref.watch(notificationsBadgeProvider(accountId));
+    final annUnread = ref.watch(announcementsBadgeProvider(accountId));
 
     return AppBar(
       automaticallyImplyLeading: false,
@@ -39,6 +41,19 @@ class HomeAppBar extends ConsumerWidget implements PreferredSizeWidget {
         style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2),
       ),
       actions: [
+        IconButton(
+          icon: annUnread > 0
+              ? Badge(
+                  label: Text('$annUnread'),
+                  child: const Icon(Icons.campaign_outlined),
+                )
+              : const Icon(Icons.campaign_outlined),
+          tooltip: 'お知らせ',
+          onPressed: () {
+            // Just open announcements; do not auto-mark as read.
+            context.push('/announcements');
+          },
+        ),
         IconButton(
           icon: unread > 0
               ? Badge(

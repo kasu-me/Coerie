@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/providers/account_provider.dart';
 import '../../../data/models/account_model.dart';
+import '../../../shared/providers/announcements_badge_provider.dart';
 
 class HomeDrawer extends ConsumerWidget {
   const HomeDrawer({super.key});
@@ -39,6 +40,25 @@ class HomeDrawer extends ConsumerWidget {
               onTap: () {
                 Navigator.of(context).pop();
                 context.push('/search');
+              },
+            ),
+            ListTile(
+              leading: Consumer(
+                builder: (ctx, ref, _) {
+                  final accountId = ref.watch(activeAccountProvider)?.id ?? '';
+                  final ann = ref.watch(announcementsBadgeProvider(accountId));
+                  return ann > 0
+                      ? Badge(
+                          label: Text('$ann'),
+                          child: const Icon(Icons.campaign_outlined),
+                        )
+                      : const Icon(Icons.campaign_outlined);
+                },
+              ),
+              title: const Text('お知らせ'),
+              onTap: () {
+                Navigator.of(context).pop();
+                context.push('/announcements');
               },
             ),
             const Divider(),

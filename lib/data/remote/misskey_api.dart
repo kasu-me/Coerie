@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../data/models/note_model.dart';
 import '../../data/models/notification_model.dart';
 import '../../data/models/user_model.dart';
+import '../../data/models/announcement_model.dart';
 
 class MisskeyApi {
   final String host;
@@ -346,6 +347,29 @@ class MisskeyApi {
 
   Future<void> markNotificationsRead() async {
     await _dio.post('notifications/mark-all-as-read', data: _body({}));
+  }
+
+  /// サーバお知らせ一覧を取得する。
+  /// Misskey API: `announcements`
+  Future<List<AnnouncementModel>> getAnnouncements({
+    int limit = 20,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('announcements', data: _body(params));
+    final list = res.data as List<dynamic>;
+    return list
+        .map((e) => AnnouncementModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// お知らせを既読にする（i/read-announcement）。
+  Future<void> readAnnouncement(String announcementId) async {
+    // Some Misskey server implementations may expect either 'id' or 'announcementId'.
+    // Send both keys to increase compatibility.
+    final params = {'id': announcementId, 'announcementId': announcementId};
+    await _dio.post('i/read-announcement', data: _body(params));
   }
 
   // ---- リスト ----
