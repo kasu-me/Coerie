@@ -931,6 +931,32 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
     final note = widget.note;
+    final settings = ref.read(settingsProvider);
+    if (settings.confirmDestructive) {
+      final confirmed =
+          await showDialog<bool>(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('削除して再編集'),
+              content: const Text('このノートを削除して再編集しますか？元のノートは削除され、この操作は取り消せません。'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('キャンセル'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('削除して再編集'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (!confirmed) return;
+    }
     try {
       await api.deleteNote(note.id);
       for (final type in [
