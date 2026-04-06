@@ -403,8 +403,7 @@ class MfmContent extends StatelessWidget {
             child: CachedNetworkImage(
               imageUrl: url,
               height: emojiSize,
-              width: emojiSize,
-              fit: BoxFit.contain,
+              fit: BoxFit.fitHeight,
               errorWidget: (_, _, _) => Text(':${node.name}:', style: style),
             ),
           ),
@@ -421,8 +420,7 @@ class MfmContent extends StatelessWidget {
           child: CachedNetworkImage(
             imageUrl: _twemojiUrl(node.emoji),
             height: emojiSize,
-            width: emojiSize,
-            fit: BoxFit.contain,
+            fit: BoxFit.fitHeight,
             errorWidget: (_, _, _) => Text(node.emoji, style: style),
           ),
         ),
