@@ -90,6 +90,70 @@ class MisskeyApi {
     await _dio.post('notes/reactions/delete', data: _body({'noteId': noteId}));
   }
 
+  /// 指定ノートのリアクションを付けたユーザー一覧を取得する。
+  /// API の戻り値が複数形式になり得るため、含まれるユーザーオブジェクトを優先的にパースし、
+  /// userId のみが返る場合は `users/show` で補完する。
+  Future<List<UserModel>> getNoteReactions(
+    String noteId, {
+    String? reaction,
+    int limit = 100,
+  }) async {
+    final params = <String, dynamic>{'noteId': noteId, 'limit': limit};
+    if (reaction != null) params['reaction'] = reaction;
+    final res = await _dio.post('notes/reactions', data: _body(params));
+    final data = res.data;
+
+    final List<UserModel> users = [];
+    final Set<String> idsToFetch = {};
+
+    void _collectFromEntry(dynamic entry) {
+      if (entry is Map<String, dynamic>) {
+        if (entry.containsKey('user') && entry['user'] is Map) {
+          users.add(
+            UserModel.fromJson(
+              entry['user'] as Map<String, dynamic>,
+              host: host,
+            ),
+          );
+        } else if (entry.containsKey('userId') && entry['userId'] is String) {
+          idsToFetch.add(entry['userId'] as String);
+        } else if (entry.containsKey('user') && entry['user'] is String) {
+          idsToFetch.add(entry['user'] as String);
+        } else if (entry.containsKey('id')) {
+          // そのままユーザーオブジェクトが来ている場合
+          users.add(
+            UserModel.fromJson(entry as Map<String, dynamic>, host: host),
+          );
+        }
+      }
+    }
+
+    if (data is List) {
+      for (final e in data) {
+        _collectFromEntry(e);
+      }
+    } else if (data is Map<String, dynamic>) {
+      // keys may be reaction strings mapping to lists
+      for (final v in data.values) {
+        if (v is List) {
+          for (final e in v) {
+            _collectFromEntry(e);
+          }
+        } else {
+          _collectFromEntry(v);
+        }
+      }
+    }
+
+    if (idsToFetch.isNotEmpty) {
+      final futures = idsToFetch.map((id) => getUser(id));
+      final fetched = await Future.wait(futures);
+      users.addAll(fetched);
+    }
+
+    return users;
+  }
+
   // ---- リノート ----
 
   Future<NoteModel> renote(String noteId) async {

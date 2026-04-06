@@ -16,8 +16,8 @@ import '../../shared/widgets/scroll_to_top_fab.dart';
 
 final _notificationsProvider = StateNotifierProvider.autoDispose
     .family<_NotificationsNotifier, _NotificationsState, String>(
-  (ref, accountId) => _NotificationsNotifier(ref),
-);
+      (ref, accountId) => _NotificationsNotifier(ref),
+    );
 
 class _NotificationsState {
   final List<NotificationModel> items;
@@ -38,11 +38,11 @@ class _NotificationsState {
     bool? hasMore,
     String? error,
   }) => _NotificationsState(
-        items: items ?? this.items,
-        isLoading: isLoading ?? this.isLoading,
-        hasMore: hasMore ?? this.hasMore,
-        error: error,
-      );
+    items: items ?? this.items,
+    isLoading: isLoading ?? this.isLoading,
+    hasMore: hasMore ?? this.hasMore,
+    error: error,
+  );
 }
 
 class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
@@ -79,8 +79,9 @@ class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
 
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final untilId =
-          loadMore && state.items.isNotEmpty ? state.items.last.id : null;
+      final untilId = loadMore && state.items.isNotEmpty
+          ? state.items.last.id
+          : null;
       final items = await api.getNotifications(untilId: untilId);
       state = state.copyWith(
         isLoading: false,
@@ -161,9 +162,7 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
         if (!mounted) return;
         final api = ref.read(misskeyApiProvider);
         await api?.markNotificationsRead().catchError((_) {});
-        await ref
-            .read(notificationsBadgeProvider(accountId).notifier)
-            .clear();
+        await ref.read(notificationsBadgeProvider(accountId).notifier).clear();
       });
     }
 
@@ -189,9 +188,8 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => ref
-                .read(_notificationsProvider(accountId).notifier)
-                .refresh(),
+            onPressed: () =>
+                ref.read(_notificationsProvider(accountId).notifier).refresh(),
           ),
         ],
       ),
@@ -224,10 +222,7 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              '読み込みに失敗しました',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text('読み込みに失敗しました', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             FilledButton(
               onPressed: () => ref
@@ -295,7 +290,10 @@ class _NotificationTile extends StatelessWidget {
   final NotificationModel notification;
   final Map<String, String> emojiUrlMap;
 
-  const _NotificationTile({required this.notification, this.emojiUrlMap = const {}});
+  const _NotificationTile({
+    required this.notification,
+    this.emojiUrlMap = const {},
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -368,77 +366,103 @@ class _NotificationTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // ユーザー名 + 種別ラベル (+ リアクション絵文字は画像で表示)
-                  Builder(builder: (ctx) {
-                    final spans = <InlineSpan>[];
-                    spans.add(const TextSpan(
-                      style: TextStyle(),
-                    ));
-                    spans.add(TextSpan(
-                      text: n.user?.name ?? '',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ));
-                    spans.add(TextSpan(text: ' ${_typeLabel(n.type)}'));
+                  Builder(
+                    builder: (ctx) {
+                      final spans = <InlineSpan>[];
+                      spans.add(const TextSpan(style: TextStyle()));
+                      spans.add(
+                        TextSpan(
+                          text: n.user?.name ?? '',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      );
+                      spans.add(TextSpan(text: ' ${_typeLabel(n.type)}'));
 
-                    if (n.type == 'reaction' && n.reaction != null) {
-                      final reactionKey = n.reaction!;
-                      String? imageUrl;
-                      // :name: 形式のカスタム絵文字を探す
-                      String? inner;
-                      if (reactionKey.startsWith(':') && reactionKey.endsWith(':')) {
-                        inner = reactionKey.substring(1, reactionKey.length - 1);
-                      }
-                      if (inner != null) {
-                        imageUrl = emojiUrlMap[inner];
-                        if (imageUrl == null) {
-                          final atIdx = inner.indexOf('@');
-                          final nameOnly = atIdx >= 0 ? inner.substring(0, atIdx) : inner;
-                          imageUrl = emojiUrlMap[nameOnly];
+                      if (n.type == 'reaction' && n.reaction != null) {
+                        final reactionKey = n.reaction!;
+                        String? imageUrl;
+                        // :name: 形式のカスタム絵文字を探す
+                        String? inner;
+                        if (reactionKey.startsWith(':') &&
+                            reactionKey.endsWith(':')) {
+                          inner = reactionKey.substring(
+                            1,
+                            reactionKey.length - 1,
+                          );
+                        }
+                        if (inner != null) {
+                          imageUrl = emojiUrlMap[inner];
+                          if (imageUrl == null) {
+                            final atIdx = inner.indexOf('@');
+                            final nameOnly = atIdx >= 0
+                                ? inner.substring(0, atIdx)
+                                : inner;
+                            imageUrl = emojiUrlMap[nameOnly];
+                          }
+                        }
+
+                        if (imageUrl != null) {
+                          spans.add(
+                            WidgetSpan(
+                              alignment: PlaceholderAlignment.middle,
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 6),
+                                child: CachedNetworkImage(
+                                  imageUrl: imageUrl,
+                                  height: 16,
+                                  width: 16,
+                                  fit: BoxFit.contain,
+                                  errorWidget: (_, __, ___) => Text(
+                                    ' $reactionKey',
+                                    style: const TextStyle(fontSize: 15),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        } else if (inner == null) {
+                          // Unicode絵文字は Twemoji CDN を使って画像化
+                          final hex = reactionKey.runes
+                              .map((r) => r.toRadixString(16))
+                              .join('-');
+                          final url =
+                              'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/$hex.png';
+                          spans.add(
+                            WidgetSpan(
+                              alignment: PlaceholderAlignment.middle,
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 6),
+                                child: CachedNetworkImage(
+                                  imageUrl: url,
+                                  height: 16,
+                                  width: 16,
+                                  fit: BoxFit.contain,
+                                  errorWidget: (_, __, ___) => Text(
+                                    ' $reactionKey',
+                                    style: const TextStyle(fontSize: 15),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        } else {
+                          spans.add(
+                            TextSpan(
+                              text: ' ${reactionKey}',
+                              style: const TextStyle(fontSize: 15),
+                            ),
+                          );
                         }
                       }
 
-                      if (imageUrl != null) {
-                        spans.add(WidgetSpan(
-                          alignment: PlaceholderAlignment.middle,
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 6),
-                            child: CachedNetworkImage(
-                              imageUrl: imageUrl,
-                              height: 16,
-                              width: 16,
-                              fit: BoxFit.contain,
-                              errorWidget: (_, __, ___) => Text(' $reactionKey', style: const TextStyle(fontSize: 15)),
-                            ),
-                          ),
-                        ));
-                      } else if (inner == null) {
-                        // Unicode絵文字は Twemoji CDN を使って画像化
-                        final hex = reactionKey.runes.map((r) => r.toRadixString(16)).join('-');
-                        final url = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/$hex.png';
-                        spans.add(WidgetSpan(
-                          alignment: PlaceholderAlignment.middle,
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 6),
-                            child: CachedNetworkImage(
-                              imageUrl: url,
-                              height: 16,
-                              width: 16,
-                              fit: BoxFit.contain,
-                              errorWidget: (_, __, ___) => Text(' $reactionKey', style: const TextStyle(fontSize: 15)),
-                            ),
-                          ),
-                        ));
-                      } else {
-                        spans.add(TextSpan(text: ' ${reactionKey}', style: const TextStyle(fontSize: 15)));
-                      }
-                    }
-
-                    return RichText(
-                      text: TextSpan(
-                        style: theme.textTheme.bodyMedium,
-                        children: spans,
-                      ),
-                    );
-                  }),
+                      return RichText(
+                        text: TextSpan(
+                          style: theme.textTheme.bodyMedium,
+                          children: spans,
+                        ),
+                      );
+                    },
+                  ),
                   if (n.note?.text != null) ...[
                     const SizedBox(height: 4),
                     Text(
@@ -467,34 +491,33 @@ class _NotificationTile extends StatelessWidget {
   }
 
   static String _typeLabel(String type) => switch (type) {
-        'follow' => 'がフォローしました',
-        'followRequestAccepted' => 'がフォローリクエストを承認しました',
-        'mention' => 'があなたにメンションしました',
-        'reply' => 'が返信しました',
-        'renote' => 'がリノートしました',
-        'quote' => 'が引用しました',
-        'reaction' => 'がリアクションしました',
-        'receiveFollowRequest' => 'がフォローリクエストを送りました',
-        _ => type,
-      };
+    'follow' => 'がフォローしました',
+    'followRequestAccepted' => 'がフォローリクエストを承認しました',
+    'mention' => 'があなたにメンションしました',
+    'reply' => 'が返信しました',
+    'renote' => 'がリノートしました',
+    'quote' => 'が引用しました',
+    'reaction' => 'がリアクションしました',
+    'receiveFollowRequest' => 'がフォローリクエストを送りました',
+    _ => type,
+  };
 
   static IconData _typeIcon(String type) => switch (type) {
-        'follow' ||
-        'followRequestAccepted' ||
-        'receiveFollowRequest' =>
-          Icons.person_add,
-        'mention' || 'reply' => Icons.reply,
-        'renote' || 'quote' => Icons.repeat,
-        'reaction' => Icons.add_reaction_outlined,
-        _ => Icons.notifications_outlined,
-      };
+    'follow' ||
+    'followRequestAccepted' ||
+    'receiveFollowRequest' => Icons.person_add,
+    'mention' || 'reply' => Icons.reply,
+    'renote' || 'quote' => Icons.repeat,
+    'reaction' => Icons.add_reaction_outlined,
+    _ => Icons.notifications_outlined,
+  };
 
   static Color _typeColor(String type, ThemeData theme) => switch (type) {
-        'follow' || 'followRequestAccepted' => Colors.green,
-        'reaction' => Colors.orange,
-        'renote' || 'quote' => theme.colorScheme.tertiary,
-        _ => theme.colorScheme.primary,
-      };
+    'follow' || 'followRequestAccepted' => Colors.green,
+    'reaction' => Colors.orange,
+    'renote' || 'quote' => theme.colorScheme.tertiary,
+    _ => theme.colorScheme.primary,
+  };
 
   static String _formatTime(DateTime dt) {
     final now = DateTime.now();

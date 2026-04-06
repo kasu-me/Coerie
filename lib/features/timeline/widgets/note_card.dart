@@ -171,6 +171,150 @@ class _NoteCardState extends ConsumerState<NoteCard> {
     }
   }
 
+  Future<void> _showReactionUsers(String reactionKey) async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetCtx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Builder(
+                        builder: (ctx) {
+                          final localEmojiMap = ref.read(_emojiUrlMapProvider);
+                          final emojiUrlMap = {
+                            ...localEmojiMap,
+                            ...widget.note.emojis,
+                            ...widget.note.reactionEmojis,
+                          };
+
+                          final inner = _ReactionChip._inner(reactionKey);
+                          String? imageUrl;
+                          if (inner != null) {
+                            imageUrl = emojiUrlMap[inner];
+                            if (imageUrl == null) {
+                              final atIdx = inner.indexOf('@');
+                              final nameOnly = atIdx >= 0
+                                  ? inner.substring(0, atIdx)
+                                  : inner;
+                              imageUrl = emojiUrlMap[nameOnly];
+                            }
+                          }
+
+                          Widget iconWidget;
+                          if (imageUrl != null) {
+                            iconWidget = CachedNetworkImage(
+                              imageUrl: imageUrl,
+                              height: 22,
+                              width: 22,
+                              fit: BoxFit.contain,
+                              errorWidget: (_, __, ___) => Text(
+                                reactionKey,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            );
+                          } else {
+                            final twUrl = _ReactionChip._twemojiUrl(
+                              reactionKey,
+                            );
+                            iconWidget = CachedNetworkImage(
+                              imageUrl: twUrl,
+                              height: 22,
+                              width: 22,
+                              fit: BoxFit.contain,
+                              errorWidget: (_, __, ___) => Text(
+                                reactionKey,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            );
+                          }
+
+                          return Row(
+                            children: [
+                              Text(
+                                'リアクション:',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(width: 8),
+                              iconWidget,
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(sheetCtx),
+                      child: const Text('閉じる'),
+                    ),
+                  ],
+                ),
+              ),
+              FutureBuilder<List<UserModel>>(
+                future: api.getNoteReactions(
+                  widget.note.id,
+                  reaction: reactionKey,
+                ),
+                builder: (ctx, snap) {
+                  if (snap.connectionState != ConnectionState.done) {
+                    return const SizedBox(
+                      height: 120,
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  final users = snap.data ?? [];
+                  if (users.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Text('該当するユーザーはいません'),
+                    );
+                  }
+                  return SizedBox(
+                    height: 320,
+                    child: ListView.separated(
+                      itemCount: users.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (c, i) {
+                        final u = users[i];
+                        return ListTile(
+                          leading: u.avatarUrl != null
+                              ? CircleAvatar(
+                                  backgroundImage: CachedNetworkImageProvider(
+                                    u.avatarUrl!,
+                                  ),
+                                )
+                              : const CircleAvatar(
+                                  child: Icon(Icons.person, size: 20),
+                                ),
+                          title: Text(u.name),
+                          subtitle: Text(u.acct),
+                          onTap: () {
+                            Navigator.pop(sheetCtx);
+                            context.push('/profile/${u.id}');
+                          },
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _incrementReaction(String key) {
     _localReactions[key] = (_localReactions[key] ?? 0) + 1;
   }
@@ -467,6 +611,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                       isRemote: isRemote,
                       emojiUrlMap: emojiUrlMap,
                       onTap: isRemote ? null : () => _handleReaction(e.key),
+                      onLongPress: () => _showReactionUsers(e.key),
                     );
                   }).toList(),
                 ),
@@ -521,6 +666,7 @@ class _ReactionChip extends StatelessWidget {
   final bool isRemote;
   final Map<String, String> emojiUrlMap;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   const _ReactionChip({
     required this.reactionKey,
@@ -528,6 +674,7 @@ class _ReactionChip extends StatelessWidget {
     required this.isSelected,
     required this.emojiUrlMap,
     required this.onTap,
+    this.onLongPress,
     this.isRemote = false,
   });
 
@@ -627,11 +774,9 @@ class _ReactionChip extends StatelessWidget {
       ),
     );
 
-    // リモート絵文字はタップ不可
-    if (isRemote) return chipWidget;
-
     return InkWell(
-      onTap: onTap,
+      onTap: isRemote ? null : onTap,
+      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(12),
       child: chipWidget,
     );
