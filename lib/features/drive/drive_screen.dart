@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -247,6 +248,18 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
               onTap: () {
                 Navigator.of(ctx).pop();
                 _createNoteFromFile(file);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.link_outlined),
+              title: const Text('ファイルのURLをコピー'),
+              onTap: () async {
+                Navigator.of(ctx).pop();
+                await Clipboard.setData(ClipboardData(text: file.url));
+                if (!mounted) return;
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('URLをコピーしました')));
               },
             ),
             ListTile(
