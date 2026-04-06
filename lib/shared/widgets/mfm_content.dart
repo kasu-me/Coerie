@@ -399,11 +399,16 @@ class MfmContent extends StatelessWidget {
       if (url != null) {
         return [
           WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
             child: CachedNetworkImage(
               imageUrl: url,
               height: emojiSize,
               fit: BoxFit.fitHeight,
+              alignment: Alignment.centerLeft,
+              fadeInDuration: Duration.zero,
+              placeholder: (_, __) =>
+                  SizedBox(height: emojiSize, width: emojiSize * 0.9),
               errorWidget: (_, _, _) => Text(':${node.name}:', style: style),
             ),
           ),
@@ -416,11 +421,16 @@ class MfmContent extends StatelessWidget {
       final emojiSize = style.fontSize ?? 20.0;
       return [
         WidgetSpan(
-          alignment: PlaceholderAlignment.middle,
+          alignment: PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
           child: CachedNetworkImage(
             imageUrl: _twemojiUrl(node.emoji),
             height: emojiSize,
             fit: BoxFit.fitHeight,
+            alignment: Alignment.centerLeft,
+            fadeInDuration: Duration.zero,
+            placeholder: (_, __) =>
+                SizedBox(height: emojiSize, width: emojiSize * 0.9),
             errorWidget: (_, _, _) => Text(node.emoji, style: style),
           ),
         ),
