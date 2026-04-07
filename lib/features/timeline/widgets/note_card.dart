@@ -1597,6 +1597,20 @@ class _CollapsibleNoteContentState extends State<_CollapsibleNoteContent> {
   @override
   void initState() {
     super.initState();
+    _scheduleOverflowCheck();
+  }
+
+  @override
+  void didUpdateWidget(_CollapsibleNoteContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.child != widget.child) {
+      _expanded = false;
+      _overflows = false;
+      _scheduleOverflowCheck();
+    }
+  }
+
+  void _scheduleOverflowCheck() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (_scrollController.hasClients &&
@@ -1663,8 +1677,11 @@ class _CollapsibleNoteContentState extends State<_CollapsibleNoteContent> {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          theme.colorScheme.surface.withValues(alpha: 0),
-                          theme.colorScheme.surface,
+                          (theme.cardTheme.color ??
+                                  theme.colorScheme.surfaceContainerLow)
+                              .withValues(alpha: 0),
+                          theme.cardTheme.color ??
+                              theme.colorScheme.surfaceContainerLow,
                         ],
                       ),
                     ),

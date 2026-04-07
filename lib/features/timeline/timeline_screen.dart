@@ -199,7 +199,10 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
                 child: Center(child: CircularProgressIndicator()),
               );
             }
-            return NoteCard(note: state.notes[index]);
+            return NoteCard(
+              key: ValueKey(state.notes[index].id),
+              note: state.notes[index],
+            );
           },
         ),
       );
