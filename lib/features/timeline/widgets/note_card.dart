@@ -559,6 +559,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                 child: settings.collapseNote
                     ? _CollapsibleNoteContent(
                         maxHeight: 300,
+                        contentId: note.text!,
                         child: MfmContent(
                           text: note.text!,
                           emojiUrlMap: emojiUrlMap,
@@ -1581,8 +1582,13 @@ class _UnrenoteButtonState extends ConsumerState<_UnrenoteButton> {
 class _CollapsibleNoteContent extends StatefulWidget {
   final Widget child;
   final double maxHeight;
+  final String contentId;
 
-  const _CollapsibleNoteContent({required this.child, required this.maxHeight});
+  const _CollapsibleNoteContent({
+    required this.child,
+    required this.maxHeight,
+    required this.contentId,
+  });
 
   @override
   State<_CollapsibleNoteContent> createState() =>
@@ -1603,7 +1609,7 @@ class _CollapsibleNoteContentState extends State<_CollapsibleNoteContent> {
   @override
   void didUpdateWidget(_CollapsibleNoteContent oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.child != widget.child) {
+    if (oldWidget.contentId != widget.contentId) {
       _expanded = false;
       _overflows = false;
       _scheduleOverflowCheck();
