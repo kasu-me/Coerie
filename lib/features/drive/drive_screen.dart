@@ -786,15 +786,15 @@ class _DriveFileTile extends StatelessWidget {
               child: GestureDetector(
                 onTap: onMenuTap,
                 child: Container(
-                  width: 24,
-                  height: 24,
+                  width: 30,
+                  height: 30,
                   decoration: BoxDecoration(
                     color: Colors.black54,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(15),
                   ),
                   child: const Icon(
                     Icons.more_vert,
-                    size: 16,
+                    size: 20,
                     color: Colors.white,
                   ),
                 ),
