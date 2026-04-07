@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'shared/providers/settings_provider.dart';
@@ -32,11 +34,66 @@ TextTheme _applyFontScale(TextTheme base, double factor) {
   );
 }
 
-class App extends ConsumerWidget {
+class App extends ConsumerStatefulWidget {
   const App({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<App> createState() => _AppState();
+}
+
+class _AppState extends ConsumerState<App> {
+  static const _channel = MethodChannel('coerie/share');
+
+  @override
+  void initState() {
+    super.initState();
+
+    // 初期起動時の共有データをAndroidネイティブから取得
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final data = await _channel.invokeMethod<Map>('getInitialSharedData');
+        if (data != null) {
+          final text = data['text'] as String?;
+          final files = (data['files'] as List?)?.cast<String>();
+          if (text != null && text.isNotEmpty) {
+            ref
+                .read(routerProvider)
+                .push('/compose', extra: {'initialText': text});
+          } else if (files != null && files.isNotEmpty) {
+            final xfiles = files.map((p) => XFile(p)).toList();
+            ref
+                .read(routerProvider)
+                .push('/compose', extra: {'initialLocalFiles': xfiles});
+          }
+        }
+      } catch (_) {}
+    });
+
+    // ランタイムで共有が来たときにネイティブからのコールを受け取る
+    _channel.setMethodCallHandler((call) async {
+      try {
+        if (call.method == 'onSharedText') {
+          final text = call.arguments as String?;
+          if (text != null && text.isNotEmpty) {
+            ref
+                .read(routerProvider)
+                .push('/compose', extra: {'initialText': text});
+          }
+        } else if (call.method == 'onSharedFiles') {
+          final files = (call.arguments as List?)?.cast<String>();
+          if (files != null && files.isNotEmpty) {
+            final xfiles = files.map((p) => XFile(p)).toList();
+            ref
+                .read(routerProvider)
+                .push('/compose', extra: {'initialLocalFiles': xfiles});
+          }
+        }
+      } catch (_) {}
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final router = ref.watch(routerProvider);
     final factor = settings.fontSize / 14.0;

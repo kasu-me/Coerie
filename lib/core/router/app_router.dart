@@ -6,6 +6,7 @@ import '../../features/auth/login_screen.dart';
 import '../../features/drive/drive_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/compose/compose_screen.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../features/draft/draft_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/settings/tabs_settings_screen.dart';
@@ -54,6 +55,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           final initialText = extra?['initialText'] as String?;
           final initialVisibility = extra?['visibility'] as String?;
           final initialFiles = extra?['initialFiles'] as List<DriveFileModel>?;
+          final initialLocalFiles = extra?['initialLocalFiles'] as List<XFile>?;
           final initialCw = extra?['initialCw'] as String?;
           final initialIsSensitive =
               extra?['initialIsSensitive'] as bool? ?? false;
@@ -64,6 +66,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             initialText: initialText,
             initialVisibility: initialVisibility,
             initialFiles: initialFiles,
+            initialLocalFiles: initialLocalFiles,
             initialCw: initialCw,
             initialIsSensitive: initialIsSensitive,
           );

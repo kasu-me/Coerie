@@ -34,6 +34,7 @@ class ComposeScreen extends ConsumerStatefulWidget {
   final String? initialText;
   final String? initialVisibility;
   final List<DriveFileModel>? initialFiles;
+  final List<XFile>? initialLocalFiles;
   final String? initialCw;
   final bool initialIsSensitive;
 
@@ -45,6 +46,7 @@ class ComposeScreen extends ConsumerStatefulWidget {
     this.initialText,
     this.initialVisibility,
     this.initialFiles,
+    this.initialLocalFiles,
     this.initialCw,
     this.initialIsSensitive = false,
   });
@@ -101,6 +103,11 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
     if (widget.initialFiles != null && widget.initialFiles!.isNotEmpty) {
       _attachedMedia.addAll(widget.initialFiles!.map((f) => _DriveMedia(f)));
+    }
+
+    if (widget.initialLocalFiles != null &&
+        widget.initialLocalFiles!.isNotEmpty) {
+      _attachedMedia.addAll(widget.initialLocalFiles!.map(_LocalMedia.new));
     }
 
     if (widget.draftId != null) {
