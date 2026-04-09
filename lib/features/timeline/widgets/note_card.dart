@@ -963,14 +963,6 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     }
     try {
       await api.deleteNote(note.id);
-      for (final type in [
-        AppConstants.tabTypeHome,
-        AppConstants.tabTypeLocal,
-        AppConstants.tabTypeSocial,
-        AppConstants.tabTypeGlobal,
-      ]) {
-        ref.read(timelineProvider(type).notifier).removeNote(note.id);
-      }
       if (context.mounted) {
         context.push(
           '/compose',
@@ -984,6 +976,14 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
             if (note.reply != null) 'replyToNote': note.reply,
           },
         );
+      }
+      for (final type in [
+        AppConstants.tabTypeHome,
+        AppConstants.tabTypeLocal,
+        AppConstants.tabTypeSocial,
+        AppConstants.tabTypeGlobal,
+      ]) {
+        ref.read(timelineProvider(type).notifier).removeNote(note.id);
       }
     } catch (e) {
       if (context.mounted) {
