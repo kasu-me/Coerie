@@ -41,6 +41,11 @@ class SettingsNotifier extends StateNotifier<AppSettingsModel> {
     await _save();
   }
 
+  Future<void> setAvatarRadius(double radius) async {
+    state = state.copyWith(avatarRadius: radius);
+    await _save();
+  }
+
   Future<void> setRealtimeUpdate(bool value) async {
     state = state.copyWith(realtimeUpdate: value);
     await _save();

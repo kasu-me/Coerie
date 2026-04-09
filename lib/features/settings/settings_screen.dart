@@ -64,6 +64,31 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
 
+          // --- アイコンサイズ ---
+          _SectionHeader('アイコンサイズ'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${(settings.avatarRadius * 2).toStringAsFixed(0)}px'),
+                Slider(
+                  min: 12,
+                  max: 40,
+                  divisions: 28,
+                  value: settings.avatarRadius,
+                  label: '${(settings.avatarRadius * 2).toStringAsFixed(0)}px',
+                  onChanged: (v) =>
+                      ref.read(settingsProvider.notifier).setAvatarRadius(v),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: const [Text('小'), Text('大')],
+                ),
+              ],
+            ),
+          ),
+
           // --- リアルタイム更新 ---
           _SectionHeader('タイムライン'),
           SwitchListTile(

@@ -55,6 +55,7 @@ class AppSettingsModel {
   final bool confirmDestructive; // 破壊的操作の確認ダイアログを表示する
   final bool mfmAnimation; // MFMアニメーションを有効にする（デフォルト: false=静的表示）
   final bool collapseNote; // 長い投稿を省略表示する（デフォルト: true）
+  final double avatarRadius; // タイムラインのユーザーアイコンの半径（デフォルト: 20.0）
 
   const AppSettingsModel({
     this.theme = 'system',
@@ -71,6 +72,7 @@ class AppSettingsModel {
     this.confirmDestructive = false,
     this.mfmAnimation = false,
     this.collapseNote = true,
+    this.avatarRadius = 20.0,
   });
 
   AppSettingsModel copyWith({
@@ -88,6 +90,7 @@ class AppSettingsModel {
     bool? confirmDestructive,
     bool? mfmAnimation,
     bool? collapseNote,
+    double? avatarRadius,
   }) => AppSettingsModel(
     theme: theme ?? this.theme,
     fontSize: fontSize ?? this.fontSize,
@@ -105,6 +108,7 @@ class AppSettingsModel {
     confirmDestructive: confirmDestructive ?? this.confirmDestructive,
     mfmAnimation: mfmAnimation ?? this.mfmAnimation,
     collapseNote: collapseNote ?? this.collapseNote,
+    avatarRadius: avatarRadius ?? this.avatarRadius,
   );
 
   static const Object _sentinel = Object();
@@ -124,6 +128,7 @@ class AppSettingsModel {
     'confirmDestructive': confirmDestructive,
     'mfmAnimation': mfmAnimation,
     'collapseNote': collapseNote,
+    'avatarRadius': avatarRadius,
   };
 
   factory AppSettingsModel.fromJson(Map<String, dynamic> json) =>
@@ -144,6 +149,7 @@ class AppSettingsModel {
         confirmDestructive: json['confirmDestructive'] as bool? ?? false,
         mfmAnimation: json['mfmAnimation'] as bool? ?? false,
         collapseNote: json['collapseNote'] as bool? ?? true,
+        avatarRadius: (json['avatarRadius'] as num?)?.toDouble() ?? 20.0,
       );
 
   factory AppSettingsModel.fromJsonString(String jsonString) =>

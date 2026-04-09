@@ -450,14 +450,17 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                   onTap: () => context.push('/profile/${note.user.id}'),
                   child: note.user.avatarUrl != null
                       ? CircleAvatar(
-                          radius: 20,
+                          radius: settings.avatarRadius,
                           backgroundImage: CachedNetworkImageProvider(
                             note.user.avatarUrl!,
                           ),
                         )
-                      : const CircleAvatar(
-                          radius: 20,
-                          child: Icon(Icons.person, size: 20),
+                      : CircleAvatar(
+                          radius: settings.avatarRadius,
+                          child: Icon(
+                            Icons.person,
+                            size: settings.avatarRadius,
+                          ),
                         ),
                 ),
                 const SizedBox(width: 10),
