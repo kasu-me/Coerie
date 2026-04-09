@@ -15,6 +15,7 @@ import '../../../shared/providers/misskey_api_provider.dart';
 import '../../../shared/providers/settings_provider.dart';
 import '../../../core/streaming/streaming_service.dart';
 import '../../../shared/widgets/mfm_content.dart';
+import '../../../core/router/app_router.dart';
 import '../../compose/emoji_picker_sheet.dart';
 import '../ogp_provider.dart';
 import '../timeline_provider.dart';
@@ -961,30 +962,21 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
           false;
       if (!confirmed) return;
     }
+    final router = ref.read(routerProvider);
     try {
       await api.deleteNote(note.id);
-      if (context.mounted) {
-        context.push(
-          '/compose',
-          extra: {
-            'initialText': note.text ?? '',
-            'visibility': note.visibility,
-            'initialFiles': note.files,
-            'initialCw': note.cw,
-            'initialIsSensitive': note.files.any((f) => f.isSensitive),
-            if (note.reply != null) 'replyId': note.reply!.id,
-            if (note.reply != null) 'replyToNote': note.reply,
-          },
-        );
-      }
-      for (final type in [
-        AppConstants.tabTypeHome,
-        AppConstants.tabTypeLocal,
-        AppConstants.tabTypeSocial,
-        AppConstants.tabTypeGlobal,
-      ]) {
-        ref.read(timelineProvider(type).notifier).removeNote(note.id);
-      }
+      router.push(
+        '/compose',
+        extra: {
+          'initialText': note.text ?? '',
+          'visibility': note.visibility,
+          'initialFiles': note.files,
+          'initialCw': note.cw,
+          'initialIsSensitive': note.files.any((f) => f.isSensitive),
+          if (note.reply != null) 'replyId': note.reply!.id,
+          if (note.reply != null) 'replyToNote': note.reply,
+        },
+      );
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(
