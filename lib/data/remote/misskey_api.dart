@@ -470,6 +470,25 @@ class MisskeyApi {
         .toList();
   }
 
+  /// 指定された Drive ファイルが添付されたノート一覧を取得する。
+  /// Misskey サーバの検索でファイルIDをクエリに含めて検索する実装を試みます。
+  Future<List<NoteModel>> getNotesByFile({
+    required String fileId,
+    int limit = 20,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'fileId': fileId, 'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post(
+      'drive/files/attached-notes',
+      data: _body(params),
+    );
+    final list = res.data as List<dynamic>;
+    return list
+        .map((n) => NoteModel.fromJson(n as Map<String, dynamic>, host: host))
+        .toList();
+  }
+
   /// notes/search-by-tag: タグでノートを検索する
   Future<List<NoteModel>> searchNotesByTag({
     required String tag,

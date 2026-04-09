@@ -10,6 +10,7 @@ import 'package:file_picker/file_picker.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/widgets/media_player_screen.dart';
+import 'file_notes_screen.dart';
 
 /// ドライブフォルダの簡易モデル
 class _DriveFolder {
@@ -260,6 +261,18 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
                 ScaffoldMessenger.of(
                   context,
                 ).showSnackBar(const SnackBar(content: Text('URLをコピーしました')));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.article_outlined),
+              title: const Text('このファイルが添付されたノート'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => DriveFileNotesScreen(file: file),
+                  ),
+                );
               },
             ),
             ListTile(
