@@ -100,7 +100,7 @@ class MisskeyApi {
     int limit = 100,
   }) async {
     final params = <String, dynamic>{'noteId': noteId, 'limit': limit};
-    if (reaction != null) params['reaction'] = reaction;
+    if (reaction != null) params['type'] = reaction;
     final res = await _dio.post('notes/reactions', data: _body(params));
     final data = res.data;
 
@@ -135,7 +135,10 @@ class MisskeyApi {
       }
     } else if (data is Map<String, dynamic>) {
       // keys may be reaction strings mapping to lists
-      for (final v in data.values) {
+      for (final entry in data.entries) {
+        // reaction フィルタが指定されていれば、一致するキーのみを処理する
+        if (reaction != null && entry.key != reaction) continue;
+        final v = entry.value;
         if (v is List) {
           for (final e in v) {
             _collectFromEntry(e);
