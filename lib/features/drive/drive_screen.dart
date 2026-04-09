@@ -616,7 +616,12 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
 
     return GridView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.all(4),
+      padding: EdgeInsets.fromLTRB(
+        4,
+        4,
+        4,
+        4 + MediaQuery.of(context).padding.bottom,
+      ),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
         crossAxisSpacing: 4,
