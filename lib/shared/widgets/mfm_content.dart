@@ -50,7 +50,20 @@ class MfmContent extends StatelessWidget {
   }
 
   static String _twemojiUrl(String emoji) {
-    final parts = emoji.runes.map((r) => r.toRadixString(16)).join('-');
+    final runes = emoji.runes.toList();
+    final filtered = <int>[];
+    for (int i = 0; i < runes.length; i++) {
+      if (runes[i] == 0xFE0F) {
+        // キーキャップシーケンス（FE0F の直後が U+20E3）の場合のみ FE0F を保持
+        if (i + 1 < runes.length && runes[i + 1] == 0x20E3) {
+          filtered.add(runes[i]);
+        }
+        // それ以外のバリエーションセレクタ-16 は Twemoji ファイル名に含まれないため除外
+      } else {
+        filtered.add(runes[i]);
+      }
+    }
+    final parts = filtered.map((r) => r.toRadixString(16)).join('-');
     return 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/$parts.png';
   }
 
@@ -399,8 +412,7 @@ class MfmContent extends StatelessWidget {
       if (url != null) {
         return [
           WidgetSpan(
-            alignment: PlaceholderAlignment.baseline,
-            baseline: TextBaseline.alphabetic,
+            alignment: PlaceholderAlignment.middle,
             child: CachedNetworkImage(
               imageUrl: url,
               height: emojiSize,
@@ -421,8 +433,7 @@ class MfmContent extends StatelessWidget {
       final emojiSize = style.fontSize ?? 20.0;
       return [
         WidgetSpan(
-          alignment: PlaceholderAlignment.baseline,
-          baseline: TextBaseline.alphabetic,
+          alignment: PlaceholderAlignment.middle,
           child: CachedNetworkImage(
             imageUrl: _twemojiUrl(node.emoji),
             height: emojiSize,
