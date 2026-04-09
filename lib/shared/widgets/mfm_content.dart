@@ -266,7 +266,9 @@ class MfmContent extends StatelessWidget {
     final theme = Theme.of(ctx);
 
     if (node is mfm.MfmText) {
-      return [TextSpan(text: node.text, style: style)];
+      return [
+        TextSpan(text: _stripVariationSelectors(node.text), style: style),
+      ];
     }
 
     if (node is mfm.MfmBold) {
@@ -334,7 +336,9 @@ class MfmContent extends StatelessWidget {
     }
 
     if (node is mfm.MfmPlain) {
-      return [TextSpan(text: node.text, style: style)];
+      return [
+        TextSpan(text: _stripVariationSelectors(node.text), style: style),
+      ];
     }
 
     if (node is mfm.MfmMention) {
@@ -661,12 +665,34 @@ class MfmContent extends StatelessWidget {
     ];
   }
 
+  // ---- テキスト正規化 ----
+
+  /// U+FE0F（絵文字表示セレクタ）・U+FE0E（テキスト表示セレクタ）を除去する。
+  ///
+  /// mfm_parser は U+FE0F を Twemoji regex で単体マッチし、ノードではなく
+  /// 文字列として mergeText に流す。その結果 MfmText 内に U+FE0F が残存し、
+  /// Flutter のフォントシェーピングが直前文字（例: ↓ U+2193）と組み合わせて
+  /// 絵文字バリエーションシーケンスと解釈するケースがある。
+  /// そうなると NotoColorEmoji 等の絵文字フォントで極端に大きく描画され
+  /// 他の文字と大きさが揃わなくなるため、ここで除去する。
+  static String _stripVariationSelectors(String text) {
+    // U+FE0F: 絵文字表示セレクタ（Emoji Presentation）
+    // U+FE0E: テキスト表示セレクタ（Text Presentation）
+    return text.replaceAll('\uFE0F', '').replaceAll('\uFE0E', '');
+  }
+
   // ---- build ----
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final base = (style ?? theme.textTheme.bodyMedium ?? const TextStyle())
+    // テーマの bodyMedium を基底として明示的に fontFamily を引き継いだうえで、
+    // 呼び出し元から渡された style でフォントサイズ等を上書きする。
+    // RichText は DefaultTextStyle を継承しないため、ここで合成しないと
+    // テーマ指定のフォント（Noto Sans JP 等）が適用されず、フォントメトリクスが
+    // 不安定になり文字の大きさが揃わない問題が起きる。
+    final base = (theme.textTheme.bodyMedium ?? const TextStyle())
+        .merge(style)
         .copyWith(color: style?.color ?? theme.colorScheme.onSurface);
 
     List<mfm.MfmNode> nodes;
