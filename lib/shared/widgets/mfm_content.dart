@@ -417,15 +417,18 @@ class MfmContent extends StatelessWidget {
         return [
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
-            child: CachedNetworkImage(
-              imageUrl: url,
-              height: emojiSize,
-              fit: BoxFit.fitHeight,
-              alignment: Alignment.centerLeft,
-              fadeInDuration: Duration.zero,
-              placeholder: (_, __) =>
-                  SizedBox(height: emojiSize, width: emojiSize * 0.9),
-              errorWidget: (_, _, _) => Text(':${node.name}:', style: style),
+            child: Transform.translate(
+              offset: Offset(0, emojiSize * 0.13),
+              child: CachedNetworkImage(
+                imageUrl: url,
+                height: emojiSize,
+                fit: BoxFit.fitHeight,
+                alignment: Alignment.centerLeft,
+                fadeInDuration: Duration.zero,
+                placeholder: (_, __) =>
+                    SizedBox(height: emojiSize, width: emojiSize * 0.9),
+                errorWidget: (_, _, _) => Text(':${node.name}:', style: style),
+              ),
             ),
           ),
         ];
@@ -438,15 +441,18 @@ class MfmContent extends StatelessWidget {
       return [
         WidgetSpan(
           alignment: PlaceholderAlignment.middle,
-          child: CachedNetworkImage(
-            imageUrl: _twemojiUrl(node.emoji),
-            height: emojiSize,
-            fit: BoxFit.fitHeight,
-            alignment: Alignment.centerLeft,
-            fadeInDuration: Duration.zero,
-            placeholder: (_, __) =>
-                SizedBox(height: emojiSize, width: emojiSize * 0.9),
-            errorWidget: (_, _, _) => Text(node.emoji, style: style),
+          child: Transform.translate(
+            offset: Offset(0, emojiSize * 0.13),
+            child: CachedNetworkImage(
+              imageUrl: _twemojiUrl(node.emoji),
+              height: emojiSize,
+              fit: BoxFit.fitHeight,
+              alignment: Alignment.centerLeft,
+              fadeInDuration: Duration.zero,
+              placeholder: (_, __) =>
+                  SizedBox(height: emojiSize, width: emojiSize * 0.9),
+              errorWidget: (_, _, _) => Text(node.emoji, style: style),
+            ),
           ),
         ),
       ];
