@@ -400,6 +400,16 @@ class MisskeyApi {
     await _dio.post('notes/delete', data: _body({'noteId': noteId}));
   }
 
+  /// ノートをピン留めする（i/pin）
+  Future<void> pinNote(String noteId) async {
+    await _dio.post('i/pin', data: _body({'noteId': noteId}));
+  }
+
+  /// ノートのピンを解除する（i/unpin）
+  Future<void> unpinNote(String noteId) async {
+    await _dio.post('i/unpin', data: _body({'noteId': noteId}));
+  }
+
   Future<List<NoteModel>> getNoteReplies(
     String noteId, {
     int limit = 50,

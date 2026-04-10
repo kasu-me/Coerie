@@ -805,6 +805,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
   Future<void> _showNoteMenu(BuildContext context) async {
     final activeAccount = ref.read(activeAccountProvider);
     final isOwn = activeAccount?.userId == widget.note.user.id;
+    final api = ref.read(misskeyApiProvider);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -844,8 +845,57 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
               },
             ),
-            // 削除（自分の投稿のみ）
+            // 削除 / ピン留め（自分の投稿のみ）
             if (isOwn) ...[
+              // ピン留め（追加/解除）
+              FutureBuilder<UserModel?>(
+                future: api?.getMe(),
+                builder: (ctx, snap) {
+                  final loading = snap.connectionState != ConnectionState.done;
+                  final me = snap.data;
+                  final isPinned =
+                      me?.pinnedNoteIds.contains(widget.note.id) == true;
+                  return ListTile(
+                    leading: const Icon(Icons.push_pin_outlined),
+                    title: Text(
+                      loading ? 'ピン留め...' : (isPinned ? 'ピン留め解除' : 'ピン留めに追加'),
+                    ),
+                    onTap: loading || api == null
+                        ? null
+                        : () async {
+                            Navigator.pop(sheetCtx);
+                            try {
+                              final me2 = await api.getMe();
+                              final currentlyPinned = me2.pinnedNoteIds
+                                  .contains(widget.note.id);
+                              if (currentlyPinned) {
+                                await api.unpinNote(widget.note.id);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('ピン留めを解除しました'),
+                                    ),
+                                  );
+                                }
+                              } else {
+                                await api.pinNote(widget.note.id);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('ピン留めしました')),
+                                  );
+                                }
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('操作に失敗しました: $e')),
+                                );
+                              }
+                            }
+                          },
+                  );
+                },
+              ),
               ListTile(
                 leading: Icon(
                   Icons.delete_outline,
