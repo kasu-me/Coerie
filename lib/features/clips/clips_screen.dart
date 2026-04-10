@@ -81,8 +81,13 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
                     value: isPublic,
                     onChanged: (v) =>
                         setDialogState(() => isPublic = v ?? false),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
                   ),
-                  const Text('公開する'),
+                  GestureDetector(
+                    onTap: () => setDialogState(() => isPublic = !isPublic),
+                    child: const Text('公開する'),
+                  ),
                 ],
               ),
             ],
@@ -156,8 +161,13 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
                     value: isPublic,
                     onChanged: (v) =>
                         setDialogState(() => isPublic = v ?? false),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
                   ),
-                  const Text('公開する'),
+                  GestureDetector(
+                    onTap: () => setDialogState(() => isPublic = !isPublic),
+                    child: const Text('公開する'),
+                  ),
                 ],
               ),
             ],

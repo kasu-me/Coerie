@@ -389,7 +389,10 @@ class MisskeyApi {
 
   /// ドライブフォルダを削除する。
   Future<void> deleteDriveFolder(String folderId) async {
-    await _dio.post('drive/folders/delete', data: _body({'folderId': folderId}));
+    await _dio.post(
+      'drive/folders/delete',
+      data: _body({'folderId': folderId}),
+    );
   }
 
   /// ファイルをDriveにアップロードし、ファイルIDを返す。

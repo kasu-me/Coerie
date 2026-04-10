@@ -634,7 +634,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
         mainAxisSpacing: 4,
       ),
       itemCount: itemCount,
-        itemBuilder: (context, index) {
+      itemBuilder: (context, index) {
         // フォルダを先頭に表示
         if (index < _folders.length) {
           return _FolderTile(
@@ -676,7 +676,10 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
           autofocus: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('キャンセル')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('キャンセル'),
+          ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('作成'),
@@ -688,7 +691,9 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     final name = controller.text.trim();
     if (name.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('フォルダ名を入力してください')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('フォルダ名を入力してください')));
       return;
     }
     final api = ref.read(misskeyApiProvider);
@@ -696,11 +701,15 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     try {
       await api.createDriveFolder(name: name, parentId: _currentFolderId);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('フォルダを作成しました')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('フォルダを作成しました')));
       _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('フォルダ作成に失敗しました: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('フォルダ作成に失敗しました: $e')));
     }
   }
 
@@ -732,7 +741,10 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
                 Icons.delete_outline,
                 color: Theme.of(ctx).colorScheme.error,
               ),
-              title: Text('削除', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+              title: Text(
+                '削除',
+                style: TextStyle(color: Theme.of(ctx).colorScheme.error),
+              ),
               onTap: () {
                 Navigator.of(ctx).pop();
                 _deleteFolder(folder);
@@ -756,8 +768,14 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
           autofocus: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('キャンセル')),
-          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('変更')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('変更'),
+          ),
         ],
       ),
     );
@@ -765,7 +783,9 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     final newName = controller.text.trim();
     if (newName.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('フォルダ名を入力してください')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('フォルダ名を入力してください')));
       return;
     }
     final api = ref.read(misskeyApiProvider);
@@ -773,11 +793,15 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     try {
       await api.updateDriveFolder(folder.id, name: newName);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('フォルダ名を変更しました')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('フォルダ名を変更しました')));
       _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('変更に失敗しました: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('変更に失敗しました: $e')));
     }
   }
 
@@ -788,10 +812,15 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
         title: const Text('フォルダの削除'),
         content: Text('「${folder.name}」を削除しますか？\nこの操作は取り消せません。'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('キャンセル')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('キャンセル'),
+          ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
             child: const Text('削除'),
           ),
         ],
@@ -803,11 +832,15 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     try {
       await api.deleteDriveFolder(folder.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('フォルダを削除しました')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('フォルダを削除しました')));
       _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
     }
   }
 }
@@ -818,7 +851,11 @@ class _FolderTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
-  const _FolderTile({required this.folder, required this.onTap, this.onLongPress});
+  const _FolderTile({
+    required this.folder,
+    required this.onTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
