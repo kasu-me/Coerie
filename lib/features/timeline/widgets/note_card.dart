@@ -579,6 +579,17 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                       ),
               ),
 
+            // 引用リノート（quote）がある場合は埋め込み表示
+            if (note.renote != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: _QuotedNote(
+                  note: note.renote!,
+                  emojiUrlMap: emojiUrlMap,
+                  fontSize: settings.fontSize,
+                ),
+              ),
+
             // OGPカード（本文にURLが含まれる場合）
             if (note.text != null && (note.cw == null || _cwExpanded))
               Builder(
@@ -664,6 +675,95 @@ class _NoteCardState extends ConsumerState<NoteCard> {
       AppConstants.visibilitySpecified => Icons.mail_outline,
       _ => Icons.public,
     };
+  }
+}
+
+// ---- 引用ノート埋め込みウィジェット ----
+class _QuotedNote extends StatelessWidget {
+  final NoteModel note;
+  final Map<String, String> emojiUrlMap;
+  final double fontSize;
+
+  const _QuotedNote({
+    required this.note,
+    this.emojiUrlMap = const {},
+    this.fontSize = 14.0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final displayNote = (note.text == null && note.renote != null)
+        ? note.renote!
+        : note;
+
+    return InkWell(
+      onTap: () => context.push('/note/${displayNote.id}', extra: displayNote),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceVariant,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                displayNote.user.avatarUrl != null
+                    ? CircleAvatar(
+                        radius: 12,
+                        backgroundImage: CachedNetworkImageProvider(
+                          displayNote.user.avatarUrl!,
+                        ),
+                      )
+                    : const CircleAvatar(
+                        radius: 12,
+                        child: Icon(Icons.person, size: 12),
+                      ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        displayNote.user.name,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        displayNote.user.acct,
+                        style: theme.textTheme.bodySmall,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (displayNote.text != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: MfmContent(
+                  text: displayNote.text!,
+                  emojiUrlMap: emojiUrlMap,
+                  style: TextStyle(fontSize: fontSize * 0.95),
+                  enableAnimations: false,
+                ),
+              ),
+            if (displayNote.files.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: _MediaGrid(files: displayNote.files),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
