@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../shared/widgets/mfm_content.dart';
 import '../../data/models/user_model.dart';
 import '../../data/models/user_field_model.dart';
@@ -432,11 +433,51 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                           else
                             PopupMenuButton<String>(
                               icon: const _AppBarIcon(Icons.more_vert),
-                              onSelected: (value) {
+                              onSelected: (value) async {
                                 if (value == 'mute') _toggleMute();
                                 if (value == 'block') _toggleBlock();
+                                if (value == 'open') {
+                                  final host = user.host.isNotEmpty
+                                      ? user.host
+                                      : ref.read(activeAccountProvider)?.host ??
+                                            '';
+                                  if (host.isEmpty) {
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('公開URLが見つかりません'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  final uri = Uri.parse(
+                                    'https://$host/@${Uri.encodeComponent(user.username)}',
+                                  );
+                                  final ok = await launchUrl(
+                                    uri,
+                                    mode: LaunchMode.externalApplication,
+                                  );
+                                  if (!mounted) return;
+                                  if (!ok) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('ブラウザで開けませんでした'),
+                                      ),
+                                    );
+                                  }
+                                }
                               },
                               itemBuilder: (ctx) => [
+                                PopupMenuItem(
+                                  value: 'open',
+                                  child: Row(
+                                    children: const [
+                                      Icon(Icons.open_in_browser),
+                                      SizedBox(width: 8),
+                                      Text('ブラウザで表示'),
+                                    ],
+                                  ),
+                                ),
                                 PopupMenuItem(
                                   value: 'mute',
                                   child: Row(
@@ -529,7 +570,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                           children: [
                             Expanded(
                               child: Text(
-                                '@${user.username}',
+                                user.acct,
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: theme.colorScheme.outline,
                                 ),
@@ -731,6 +772,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
         ),
       ),
     );
+    if (!mounted) return;
     if (selected != null) {
       context.push('/profile/$selected');
     }
@@ -1093,7 +1135,12 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet>
     if (view == null) return;
     final newHeight = view.viewInsets.bottom / view.devicePixelRatio;
     if (newHeight != _keyboardHeight) {
-      setState(() => _keyboardHeight = newHeight);
+      // Defer the state update to the next frame to avoid triggering
+      // widget tree mutations during transient metric changes.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _keyboardHeight = newHeight);
+      });
     }
   }
 
