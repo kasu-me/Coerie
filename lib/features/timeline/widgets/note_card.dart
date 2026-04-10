@@ -17,6 +17,7 @@ import '../../../shared/providers/settings_provider.dart';
 import 'package:coerie/features/profile/pinned_notes_provider.dart';
 import '../../../core/streaming/streaming_service.dart';
 import '../../../shared/widgets/mfm_content.dart';
+import '../../../shared/widgets/report_abuse_sheet.dart';
 import '../../../core/router/app_router.dart';
 import '../../compose/emoji_picker_sheet.dart';
 import '../ogp_provider.dart';
@@ -815,6 +816,28 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     final isOwn = activeAccount?.userId == widget.note.user.id;
     final api = ref.read(misskeyApiProvider);
 
+    // ノートURLの構築
+    final host = activeAccount?.host ?? '';
+    final localNoteUrl = host.isNotEmpty
+        ? 'https://$host/notes/${widget.note.id}'
+        : null;
+    // 投稿者がリモートアカウントの場合は uri がリモートURL
+    final isRemoteUser = widget.note.user.host.isNotEmpty;
+    final remoteNoteUrl = widget.note.uri;
+
+    String _buildReportComment() {
+      final buf = StringBuffer();
+      if (isRemoteUser && remoteNoteUrl != null) {
+        buf.writeln('Note: $remoteNoteUrl');
+      }
+      if (localNoteUrl != null) {
+        buf.writeln('Local Note: $localNoteUrl');
+      }
+      buf.writeln('-----');
+      buf.write('');
+      return buf.toString();
+    }
+
     await showModalBottomSheet<void>(
       context: context,
       builder: (sheetCtx) => SafeArea(
@@ -987,6 +1010,30 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                 },
               ),
             ],
+            // 通報（他人の投稿のみ）
+            if (!isOwn)
+              ListTile(
+                leading: Icon(
+                  Icons.flag_outlined,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                title: Text(
+                  '通報',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                onTap: () async {
+                  Navigator.pop(sheetCtx);
+                  await showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    useSafeArea: true,
+                    builder: (_) => ReportAbuseSheet(
+                      userId: widget.note.user.id,
+                      initialComment: _buildReportComment(),
+                    ),
+                  );
+                },
+              ),
           ],
         ),
       ),

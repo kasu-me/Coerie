@@ -11,6 +11,7 @@ import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
+import '../../shared/widgets/report_abuse_sheet.dart';
 import '../timeline/widgets/note_card.dart';
 import 'pinned_notes_provider.dart';
 import 'follow_requests_sheet.dart';
@@ -430,6 +431,15 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                               onSelected: (value) async {
                                 if (value == 'mute') _toggleMute();
                                 if (value == 'block') _toggleBlock();
+                                if (value == 'report') {
+                                  await showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    useSafeArea: true,
+                                    builder: (_) =>
+                                        ReportAbuseSheet(userId: user.id),
+                                  );
+                                }
                                 if (value == 'clips') {
                                   context.push(
                                     '/users/${user.id}/clips',
@@ -593,6 +603,28 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                                       ],
                                     ),
                                   ),
+                                PopupMenuItem(
+                                  value: 'report',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.flag_outlined,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.error,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '通報',
+                                        style: TextStyle(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.error,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ],
                             ),
                         ],

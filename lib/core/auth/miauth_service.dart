@@ -1,4 +1,5 @@
 ﻿import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:app_links/app_links.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,6 +23,7 @@ const _permissions = [
   'write:mutes',
   'read:blocks',
   'write:blocks',
+  'write:report-abuse',
 ];
 
 class MiAuthService {
@@ -58,13 +60,24 @@ class MiAuthService {
   ) async {
     final sessionId = const Uuid().v4();
     final permStr = _permissions.join(',');
-    final authUrl = Uri.https(host, '/miauth/$sessionId', {
-      'name': 'Coerie',
-      'icon':
-          'https://raw.githubusercontent.com/placeholder/coerie/main/assets/icon.png',
-      'callback': '$_callbackScheme://$_callbackHost',
-      'permission': permStr,
-    });
+
+    // Misskey 公式ドキュメントの例に合わせ、permission値はリテラルの
+    // コロン・カンマのまま渡す。Uri.https(queryParameters) は各値を
+    // パーセントエンコードするため Uri.parse で手動構築する。
+    final callbackEncoded = Uri.encodeComponent(
+      '$_callbackScheme://$_callbackHost',
+    );
+    final nameEncoded = Uri.encodeComponent('Coerie');
+    final iconEncoded = Uri.encodeComponent(
+      'https://raw.githubusercontent.com/placeholder/coerie/main/assets/icon.png',
+    );
+    final authUrlStr =
+        'https://$host/miauth/$sessionId'
+        '?name=$nameEncoded'
+        '&icon=$iconEncoded'
+        '&callback=$callbackEncoded'
+        '&permission=$permStr'; // コロン・カンマをエンコードしない
+    final authUrl = Uri.parse(authUrlStr);
 
     // OOM Kill による再起動に備えてセッション情報を保存
     final prefs = await SharedPreferences.getInstance();

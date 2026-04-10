@@ -20,6 +20,7 @@ const _permissions = [
   'write:mutes',
   'read:blocks',
   'write:blocks',
+  'write:report-abuse',
 ];
 
 /// MiAuth をアプリ内 WebView で完結させる画面。
@@ -45,11 +46,16 @@ class _MiAuthWebViewScreenState extends State<MiAuthWebViewScreen> {
     super.initState();
     _sessionId = const Uuid().v4();
 
-    final authUrl = Uri.https(widget.host, '/miauth/$_sessionId', {
-      'name': 'Coerie',
-      'callback': 'coerie://auth',
-      'permission': _permissions.join(','),
-    });
+    // Uri.https の queryParameters は値をパーセントエンコードするため、
+    // permission の ':' ',' がエンコードされて Misskey に認識されない問題を回避する。
+    // 公式ドキュメントの例に倣い Uri.parse で手動構築する。
+    final permStr = _permissions.join(',');
+    final authUrl = Uri.parse(
+      'https://${widget.host}/miauth/$_sessionId'
+      '?name=Coerie'
+      '&callback=${Uri.encodeComponent('coerie://auth')}'
+      '&permission=$permStr',
+    );
 
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)

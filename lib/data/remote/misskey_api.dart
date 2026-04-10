@@ -540,6 +540,16 @@ class MisskeyApi {
     await _dio.post('blocking/delete', data: _body({'userId': userId}));
   }
 
+  // ---- 通報 ----
+
+  /// ユーザーを通報する（users/report-abuse）
+  Future<void> reportAbuse(String userId, String comment) async {
+    await _dio.post(
+      'users/report-abuse',
+      data: _body({'userId': userId, 'comment': comment}),
+    );
+  }
+
   // ---- 検索 ----
 
   /// notes/search: ノートをキーワード検索する

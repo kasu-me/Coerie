@@ -67,6 +67,12 @@ class NoteModel {
   final NoteModel? reply;
   final NoteModel? renote;
 
+  /// ノートのローカル公開URL（例: https://host/notes/id）
+  final String? url;
+
+  /// リモートノートの ActivityPub URI（リモートアカウントのノートのみ）
+  final String? uri;
+
   const NoteModel({
     required this.id,
     required this.createdAt,
@@ -83,6 +89,8 @@ class NoteModel {
     this.reactionEmojis = const {},
     this.reply,
     this.renote,
+    this.url,
+    this.uri,
   });
 
   static const _sentinel = Object();
@@ -110,6 +118,8 @@ class NoteModel {
     reactionEmojis: reactionEmojis,
     reply: reply,
     renote: renote,
+    url: url,
+    uri: uri,
   );
 
   factory NoteModel.fromJson(Map<String, dynamic> json, {String host = ''}) {
@@ -162,6 +172,8 @@ class NoteModel {
               host: host,
             )
           : null,
+      url: json['url'] as String?,
+      uri: json['uri'] as String?,
     );
   }
 }
