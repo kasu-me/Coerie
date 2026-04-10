@@ -3,9 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../data/models/clip_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/providers/account_provider.dart';
 
 class ClipsScreen extends ConsumerStatefulWidget {
-  const ClipsScreen({super.key});
+  final String? ownerUserId;
+  final String? ownerUserName;
+
+  const ClipsScreen({super.key, this.ownerUserId, this.ownerUserName});
 
   @override
   ConsumerState<ClipsScreen> createState() => _ClipsScreenState();
@@ -30,7 +34,7 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
     try {
-      final clips = await api.getClips();
+      final clips = await api.getClips(userId: widget.ownerUserId);
       if (mounted) setState(() => _clips = clips);
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
@@ -235,22 +239,32 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final active = ref.read(activeAccountProvider);
+    final isOwn =
+        widget.ownerUserId == null || widget.ownerUserId == active?.userId;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('クリップ'),
+        title: Text(
+          widget.ownerUserName != null
+              ? '${widget.ownerUserName} のクリップ'
+              : 'クリップ',
+        ),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showCreateDialog,
-        child: const Icon(Icons.add),
-      ),
-      body: SafeArea(bottom: true, child: _buildBody()),
+      floatingActionButton: isOwn
+          ? FloatingActionButton(
+              onPressed: _showCreateDialog,
+              child: const Icon(Icons.add),
+            )
+          : null,
+      body: SafeArea(bottom: true, child: _buildBody(isOwn)),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(bool isOwn) {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -269,15 +283,21 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
       );
     }
     if (_clips.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.bookmark_border, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('クリップがありません'),
-            SizedBox(height: 8),
-            Text('右下の + ボタンでクリップを作成できます', style: TextStyle(color: Colors.grey)),
+            const Icon(Icons.bookmark_border, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(widget.ownerUserId == null ? 'クリップがありません' : '公開クリップがありません'),
+            const SizedBox(height: 8),
+            Text(
+              widget.ownerUserId == null
+                  ? '右下の + ボタンでクリップを作成できます'
+                  : 'このユーザーは公開クリップを持っていないか、\nサーバーがこの機能に対応していません',
+              style: const TextStyle(color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       );
@@ -316,34 +336,35 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
                       ),
                     ),
                   ),
-                PopupMenuButton<String>(
-                  onSelected: (value) {
-                    if (value == 'edit') _showEditDialog(clip);
-                    if (value == 'delete') _deleteClip(clip);
-                  },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit_outlined),
-                          SizedBox(width: 8),
-                          Text('編集'),
-                        ],
+                if (isOwn)
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'edit') _showEditDialog(clip);
+                      if (value == 'delete') _deleteClip(clip);
+                    },
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit_outlined),
+                            SizedBox(width: 8),
+                            Text('編集'),
+                          ],
+                        ),
                       ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete_outline),
-                          SizedBox(width: 8),
-                          Text('削除'),
-                        ],
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_outline),
+                            SizedBox(width: 8),
+                            Text('削除'),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
               ],
             ),
             onTap: () => context.push('/clips/${clip.id}', extra: clip),

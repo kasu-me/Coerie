@@ -21,6 +21,7 @@ import '../../features/notifications/notification_screen.dart';
 import '../../features/notifications/announcements_screen.dart';
 import '../../data/models/announcement_model.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../data/models/user_model.dart';
 import '../../features/timeline/note_detail_screen.dart';
 import '../../features/search/search_screen.dart';
 
@@ -97,6 +98,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final clip = state.extra as ClipModel;
           return ClipNotesScreen(clip: clip);
+        },
+      ),
+      GoRoute(
+        path: '/users/:userId/clips',
+        builder: (context, state) {
+          final userId = state.pathParameters['userId']!;
+          String? userName;
+          final extra = state.extra;
+          if (extra is UserModel) userName = extra.name;
+          return ClipsScreen(ownerUserId: userId, ownerUserName: userName);
         },
       ),
       GoRoute(

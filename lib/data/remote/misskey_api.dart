@@ -660,9 +660,21 @@ class MisskeyApi {
 
   // ---- クリップ ----
 
-  /// ログイン中のユーザーが作成したクリップの一覧を取得する（clips/list）
-  Future<List<ClipModel>> getClips() async {
-    final res = await _dio.post('clips/list', data: _body({}));
+  /// クリップ一覧を取得する（clips/list）
+  /// userId を指定するとそのユーザーが作成したクリップを取得します。
+  Future<List<ClipModel>> getClips({String? userId}) async {
+    final String endpoint;
+    final Map<String, dynamic> params;
+    if (userId != null) {
+      // 他ユーザーの公開クリップは users/clips エンドポイントを使用する
+      endpoint = 'users/clips';
+      params = {'userId': userId};
+    } else {
+      // 自分のクリップは clips/list エンドポイントを使用する
+      endpoint = 'clips/list';
+      params = {};
+    }
+    final res = await _dio.post(endpoint, data: _body(params));
     final list = res.data as List<dynamic>;
     return list
         .map((e) => ClipModel.fromJson(e as Map<String, dynamic>))

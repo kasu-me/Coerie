@@ -430,6 +430,12 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                               onSelected: (value) async {
                                 if (value == 'mute') _toggleMute();
                                 if (value == 'block') _toggleBlock();
+                                if (value == 'clips') {
+                                  context.push(
+                                    '/users/${user.id}/clips',
+                                    extra: user,
+                                  );
+                                }
                                 if (value == 'open') {
                                   final host = user.host.isNotEmpty
                                       ? user.host
@@ -469,6 +475,16 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                                       Icon(Icons.open_in_browser),
                                       SizedBox(width: 8),
                                       Text('ブラウザで表示'),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'clips',
+                                  child: Row(
+                                    children: const [
+                                      Icon(Icons.bookmark_outline),
+                                      SizedBox(width: 8),
+                                      Text('クリップ'),
                                     ],
                                   ),
                                 ),
