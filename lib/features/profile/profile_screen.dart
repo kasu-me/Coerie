@@ -436,6 +436,76 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                                     extra: user,
                                   );
                                 }
+                                if (value == 'invalidate') {
+                                  final api = ref.read(misskeyApiProvider);
+                                  if (api == null) return;
+                                  final settings = ref.read(settingsProvider);
+                                  if (settings.confirmDestructive) {
+                                    final confirmed =
+                                        await showDialog<bool>(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            title: const Text('フォロワーを解除'),
+                                            content: const Text(
+                                              'このユーザーをフォロワーから解除しますか？',
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(ctx, false),
+                                                child: const Text('キャンセル'),
+                                              ),
+                                              FilledButton(
+                                                style: FilledButton.styleFrom(
+                                                  backgroundColor: Theme.of(
+                                                    context,
+                                                  ).colorScheme.error,
+                                                ),
+                                                onPressed: () =>
+                                                    Navigator.pop(ctx, true),
+                                                child: const Text('解除'),
+                                              ),
+                                            ],
+                                          ),
+                                        ) ??
+                                        false;
+                                    if (!confirmed) return;
+                                  }
+                                  setState(() => _isLoadingAction = true);
+                                  try {
+                                    await api.invalidateFollower(user.id);
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('フォロワーを解除しました'),
+                                      ),
+                                    );
+                                    final active = ref.read(
+                                      activeAccountProvider,
+                                    );
+                                    if (active != null) {
+                                      ref.invalidate(
+                                        _followListProvider((
+                                          userId: active.userId,
+                                          isFollowing: false,
+                                        )),
+                                      );
+                                    }
+                                  } catch (_) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('操作に失敗しました'),
+                                        ),
+                                      );
+                                    }
+                                  } finally {
+                                    if (mounted)
+                                      setState(() => _isLoadingAction = false);
+                                  }
+                                }
                                 if (value == 'open') {
                                   final host = user.host.isNotEmpty
                                       ? user.host
@@ -468,6 +538,17 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                                 }
                               },
                               itemBuilder: (ctx) => [
+                                if (user.isFollowed)
+                                  PopupMenuItem(
+                                    value: 'invalidate',
+                                    child: Row(
+                                      children: const [
+                                        Icon(Icons.person_remove_alt_1),
+                                        SizedBox(width: 8),
+                                        Text('フォロワーを解除'),
+                                      ],
+                                    ),
+                                  ),
                                 PopupMenuItem(
                                   value: 'open',
                                   child: Row(
