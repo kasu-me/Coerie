@@ -13,6 +13,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../shared/providers/account_provider.dart';
 import '../../../shared/providers/misskey_api_provider.dart';
 import '../../../shared/providers/settings_provider.dart';
+import 'package:coerie/features/profile/pinned_notes_provider.dart';
 import '../../../core/streaming/streaming_service.dart';
 import '../../../shared/widgets/mfm_content.dart';
 import '../../../core/router/app_router.dart';
@@ -913,6 +914,14 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                                     ),
                                   );
                                   widget.onPinnedChanged?.call();
+                                  final activeAccount = ref.read(
+                                    activeAccountProvider,
+                                  );
+                                  if (activeAccount != null) {
+                                    ref.invalidate(
+                                      pinnedNotesProvider(activeAccount.userId),
+                                    );
+                                  }
                                 }
                               } else {
                                 await api.pinNote(widget.note.id);
@@ -921,6 +930,14 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                                     const SnackBar(content: Text('ピン留めしました')),
                                   );
                                   widget.onPinnedChanged?.call();
+                                  final activeAccount = ref.read(
+                                    activeAccountProvider,
+                                  );
+                                  if (activeAccount != null) {
+                                    ref.invalidate(
+                                      pinnedNotesProvider(activeAccount.userId),
+                                    );
+                                  }
                                 }
                               }
                             } catch (e) {

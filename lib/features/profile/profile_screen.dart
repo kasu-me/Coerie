@@ -11,6 +11,7 @@ import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
 import '../timeline/widgets/note_card.dart';
+import 'pinned_notes_provider.dart';
 
 class _AppBarIcon extends StatelessWidget {
   final IconData icon;
@@ -53,15 +54,7 @@ final userProfileProvider = FutureProvider.family<UserModel, String>((
   return api.getUser(userId);
 });
 
-// ピン留め投稿プロバイダー
-final _pinnedNotesProvider = FutureProvider.family<List<NoteModel>, String>((
-  ref,
-  userId,
-) async {
-  final api = ref.watch(misskeyApiProvider);
-  if (api == null) return [];
-  return api.getUserPinnedNotes(userId);
-});
+// ピン留め投稿プロバイダーは pinned_notes_provider.dart に移動しました
 
 // (リンク検出は MFM レンダラーに委ねるため、手動判定は削除しました)
 
@@ -264,7 +257,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
 
   Future<void> _handleRefresh() async {
     ref.invalidate(userProfileProvider(widget.userId));
-    ref.invalidate(_pinnedNotesProvider(widget.userId));
+    ref.invalidate(pinnedNotesProvider(widget.userId));
     await Future.wait([
       ref
           .read(
@@ -375,7 +368,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
     final mediaState = ref.watch(
       _profileNotesProvider((userId: widget.userId, withFiles: true)),
     );
-    final pinnedAsync = ref.watch(_pinnedNotesProvider(widget.userId));
+    final pinnedAsync = ref.watch(pinnedNotesProvider(widget.userId));
     final user = widget.user;
     final activeAccount = ref.watch(activeAccountProvider);
     final isOwnProfile = activeAccount?.userId == widget.userId;
@@ -698,7 +691,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                         note: notes[i],
                         pinnedByUser: user,
                         onPinnedChanged: () =>
-                            ref.invalidate(_pinnedNotesProvider(widget.userId)),
+                            ref.invalidate(pinnedNotesProvider(widget.userId)),
                       );
                     }, childCount: pinnedAsync.value!.length),
                   ),
