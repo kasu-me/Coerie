@@ -84,6 +84,13 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
   void _onScroll() {
     if (!_scrollController.hasClients) return;
     final pos = _scrollController.position;
+
+    // 新着バッジがある状態でユーザーが先頭までスクロールしたら新着を取得してバッジを消す
+    if (pos.pixels < 100 && _newNotesCount > 0) {
+      ref.read(timelineProvider(widget.timelineType).notifier).fetchNew();
+      setState(() => _newNotesCount = 0);
+    }
+
     if (pos.pixels >= pos.maxScrollExtent - 300) {
       ref
           .read(timelineProvider(widget.timelineType).notifier)
