@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 
 class OgpData {
   final String title;
@@ -96,6 +97,18 @@ class _OgpCardContent extends StatelessWidget {
       onTap: () async {
         final uri = Uri.tryParse(ogp.url);
         if (uri != null) {
+          // 例: https://host/clips/clipId -> アプリ内遷移
+          if (uri.pathSegments.isNotEmpty &&
+              uri.pathSegments[0] == 'clips' &&
+              uri.pathSegments.length >= 2) {
+            final clipId = uri.pathSegments[1];
+            final host = uri.host;
+            final query = host.isNotEmpty
+                ? '?host=${Uri.encodeComponent(host)}'
+                : '';
+            context.push('/clips/$clipId$query');
+            return;
+          }
           await launchUrl(uri, mode: LaunchMode.externalApplication);
         }
       },

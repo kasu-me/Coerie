@@ -1,7 +1,10 @@
 import '../../data/models/note_model.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/providers/account_provider.dart';
+import '../../shared/providers/misskey_api_provider.dart';
+import '../../data/remote/misskey_api.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/clips/clips_screen.dart';
 import '../../features/clips/clip_notes_screen.dart';
@@ -96,8 +99,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/clips/:clipId',
         builder: (context, state) {
-          final clip = state.extra as ClipModel;
-          return ClipNotesScreen(clip: clip);
+          final extra = state.extra;
+          if (extra is ClipModel) return ClipNotesScreen(clip: extra);
+          final clipId = state.pathParameters['clipId']!;
+          final host = state.uri.queryParameters['host'];
+          return _ClipLoader(clipId: clipId, host: host);
         },
       ),
       GoRoute(
@@ -180,3 +186,43 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+class _ClipLoader extends ConsumerWidget {
+  final String clipId;
+  final String? host;
+  const _ClipLoader({required this.clipId, this.host});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final MisskeyApi? api = (host != null && host!.isNotEmpty)
+        ? MisskeyApi(host: host!)
+        : ref.read(misskeyApiProvider);
+
+    if (api == null) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: const Center(child: Text('読み込むにはアカウントが必要です')),
+      );
+    }
+
+    return FutureBuilder<ClipModel>(
+      future: api.getClip(clipId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            appBar: AppBar(),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(),
+            body: Center(child: Text('クリップの読み込みに失敗しました: ${snapshot.error}')),
+          );
+        }
+        final clip = snapshot.data!;
+        return ClipNotesScreen(clip: clip);
+      },
+    );
+  }
+}

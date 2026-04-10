@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:mfm_parser/mfm_parser.dart' as mfm;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 
 /// MFM (Markup language For Misskey) テキストをレンダリングするウィジェット。
 ///
@@ -381,6 +382,18 @@ class MfmContent extends StatelessWidget {
             ..onTap = () async {
               final uri = Uri.tryParse(raw);
               if (uri != null) {
+                // 例: https://host/clips/clipId -> アプリ内遷移
+                if (uri.pathSegments.isNotEmpty &&
+                    uri.pathSegments[0] == 'clips' &&
+                    uri.pathSegments.length >= 2) {
+                  final clipId = uri.pathSegments[1];
+                  final host = uri.host;
+                  final query = host.isNotEmpty
+                      ? '?host=${Uri.encodeComponent(host)}'
+                      : '';
+                  ctx.push('/clips/$clipId$query');
+                  return;
+                }
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
               }
             },
@@ -403,6 +416,17 @@ class MfmContent extends StatelessWidget {
             ..onTap = () async {
               final uri = Uri.tryParse(node.url);
               if (uri != null) {
+                if (uri.pathSegments.isNotEmpty &&
+                    uri.pathSegments[0] == 'clips' &&
+                    uri.pathSegments.length >= 2) {
+                  final clipId = uri.pathSegments[1];
+                  final host = uri.host;
+                  final query = host.isNotEmpty
+                      ? '?host=${Uri.encodeComponent(host)}'
+                      : '';
+                  ctx.push('/clips/$clipId$query');
+                  return;
+                }
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
               }
             },
