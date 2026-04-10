@@ -538,17 +538,6 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                                 }
                               },
                               itemBuilder: (ctx) => [
-                                if (user.isFollowed)
-                                  PopupMenuItem(
-                                    value: 'invalidate',
-                                    child: Row(
-                                      children: const [
-                                        Icon(Icons.person_remove_alt_1),
-                                        SizedBox(width: 8),
-                                        Text('フォロワーを解除'),
-                                      ],
-                                    ),
-                                  ),
                                 PopupMenuItem(
                                   value: 'open',
                                   child: Row(
@@ -565,7 +554,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                                     children: const [
                                       Icon(Icons.bookmark_outline),
                                       SizedBox(width: 8),
-                                      Text('クリップ'),
+                                      Text('クリップを表示'),
                                     ],
                                   ),
                                 ),
@@ -593,6 +582,17 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                                     ],
                                   ),
                                 ),
+                                if (user.isFollowed)
+                                  PopupMenuItem(
+                                    value: 'invalidate',
+                                    child: Row(
+                                      children: const [
+                                        Icon(Icons.person_remove_alt_1),
+                                        SizedBox(width: 8),
+                                        Text('フォロワーを解除'),
+                                      ],
+                                    ),
+                                  ),
                               ],
                             ),
                         ],
@@ -1074,59 +1074,6 @@ class _FollowUserTileState extends ConsumerState<_FollowUserTile> {
     }
   }
 
-  Future<void> _invalidateFollower() async {
-    final api = ref.read(misskeyApiProvider);
-    if (api == null || _isLoading) return;
-
-    final settings = ref.read(settingsProvider);
-    if (settings.confirmDestructive) {
-      final confirmed =
-          await showDialog<bool>(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text('フォロワーを解除'),
-              content: const Text('このユーザーをフォロワーから解除しますか？'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('キャンセル'),
-                ),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.error,
-                  ),
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('解除'),
-                ),
-              ],
-            ),
-          ) ??
-          false;
-      if (!confirmed) return;
-    }
-
-    setState(() => _isLoading = true);
-    try {
-      await api.invalidateFollower(widget.user.id);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('フォロワーを解除しました')));
-      // リストを更新
-      ref.invalidate(
-        _followListProvider((
-          userId: widget.profileOwnerId,
-          isFollowing: false,
-        )),
-      );
-    } catch (_) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('操作に失敗しました')));
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1189,12 +1136,6 @@ class _FollowUserTileState extends ConsumerState<_FollowUserTile> {
           : Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (isViewingOwnFollowers)
-                  IconButton(
-                    onPressed: _invalidateFollower,
-                    icon: const Icon(Icons.person_remove_alt_1),
-                    tooltip: 'フォロワーを解除',
-                  ),
                 FilledButton.tonal(
                   onPressed: _toggleFollow,
                   style: FilledButton.styleFrom(

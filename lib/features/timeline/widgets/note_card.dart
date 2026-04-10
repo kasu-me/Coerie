@@ -818,15 +818,6 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // クリップに追加（全員）
-            ListTile(
-              leading: const Icon(Icons.bookmark_add_outlined),
-              title: const Text('クリップに追加'),
-              onTap: () async {
-                Navigator.pop(sheetCtx);
-                await _addNoteToClip(context);
-              },
-            ),
             // テキストコピー（全員）
             ListTile(
               leading: const Icon(Icons.copy),
@@ -857,6 +848,15 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                   'https://${account.host}/notes/${widget.note.id}',
                 );
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
+              },
+            ),
+            // クリップに追加（全員）
+            ListTile(
+              leading: const Icon(Icons.bookmark_add_outlined),
+              title: const Text('クリップに追加'),
+              onTap: () async {
+                Navigator.pop(sheetCtx);
+                await _addNoteToClip(context);
               },
             ),
             // 削除 / ピン留め（自分の投稿のみ）
