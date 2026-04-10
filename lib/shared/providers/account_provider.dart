@@ -58,4 +58,16 @@ class AccountNotifier extends StateNotifier<List<AccountModel>> {
     }
     _load();
   }
+
+  /// インポート用: 既存IDと重複しないアカウントのみ追加する（アクティブ状態を変更しない）
+  Future<void> importAccounts(List<AccountModel> accounts) async {
+    final box = HiveService.accountsBox;
+    final existingIds = {for (final a in state) a.id};
+    for (final account in accounts) {
+      if (!existingIds.contains(account.id)) {
+        await box.put(account.id, account);
+      }
+    }
+    _load();
+  }
 }

@@ -9,6 +9,7 @@ import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/account_visibility_provider.dart';
 import '../../shared/providers/settings_provider.dart';
+import '../../data/models/account_model.dart';
 import '../../data/models/app_settings_model.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -203,6 +204,12 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => _exportSettings(context, ref, settings),
           ),
           ListTile(
+            leading: const Icon(Icons.upload_outlined),
+            title: const Text('設定をエクスポート（アクセストークンを含む）'),
+            subtitle: const Text('アクセストークンを含む設定内容をJSONファイルとして保存'),
+            onTap: () => _exportSettingsWithToken(context, ref, settings),
+          ),
+          ListTile(
             leading: const Icon(Icons.download_outlined),
             title: const Text('設定をインポート'),
             subtitle: const Text('JSONファイルから設定を復元'),
@@ -275,6 +282,92 @@ class SettingsScreen extends ConsumerWidget {
       ref
           .read(settingsProvider.notifier)
           .setTimezoneOffsetHours(selected.offset);
+    }
+  }
+
+  Future<void> _exportSettingsWithToken(
+    BuildContext context,
+    WidgetRef ref,
+    AppSettingsModel settings,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('セキュリティに関する警告'),
+        content: const Text(
+          'この操作にはアクセストークンの書き出しが含まれます。\n\n'
+          'アクセストークンが第三者に渡ると、あなたのアカウントが不正に操作される可能性があります。'
+          '保存したファイルの取り扱いには十分に注意してください。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('同意してエクスポート'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+
+    final timestamp = DateTime.now()
+        .toIso8601String()
+        .replaceAll(':', '-')
+        .replaceAll('.', '-')
+        .substring(0, 19);
+    final defaultName = 'coerie_settings_with_tokens_$timestamp.json';
+
+    final accounts = ref.read(accountProvider);
+    final accountSettings = <String, dynamic>{};
+    for (final account in accounts) {
+      accountSettings[account.id] = {
+        'tabs': ref
+            .read(accountTabsProvider(account.id))
+            .map((t) => t.toJson())
+            .toList(),
+        'defaultVisibility': ref.read(accountVisibilityProvider(account.id)),
+      };
+    }
+
+    // バージョン3フォーマット: globalSettings + accountSettings + accounts（トークン含む）
+    final exportData = {
+      'version': 3,
+      'globalSettings': settings.toJson(),
+      'accountSettings': accountSettings,
+      'accounts': accounts.map((a) => a.toJson()).toList(),
+    };
+    final jsonStr = jsonEncode(exportData);
+    final jsonBytes = Uint8List.fromList(utf8.encode(jsonStr));
+
+    try {
+      final savePath = await FilePicker.platform.saveFile(
+        dialogTitle: '設定のエクスポート先を選択',
+        fileName: defaultName,
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        bytes: jsonBytes,
+      );
+
+      if (savePath == null) return;
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('保存しました: $savePath'),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('エクスポートに失敗しました: $e')));
+      }
     }
   }
 
@@ -411,6 +504,19 @@ class SettingsScreen extends ConsumerWidget {
             await ref
                 .read(accountVisibilityProvider(accountId).notifier)
                 .setVisibility(visibility);
+          }
+        }
+
+        // バージョン3: アカウント情報（トークン含む）を復元
+        if (version >= 3) {
+          final accountsJson = decoded['accounts'] as List<dynamic>?;
+          if (accountsJson != null) {
+            final importedAccounts = accountsJson
+                .map((e) => AccountModel.fromJson(e as Map<String, dynamic>))
+                .toList();
+            await ref
+                .read(accountProvider.notifier)
+                .importAccounts(importedAccounts);
           }
         }
       } else {
