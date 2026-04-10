@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
+import '../../data/models/clip_model.dart';
 import '../../data/models/note_model.dart';
 import '../../data/models/notification_model.dart';
 import '../../data/models/user_model.dart';
@@ -655,5 +656,95 @@ class MisskeyApi {
   /// ワードミュートを更新する
   Future<void> setMutedWords(List<List<String>> words) async {
     await _dio.post('i/update', data: _body({'mutedWords': words}));
+  }
+
+  // ---- クリップ ----
+
+  /// ログイン中のユーザーが作成したクリップの一覧を取得する（clips/list）
+  Future<List<ClipModel>> getClips() async {
+    final res = await _dio.post('clips/list', data: _body({}));
+    final list = res.data as List<dynamic>;
+    return list
+        .map((e) => ClipModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// クリップを取得する（clips/show）
+  Future<ClipModel> getClip(String clipId) async {
+    final res = await _dio.post('clips/show', data: _body({'clipId': clipId}));
+    return ClipModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  /// クリップを作成する（clips/create）
+  Future<ClipModel> createClip({
+    required String name,
+    String? description,
+    bool isPublic = false,
+  }) async {
+    final params = <String, dynamic>{'name': name, 'isPublic': isPublic};
+    if (description != null && description.isNotEmpty) {
+      params['description'] = description;
+    }
+    final res = await _dio.post('clips/create', data: _body(params));
+    return ClipModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  /// クリップを削除する（clips/delete）
+  Future<void> deleteClip(String clipId) async {
+    await _dio.post('clips/delete', data: _body({'clipId': clipId}));
+  }
+
+  /// クリップの情報を更新する（clips/update）
+  Future<ClipModel> updateClip({
+    required String clipId,
+    required String name,
+    String? description,
+    bool isPublic = false,
+  }) async {
+    final params = <String, dynamic>{
+      'clipId': clipId,
+      'name': name,
+      'isPublic': isPublic,
+      'description': description,
+    };
+    final res = await _dio.post('clips/update', data: _body(params));
+    return ClipModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  /// クリップに含まれるノートを取得する（clips/notes）
+  Future<List<NoteModel>> getClipNotes({
+    required String clipId,
+    int limit = 20,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'clipId': clipId, 'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('clips/notes', data: _body(params));
+    final list = res.data as List<dynamic>;
+    return list
+        .map((n) => NoteModel.fromJson(n as Map<String, dynamic>, host: host))
+        .toList();
+  }
+
+  /// ノートをクリップに追加する（clips/add-note）
+  Future<void> addNoteToClip({
+    required String clipId,
+    required String noteId,
+  }) async {
+    await _dio.post(
+      'clips/add-note',
+      data: _body({'clipId': clipId, 'noteId': noteId}),
+    );
+  }
+
+  /// ノートをクリップから削除する（clips/remove-note）
+  Future<void> removeNoteFromClip({
+    required String clipId,
+    required String noteId,
+  }) async {
+    await _dio.post(
+      'clips/remove-note',
+      data: _body({'clipId': clipId, 'noteId': noteId}),
+    );
   }
 }

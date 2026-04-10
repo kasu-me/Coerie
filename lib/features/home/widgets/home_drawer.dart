@@ -90,6 +90,14 @@ class HomeDrawer extends ConsumerWidget {
             ),
             const Divider(),
             ListTile(
+              leading: const Icon(Icons.bookmark_outline),
+              title: const Text('クリップ'),
+              onTap: () {
+                Navigator.of(context).pop();
+                context.push('/clips');
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.cloud_outlined),
               title: const Text('ドライブ'),
               onTap: () {

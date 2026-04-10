@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../data/models/clip_model.dart';
 import '../../../data/models/note_model.dart';
 import '../../../data/models/user_model.dart';
 import '../../../shared/widgets/media_player_screen.dart';
@@ -817,6 +818,15 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // クリップに追加（全員）
+            ListTile(
+              leading: const Icon(Icons.bookmark_add_outlined),
+              title: const Text('クリップに追加'),
+              onTap: () async {
+                Navigator.pop(sheetCtx);
+                await _addNoteToClip(context);
+              },
+            ),
             // テキストコピー（全員）
             ListTile(
               leading: const Icon(Icons.copy),
@@ -1089,6 +1099,34 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
         ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
       }
     }
+  }
+
+  Future<void> _addNoteToClip(BuildContext context) async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+
+    // クリップ一覧を取得
+    List<ClipModel> clips;
+    try {
+      clips = await api.getClips();
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('クリップの取得に失敗しました: $e')));
+      }
+      return;
+    }
+
+    if (!context.mounted) return;
+
+    // クリップ一覧ボトムシートを表示
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetCtx) =>
+          _ClipPickerSheet(clips: clips, noteId: widget.note.id),
+    );
   }
 
   Future<void> _renote() async {
@@ -1810,6 +1848,167 @@ class _CollapsibleNoteContentState extends State<_CollapsibleNoteContent> {
             ),
           ),
       ],
+    );
+  }
+}
+// ---- クリップ選択ボトムシート ----
+
+class _ClipPickerSheet extends ConsumerStatefulWidget {
+  final List<ClipModel> clips;
+  final String noteId;
+
+  const _ClipPickerSheet({required this.clips, required this.noteId});
+
+  @override
+  ConsumerState<_ClipPickerSheet> createState() => _ClipPickerSheetState();
+}
+
+class _ClipPickerSheetState extends ConsumerState<_ClipPickerSheet> {
+  late List<ClipModel> _clips;
+  bool _isProcessing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _clips = List.from(widget.clips);
+  }
+
+  Future<void> _addToClip(ClipModel clip) async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null || _isProcessing) return;
+    setState(() => _isProcessing = true);
+    try {
+      await api.addNoteToClip(clipId: clip.id, noteId: widget.noteId);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('「${clip.name}」に追加しました')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('追加に失敗しました: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<void> _createAndAdd() async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null || _isProcessing) return;
+
+    final nameController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('新しいクリップを作成'),
+        content: TextField(
+          controller: nameController,
+          decoration: const InputDecoration(
+            labelText: 'タイトル',
+            hintText: 'クリップのタイトルを入力',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('作成して追加'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    final name = nameController.text.trim();
+    if (name.isEmpty) return;
+
+    setState(() => _isProcessing = true);
+    try {
+      final clip = await api.createClip(name: name);
+      await api.addNoteToClip(clipId: clip.id, noteId: widget.noteId);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('「${clip.name}」に追加しました')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('失敗しました: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            child: Row(
+              children: [
+                const Icon(Icons.bookmark_add_outlined),
+                const SizedBox(width: 8),
+                Text('クリップに追加', style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                if (_isProcessing)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.add_circle_outline),
+            title: const Text('新しいクリップを作成'),
+            onTap: _isProcessing ? null : _createAndAdd,
+          ),
+          if (_clips.isNotEmpty) const Divider(height: 1),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.4,
+            ),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _clips.length,
+              itemBuilder: (ctx, i) {
+                final clip = _clips[i];
+                return ListTile(
+                  leading: Icon(
+                    clip.isPublic ? Icons.bookmark : Icons.bookmark_outline,
+                  ),
+                  title: Text(clip.name),
+                  subtitle: clip.description != null
+                      ? Text(
+                          clip.description!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        )
+                      : null,
+                  onTap: _isProcessing ? null : () => _addToClip(clip),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

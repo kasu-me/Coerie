@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../features/auth/login_screen.dart';
+import '../../features/clips/clips_screen.dart';
+import '../../features/clips/clip_notes_screen.dart';
+import '../../data/models/clip_model.dart';
 import '../../features/drive/drive_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/compose/compose_screen.dart';
@@ -86,6 +89,14 @@ final routerProvider = Provider<GoRouter>((ref) {
             selectionMode: selectionMode,
             maxSelection: maxSelection,
           );
+        },
+      ),
+      GoRoute(path: '/clips', builder: (context, state) => const ClipsScreen()),
+      GoRoute(
+        path: '/clips/:clipId',
+        builder: (context, state) {
+          final clip = state.extra as ClipModel;
+          return ClipNotesScreen(clip: clip);
         },
       ),
       GoRoute(
