@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter/services.dart';
 import '../../data/models/clip_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
@@ -237,6 +238,29 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
     }
   }
 
+  Future<void> _copyClipUrl(ClipModel clip) async {
+    final active = ref.read(activeAccountProvider);
+    final host = active?.host ?? '';
+    if (host.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('URLをコピーできませんでした')));
+      }
+      return;
+    }
+    final url = 'https://$host/clips/${clip.id}';
+    await Clipboard.setData(ClipboardData(text: url));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('URLをコピーしました'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final active = ref.read(activeAccountProvider);
@@ -336,13 +360,24 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
                       ),
                     ),
                   ),
-                if (isOwn)
-                  PopupMenuButton<String>(
-                    onSelected: (value) {
-                      if (value == 'edit') _showEditDialog(clip);
-                      if (value == 'delete') _deleteClip(clip);
-                    },
-                    itemBuilder: (_) => [
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'copy') _copyClipUrl(clip);
+                    if (value == 'edit') _showEditDialog(clip);
+                    if (value == 'delete') _deleteClip(clip);
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'copy',
+                      child: Row(
+                        children: const [
+                          Icon(Icons.copy),
+                          SizedBox(width: 8),
+                          Text('URLをコピー'),
+                        ],
+                      ),
+                    ),
+                    if (isOwn) ...[
                       const PopupMenuItem(
                         value: 'edit',
                         child: Row(
@@ -364,7 +399,8 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
                         ),
                       ),
                     ],
-                  ),
+                  ],
+                ),
               ],
             ),
             onTap: () => context.push('/clips/${clip.id}', extra: clip),
