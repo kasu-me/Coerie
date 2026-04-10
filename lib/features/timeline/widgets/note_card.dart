@@ -869,6 +869,39 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                               final currentlyPinned = me2.pinnedNoteIds
                                   .contains(widget.note.id);
                               if (currentlyPinned) {
+                                final settings = ref.read(settingsProvider);
+                                if (settings.confirmDestructive) {
+                                  final confirmed =
+                                      await showDialog<bool>(
+                                        context: context,
+                                        builder: (_) => AlertDialog(
+                                          title: const Text('ピン留めを解除'),
+                                          content: const Text(
+                                            'ピン留めを解除してもよろしいですか？',
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context, false),
+                                              child: const Text('キャンセル'),
+                                            ),
+                                            FilledButton(
+                                              style: FilledButton.styleFrom(
+                                                backgroundColor: Theme.of(
+                                                  context,
+                                                ).colorScheme.error,
+                                              ),
+                                              onPressed: () =>
+                                                  Navigator.pop(context, true),
+                                              child: const Text('解除'),
+                                            ),
+                                          ],
+                                        ),
+                                      ) ??
+                                      false;
+                                  if (!confirmed) return;
+                                }
+
                                 await api.unpinNote(widget.note.id);
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
