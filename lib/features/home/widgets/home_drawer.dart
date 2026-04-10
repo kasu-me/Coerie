@@ -184,8 +184,8 @@ class _ProfileHeader extends StatelessWidget {
               ),
               const Spacer(),
               IconButton(
-                icon: const Icon(Icons.manage_accounts),
-                tooltip: 'アカウント管理',
+                icon: const Icon(Icons.switch_account),
+                tooltip: 'アカウントの切り替え',
                 onPressed: () => _showAccountSwitcher(context),
               ),
             ],
