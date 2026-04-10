@@ -122,9 +122,7 @@ class MisskeyApi {
           idsToFetch.add(entry['user'] as String);
         } else if (entry.containsKey('id')) {
           // そのままユーザーオブジェクトが来ている場合
-          users.add(
-            UserModel.fromJson(entry as Map<String, dynamic>, host: host),
-          );
+          users.add(UserModel.fromJson(entry, host: host));
         }
       }
     }
@@ -250,6 +248,84 @@ class MisskeyApi {
 
   Future<void> unfollowUser(String userId) async {
     await _dio.post('following/delete', data: _body({'userId': userId}));
+  }
+
+  /// フォロワーを解除する（following/invalidate）
+  Future<void> invalidateFollower(String userId) async {
+    await _dio.post('following/invalidate', data: _body({'userId': userId}));
+  }
+
+  /// フォローリクエスト一覧を取得する（following/requests/list）
+  Future<List<UserModel>> getFollowRequests() async {
+    final res = await _dio.post('following/requests/list', data: _body({}));
+    final data = res.data;
+
+    final List<UserModel> users = [];
+    final Set<String> idsToFetch = {};
+
+    void _collect(dynamic entry) {
+      if (entry is Map<String, dynamic>) {
+        if (entry.containsKey('user') && entry['user'] is Map) {
+          users.add(
+            UserModel.fromJson(
+              entry['user'] as Map<String, dynamic>,
+              host: host,
+            ),
+          );
+        } else if (entry.containsKey('follower') && entry['follower'] is Map) {
+          users.add(
+            UserModel.fromJson(
+              entry['follower'] as Map<String, dynamic>,
+              host: host,
+            ),
+          );
+        } else if (entry.containsKey('userId') && entry['userId'] is String) {
+          idsToFetch.add(entry['userId'] as String);
+        } else if (entry.containsKey('id') && entry['id'] is String) {
+          // may be a user object itself
+          users.add(UserModel.fromJson(entry, host: host));
+        }
+      } else if (entry is String) {
+        idsToFetch.add(entry);
+      }
+    }
+
+    if (data is List) {
+      for (final e in data) _collect(e);
+    } else if (data is Map<String, dynamic>) {
+      for (final entry in data.entries) {
+        final v = entry.value;
+        if (v is List) {
+          for (final e in v) _collect(e);
+        } else {
+          _collect(v);
+        }
+      }
+    }
+
+    if (idsToFetch.isNotEmpty) {
+      final futures = idsToFetch.map((id) => getUser(id));
+      final fetched = await Future.wait(futures);
+      users.addAll(fetched);
+    }
+
+    return users;
+  }
+
+  /// フォローリクエストを許可する（following/requests/accept）
+  Future<void> acceptFollowRequest(String userId) async {
+    await _dio.post(
+      'following/requests/accept',
+      data: _body({'userId': userId}),
+    );
+  }
+
+  /// フォローリクエストを拒否する（following/requests/reject）
+  Future<void> rejectFollowRequest(String userId) async {
+    await _dio.post(
+      'following/requests/reject',
+      data: _body({'userId': userId}),
+    );
   }
 
   // ---- ドライブ ----

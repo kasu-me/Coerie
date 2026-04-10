@@ -12,25 +12,20 @@ import '../../shared/providers/account_provider.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
 import '../timeline/widgets/note_card.dart';
 import 'pinned_notes_provider.dart';
+import 'follow_requests_sheet.dart';
 
 class _AppBarIcon extends StatelessWidget {
   final IconData icon;
-  final double size;
-  final Color color;
-  final Color shadowColor;
-  final Offset offset;
 
-  const _AppBarIcon(
-    this.icon, {
-    this.size = 24,
-    this.color = Colors.white,
-    this.shadowColor = const Color(0x66000000),
-    this.offset = const Offset(0, 1),
-    Key? key,
-  }) : super(key: key);
+  const _AppBarIcon(this.icon, {Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    const double size = 24;
+    const Color color = Colors.white;
+    const Color shadowColor = Color(0x66000000);
+    const Offset offset = Offset(0, 1);
+
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -409,6 +404,11 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                             onPressed: _showEditProfileSheet,
                             tooltip: 'プロフィールを編集',
                           ),
+                          IconButton(
+                            icon: const _AppBarIcon(Icons.person_add_alt_1),
+                            onPressed: _showFollowRequestsSheet,
+                            tooltip: 'フォローリクエスト',
+                          ),
                         ]
                       : [
                           if (_isLoadingAction)
@@ -776,6 +776,21 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
     }
   }
 
+  Future<void> _showFollowRequestsSheet() async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => FollowRequestsSheet(
+        profileOwnerId: widget.userId,
+        onChanged: () {
+          ref.invalidate(
+            _followListProvider((userId: widget.userId, isFollowing: false)),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildNotesList(
     _ProfileNotesState state,
     _NotesProviderKey providerKey,
@@ -876,7 +891,11 @@ class _FollowListSheet extends ConsumerWidget {
                       : const SizedBox.shrink();
                 }
                 final u = state.users[i];
-                return _FollowUserTile(user: u);
+                return _FollowUserTile(
+                  user: u,
+                  isFollowersList: !isFollowing,
+                  profileOwnerId: userId,
+                );
               },
             ),
           ),
@@ -888,7 +907,13 @@ class _FollowListSheet extends ConsumerWidget {
 
 class _FollowUserTile extends ConsumerStatefulWidget {
   final UserModel user;
-  const _FollowUserTile({required this.user});
+  final bool isFollowersList;
+  final String profileOwnerId;
+  const _FollowUserTile({
+    required this.user,
+    required this.isFollowersList,
+    required this.profileOwnerId,
+  });
 
   @override
   ConsumerState<_FollowUserTile> createState() => _FollowUserTileState();
@@ -921,11 +946,39 @@ class _FollowUserTileState extends ConsumerState<_FollowUserTile> {
     }
   }
 
+  Future<void> _invalidateFollower() async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null || _isLoading) return;
+    setState(() => _isLoading = true);
+    try {
+      await api.invalidateFollower(widget.user.id);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('フォロワーを解除しました')));
+      // リストを更新
+      ref.invalidate(
+        _followListProvider((
+          userId: widget.profileOwnerId,
+          isFollowing: false,
+        )),
+      );
+    } catch (_) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('操作に失敗しました')));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final activeAccount = ref.watch(activeAccountProvider);
     final isOwnAccount = activeAccount?.userId == widget.user.id;
+    final isViewingOwnFollowers =
+        widget.isFollowersList &&
+        (activeAccount?.userId == widget.profileOwnerId);
 
     return ListTile(
       onTap: () => Navigator.pop(context, widget.user.id),
@@ -977,19 +1030,30 @@ class _FollowUserTileState extends ConsumerState<_FollowUserTile> {
               height: 24,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : FilledButton.tonal(
-              onPressed: _toggleFollow,
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                minimumSize: const Size(0, 32),
-                backgroundColor: _isFollowing
-                    ? theme.colorScheme.secondaryContainer
-                    : theme.colorScheme.primary,
-                foregroundColor: _isFollowing
-                    ? theme.colorScheme.onSecondaryContainer
-                    : theme.colorScheme.onPrimary,
-              ),
-              child: Text(_isFollowing ? 'フォロー中' : 'フォロー'),
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isViewingOwnFollowers)
+                  IconButton(
+                    onPressed: _invalidateFollower,
+                    icon: const Icon(Icons.person_remove_alt_1),
+                    tooltip: 'フォロワーを解除',
+                  ),
+                FilledButton.tonal(
+                  onPressed: _toggleFollow,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    minimumSize: const Size(0, 32),
+                    backgroundColor: _isFollowing
+                        ? theme.colorScheme.secondaryContainer
+                        : theme.colorScheme.primary,
+                    foregroundColor: _isFollowing
+                        ? theme.colorScheme.onSecondaryContainer
+                        : theme.colorScheme.onPrimary,
+                  ),
+                  child: Text(_isFollowing ? 'フォロー中' : 'フォロー'),
+                ),
+              ],
             ),
     );
   }
