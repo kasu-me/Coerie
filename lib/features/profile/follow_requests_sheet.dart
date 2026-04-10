@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../data/models/user_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/providers/settings_provider.dart';
 import '../../shared/providers/follow_requests_badge_provider.dart';
 
 class FollowRequestsSheet extends ConsumerStatefulWidget {
@@ -80,6 +81,34 @@ class _FollowRequestsSheetState extends ConsumerState<FollowRequestsSheet> {
   Future<void> _reject(UserModel u, int index) async {
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
+
+    final settings = ref.read(settingsProvider);
+    if (settings.confirmDestructive) {
+      final confirmed =
+          await showDialog<bool>(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('フォローリクエストを拒否'),
+              content: const Text('このフォローリクエストを拒否してもよろしいですか？'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('キャンセル'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('拒否'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (!confirmed) return;
+    }
+
     try {
       await api.rejectFollowRequest(u.id);
       setState(() => _requests.removeAt(index));

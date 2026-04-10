@@ -9,6 +9,7 @@ import '../../data/models/user_field_model.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
+import '../../shared/providers/settings_provider.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
 import '../timeline/widgets/note_card.dart';
 import 'pinned_notes_provider.dart';
@@ -932,6 +933,36 @@ class _FollowUserTileState extends ConsumerState<_FollowUserTile> {
   Future<void> _toggleFollow() async {
     final api = ref.read(misskeyApiProvider);
     if (api == null || _isLoading) return;
+
+    if (_isFollowing) {
+      final settings = ref.read(settingsProvider);
+      if (settings.confirmDestructive) {
+        final confirmed =
+            await showDialog<bool>(
+              context: context,
+              builder: (_) => AlertDialog(
+                title: const Text('フォローを解除'),
+                content: const Text('フォローを解除してもよろしいですか？'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('キャンセル'),
+                  ),
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                    ),
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('解除'),
+                  ),
+                ],
+              ),
+            ) ??
+            false;
+        if (!confirmed) return;
+      }
+    }
+
     setState(() => _isLoading = true);
     try {
       if (_isFollowing) {
@@ -949,6 +980,34 @@ class _FollowUserTileState extends ConsumerState<_FollowUserTile> {
   Future<void> _invalidateFollower() async {
     final api = ref.read(misskeyApiProvider);
     if (api == null || _isLoading) return;
+
+    final settings = ref.read(settingsProvider);
+    if (settings.confirmDestructive) {
+      final confirmed =
+          await showDialog<bool>(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('フォロワーを解除'),
+              content: const Text('このユーザーをフォロワーから解除しますか？'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('キャンセル'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('解除'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (!confirmed) return;
+    }
+
     setState(() => _isLoading = true);
     try {
       await api.invalidateFollower(widget.user.id);
@@ -1082,6 +1141,36 @@ class _FollowButtonState extends ConsumerState<_FollowButton> {
   Future<void> _toggle() async {
     final api = ref.read(misskeyApiProvider);
     if (api == null || _isLoading) return;
+
+    if (_isFollowing) {
+      final settings = ref.read(settingsProvider);
+      if (settings.confirmDestructive) {
+        final confirmed =
+            await showDialog<bool>(
+              context: context,
+              builder: (_) => AlertDialog(
+                title: const Text('フォローを解除'),
+                content: const Text('フォローを解除してもよろしいですか？'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('キャンセル'),
+                  ),
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                    ),
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('解除'),
+                  ),
+                ],
+              ),
+            ) ??
+            false;
+        if (!confirmed) return;
+      }
+    }
+
     setState(() => _isLoading = true);
     try {
       if (_isFollowing) {
