@@ -65,43 +65,46 @@ class _ReportAbuseSheetState extends ConsumerState<ReportAbuseSheet> {
   @override
   Widget build(BuildContext context) {
     final viewInsets = MediaQuery.of(context).viewInsets;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + viewInsets.bottom),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('通報', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _commentController,
-              minLines: 4,
-              maxLines: 8,
-              decoration: const InputDecoration(
-                hintText: '通報理由を入力してください',
-                border: OutlineInputBorder(),
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + viewInsets.bottom),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('通報', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _commentController,
+                minLines: 4,
+                maxLines: 8,
+                decoration: const InputDecoration(
+                  hintText: '通報理由を入力してください',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return '通報理由を入力してください';
+                  }
+                  return null;
+                },
               ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) {
-                  return '通報理由を入力してください';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _isSubmitting ? null : _submit,
-              child: _isSubmitting
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('送信'),
-            ),
-          ],
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _isSubmitting ? null : _submit,
+                child: _isSubmitting
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('送信'),
+              ),
+            ],
+          ),
         ),
       ),
     );
