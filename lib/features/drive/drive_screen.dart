@@ -523,6 +523,12 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
                             _navigateToBreadcrumb(_breadcrumbs.length - 2),
                       ),
                 actions: [
+                  if (!widget.selectionMode)
+                    IconButton(
+                      icon: const Icon(Icons.create_new_folder_outlined),
+                      tooltip: 'フォルダ作成',
+                      onPressed: _showCreateFolderDialog,
+                    ),
                   if (widget.selectionMode)
                     TextButton(
                       onPressed: _selectedIds.isNotEmpty
@@ -628,12 +634,13 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
         mainAxisSpacing: 4,
       ),
       itemCount: itemCount,
-      itemBuilder: (context, index) {
+        itemBuilder: (context, index) {
         // フォルダを先頭に表示
         if (index < _folders.length) {
           return _FolderTile(
             folder: _folders[index],
             onTap: () => _openFolder(_folders[index]),
+            onLongPress: () => _showFolderMenu(_folders[index]),
           );
         }
         final fileIndex = index - _folders.length;
@@ -656,20 +663,169 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       },
     );
   }
+
+  Future<void> _showCreateFolderDialog() async {
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('フォルダの作成'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'フォルダ名'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('キャンセル')),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('作成'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final name = controller.text.trim();
+    if (name.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('フォルダ名を入力してください')));
+      return;
+    }
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+    try {
+      await api.createDriveFolder(name: name, parentId: _currentFolderId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('フォルダを作成しました')));
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('フォルダ作成に失敗しました: $e')));
+    }
+  }
+
+  Future<void> _showFolderMenu(_DriveFolder folder) async {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.folder_open),
+              title: const Text('開く'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _openFolder(folder);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('名前を変更'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _renameFolder(folder);
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.delete_outline,
+                color: Theme.of(ctx).colorScheme.error,
+              ),
+              title: Text('削除', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _deleteFolder(folder);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _renameFolder(_DriveFolder folder) async {
+    final controller = TextEditingController(text: folder.name);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('フォルダ名の変更'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: '新しいフォルダ名'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('キャンセル')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('変更')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final newName = controller.text.trim();
+    if (newName.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('フォルダ名を入力してください')));
+      return;
+    }
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+    try {
+      await api.updateDriveFolder(folder.id, name: newName);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('フォルダ名を変更しました')));
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('変更に失敗しました: $e')));
+    }
+  }
+
+  Future<void> _deleteFolder(_DriveFolder folder) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('フォルダの削除'),
+        content: Text('「${folder.name}」を削除しますか？\nこの操作は取り消せません。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('キャンセル')),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+    try {
+      await api.deleteDriveFolder(folder.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('フォルダを削除しました')));
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
+    }
+  }
 }
 
 // ---- フォルダタイル ----
 class _FolderTile extends StatelessWidget {
   final _DriveFolder folder;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
-  const _FolderTile({required this.folder, required this.onTap});
+  const _FolderTile({required this.folder, required this.onTap, this.onLongPress});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Container(
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerHighest,

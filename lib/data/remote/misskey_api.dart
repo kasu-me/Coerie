@@ -369,6 +369,29 @@ class MisskeyApi {
     await _dio.post('drive/files/update', data: _body(params));
   }
 
+  /// ドライブのフォルダを作成する。parent は null でルート。
+  Future<Map<String, dynamic>> createDriveFolder({
+    required String name,
+    String? parentId,
+  }) async {
+    final params = <String, dynamic>{'name': name};
+    if (parentId != null) params['folderId'] = parentId;
+    final res = await _dio.post('drive/folders/create', data: _body(params));
+    return res.data as Map<String, dynamic>;
+  }
+
+  /// ドライブのフォルダ情報を更新する（名前変更など）。
+  Future<void> updateDriveFolder(String folderId, {String? name}) async {
+    final params = <String, dynamic>{'folderId': folderId};
+    if (name != null) params['name'] = name;
+    await _dio.post('drive/folders/update', data: _body(params));
+  }
+
+  /// ドライブフォルダを削除する。
+  Future<void> deleteDriveFolder(String folderId) async {
+    await _dio.post('drive/folders/delete', data: _body({'folderId': folderId}));
+  }
+
   /// ファイルをDriveにアップロードし、ファイルIDを返す。
   Future<String> uploadFile(
     File file, {
