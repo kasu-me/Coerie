@@ -83,7 +83,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         widget.initialVisibility ??
         ref.read(accountVisibilityProvider(accountId));
 
-    // 返信先がダイレクト（specified）の場合は公開範囲を強制して永続化しない
+    // 返信先がユーザー指定（specified）の場合は公開範囲を強制して永続化しない
     if (widget.replyToNote != null &&
         widget.replyToNote!.visibility == AppConstants.visibilitySpecified) {
       _visibility = AppConstants.visibilitySpecified;
@@ -397,7 +397,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                         : null,
                     onTap: () {
                       setState(() => _visibility = e.key);
-                      // 返信先がダイレクトの場合は変更を永続化しない
+                      // 返信先がユーザー指定の場合は変更を永続化しない
                       if (!_isReplyToDirect) {
                         final accountId =
                             ref.read(activeAccountProvider)?.id ?? '';
@@ -453,7 +453,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                   );
                   setState(() {
                     _selectedAccount = a;
-                    // 返信先がダイレクトの場合は公開範囲を強制（永続化しない）
+                    // 返信先がユーザー指定の場合は公開範囲を強制（永続化しない）
                     _visibility = _isReplyToDirect
                         ? AppConstants.visibilitySpecified
                         : newVisibility;

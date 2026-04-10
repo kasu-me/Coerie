@@ -30,7 +30,7 @@ class AppConstants {
     visibilityPublic: '全体公開',
     visibilityHome: 'ホームのみ',
     visibilityFollowers: 'フォロワーのみ',
-    visibilitySpecified: 'ダイレクト',
+    visibilitySpecified: 'ユーザー指定',
   };
 
   static const Map<String, String> tabTypeLabels = {
