@@ -31,6 +31,8 @@ class ComposeScreen extends ConsumerStatefulWidget {
   final String? draftId;
   final String? replyId;
   final NoteModel? replyToNote;
+  final String? renoteId;
+  final NoteModel? renoteToNote;
   final String? initialText;
   final String? initialVisibility;
   final List<DriveFileModel>? initialFiles;
@@ -43,6 +45,8 @@ class ComposeScreen extends ConsumerStatefulWidget {
     this.draftId,
     this.replyId,
     this.replyToNote,
+    this.renoteId,
+    this.renoteToNote,
     this.initialText,
     this.initialVisibility,
     this.initialFiles,
@@ -104,6 +108,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     if (widget.initialFiles != null && widget.initialFiles!.isNotEmpty) {
       _attachedMedia.addAll(widget.initialFiles!.map((f) => _DriveMedia(f)));
     }
+
+    // 引用の初期化: 特にファイル等は内包しないがプレビュー用に保持
+    // (widget.renoteToNote が提供されれば UI でプレビュー表示される)
 
     if (widget.initialLocalFiles != null &&
         widget.initialLocalFiles!.isNotEmpty) {
@@ -339,6 +346,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         visibility: _visibility,
         fileIds: fileIds,
         replyId: widget.replyId,
+        renoteId: widget.renoteId,
         visibleUserIds: visibleUserIds,
       );
 
@@ -519,6 +527,102 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.outline,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+
+            // 引用プレビュー（引用して投稿する場合）
+            if (widget.renoteToNote != null)
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.format_quote, size: 16),
+                        const SizedBox(width: 6),
+                        Text(
+                          widget.renoteToNote!.user.acct,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (widget.renoteToNote!.text != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          widget.renoteToNote!.text!,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                      ),
+                    if (widget.renoteToNote!.files.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: SizedBox(
+                          height: 80,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: widget.renoteToNote!.files.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: 8),
+                            itemBuilder: (ctx, i) {
+                              final f = widget.renoteToNote!.files[i];
+                              return ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: f.isImage
+                                    ? CachedNetworkImage(
+                                        imageUrl: f.thumbnailUrl ?? f.url,
+                                        width: 140,
+                                        height: 80,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : Container(
+                                        width: 140,
+                                        height: 80,
+                                        color: theme
+                                            .colorScheme
+                                            .surfaceContainerHighest,
+                                        padding: const EdgeInsets.all(8),
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              f.isVideo
+                                                  ? Icons.play_arrow
+                                                  : Icons
+                                                        .insert_drive_file_outlined,
+                                              size: 28,
+                                              color: theme.colorScheme.primary,
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              f.name,
+                                              style: theme.textTheme.labelSmall,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                              );
+                            },
+                          ),
                         ),
                       ),
                   ],

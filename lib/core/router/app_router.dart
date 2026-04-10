@@ -66,10 +66,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           final initialCw = extra?['initialCw'] as String?;
           final initialIsSensitive =
               extra?['initialIsSensitive'] as bool? ?? false;
+          final renoteId = extra?['renoteId'] as String?;
+          final renoteToNote = extra?['renoteToNote'] as NoteModel?;
           return ComposeScreen(
             draftId: draftId,
             replyId: replyId,
             replyToNote: replyToNote,
+            renoteId: renoteId,
+            renoteToNote: renoteToNote,
             initialText: initialText,
             initialVisibility: initialVisibility,
             initialFiles: initialFiles,

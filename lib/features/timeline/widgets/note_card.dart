@@ -976,6 +976,34 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
               },
             ),
+            // 引用してリノート（全員）
+            Builder(
+              builder: (ctx) {
+                final activeAccount = ref.read(activeAccountProvider);
+                final canRenote =
+                    !((widget.note.visibility ==
+                                AppConstants.visibilityFollowers &&
+                            widget.note.user.id != activeAccount?.userId) ||
+                        widget.note.visibility ==
+                            AppConstants.visibilitySpecified);
+                return ListTile(
+                  leading: const Icon(Icons.format_quote),
+                  title: const Text('引用してリノート'),
+                  onTap: canRenote
+                      ? () {
+                          Navigator.pop(sheetCtx);
+                          context.push(
+                            '/compose',
+                            extra: {
+                              'renoteId': widget.note.id,
+                              'renoteToNote': widget.note,
+                            },
+                          );
+                        }
+                      : null,
+                );
+              },
+            ),
             // クリップに追加（全員）
             ListTile(
               leading: const Icon(Icons.bookmark_add_outlined),

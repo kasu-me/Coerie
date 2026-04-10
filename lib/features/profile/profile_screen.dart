@@ -1111,9 +1111,7 @@ class _FollowUserTileState extends ConsumerState<_FollowUserTile> {
     final theme = Theme.of(context);
     final activeAccount = ref.watch(activeAccountProvider);
     final isOwnAccount = activeAccount?.userId == widget.user.id;
-    final isViewingOwnFollowers =
-        widget.isFollowersList &&
-        (activeAccount?.userId == widget.profileOwnerId);
+    // note: isViewingOwnFollowers was unused and removed
 
     return ListTile(
       onTap: () => Navigator.pop(context, widget.user.id),

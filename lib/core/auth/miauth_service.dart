@@ -1,5 +1,4 @@
 ﻿import 'dart:async';
-import 'dart:developer' as developer;
 import 'package:app_links/app_links.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';

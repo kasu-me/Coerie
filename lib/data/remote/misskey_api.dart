@@ -60,6 +60,7 @@ class MisskeyApi {
     String? cw,
     String visibility = 'public',
     String? replyId,
+    String? renoteId,
     List<String> fileIds = const [],
     List<String>? visibleUserIds,
   }) async {
@@ -67,6 +68,7 @@ class MisskeyApi {
     if (text != null && text.isNotEmpty) params['text'] = text;
     if (cw != null && cw.isNotEmpty) params['cw'] = cw;
     if (replyId != null) params['replyId'] = replyId;
+    if (renoteId != null) params['renoteId'] = renoteId;
     if (fileIds.isNotEmpty) params['fileIds'] = fileIds;
     if (visibleUserIds != null && visibleUserIds.isNotEmpty) {
       params['visibleUserIds'] = visibleUserIds;
