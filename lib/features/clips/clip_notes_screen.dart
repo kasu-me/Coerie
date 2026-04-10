@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../shared/providers/account_provider.dart';
 import '../../data/models/clip_model.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
@@ -7,8 +9,9 @@ import '../timeline/widgets/note_card.dart';
 
 class ClipNotesScreen extends ConsumerStatefulWidget {
   final ClipModel clip;
+  final String? host;
 
-  const ClipNotesScreen({super.key, required this.clip});
+  const ClipNotesScreen({super.key, required this.clip, this.host});
 
   @override
   ConsumerState<ClipNotesScreen> createState() => _ClipNotesScreenState();
@@ -137,6 +140,27 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
     }
   }
 
+  Future<void> _openInBrowser() async {
+    final active = ref.read(activeAccountProvider);
+    final host = widget.host ?? active?.host;
+    if (host == null || host.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('ホストが指定されていません')));
+      }
+      return;
+    }
+    final uri = Uri.parse('https://$host/clips/${widget.clip.id}');
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('ブラウザを開けませんでした')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -159,6 +183,17 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
         ),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              if (v == 'open_browser') _openInBrowser();
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'open_browser',
+                child: Text('ブラウザで開く'),
+              ),
+            ],
+          ),
         ],
       ),
       body: SafeArea(bottom: true, child: _buildBody()),

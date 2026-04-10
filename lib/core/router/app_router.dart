@@ -221,7 +221,7 @@ class _ClipLoader extends ConsumerWidget {
           );
         }
         final clip = snapshot.data!;
-        return ClipNotesScreen(clip: clip);
+        return ClipNotesScreen(clip: clip, host: host);
       },
     );
   }
