@@ -43,6 +43,7 @@ class NoteCard extends ConsumerStatefulWidget {
   final bool isMyRenote;
   final String? renoteWrapperNoteId;
   final UserModel? pinnedByUser;
+  final VoidCallback? onPinnedChanged;
   const NoteCard({
     super.key,
     required this.note,
@@ -51,6 +52,7 @@ class NoteCard extends ConsumerStatefulWidget {
     this.isMyRenote = false,
     this.renoteWrapperNoteId,
     this.pinnedByUser,
+    this.onPinnedChanged,
   });
 
   @override
@@ -97,36 +99,6 @@ class _NoteCardState extends ConsumerState<NoteCard> {
     });
   }
 
-  @override
-  void didUpdateWidget(NoteCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // タイムライン更新でnoteが差し替わった場合に同期
-    if (oldWidget.note.id != widget.note.id) {
-      _localReactions = Map.from(widget.note.reactions);
-      _myReaction = widget.note.myReaction;
-      _cwExpanded = false;
-      _revealedSensitiveIndexes.clear();
-      // 購読し直し
-      final streaming = ref.read(streamingServiceProvider);
-      if (streaming != null) {
-        _noteUpdateSub?.cancel();
-        streaming.unsubNote(oldWidget.note.id);
-        streaming.subNote(widget.note.id);
-        _noteUpdateSub = streaming.noteUpdateStream
-            .where((e) => e.noteId == widget.note.id)
-            .listen(_onNoteUpdate);
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _noteUpdateSub?.cancel();
-    final streaming = ref.read(streamingServiceProvider);
-    streaming?.unsubNote(widget.note.id);
-    super.dispose();
-  }
-
   // リアクション Chip またはピッカーからのリアクション操作を一元処理
   Future<void> _handleReaction(String reaction) async {
     final api = ref.read(misskeyApiProvider);
@@ -168,6 +140,28 @@ class _NoteCardState extends ConsumerState<NoteCard> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('エラー: $e')));
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(NoteCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // タイムライン更新でnoteが差し替わった場合に同期
+    if (oldWidget.note.id != widget.note.id) {
+      _localReactions = Map.from(widget.note.reactions);
+      _myReaction = widget.note.myReaction;
+      _cwExpanded = false;
+      _revealedSensitiveIndexes.clear();
+      // 購読し直し
+      final streaming = ref.read(streamingServiceProvider);
+      if (streaming != null) {
+        _noteUpdateSub?.cancel();
+        streaming.unsubNote(oldWidget.note.id);
+        streaming.subNote(widget.note.id);
+        _noteUpdateSub = streaming.noteUpdateStream
+            .where((e) => e.noteId == widget.note.id)
+            .listen(_onNoteUpdate);
       }
     }
   }
@@ -623,7 +617,11 @@ class _NoteCardState extends ConsumerState<NoteCard> {
               ),
 
             // アクションボタン
-            _ActionBar(note: note, onReaction: _handleReaction),
+            _ActionBar(
+              note: note,
+              onReaction: _handleReaction,
+              onPinnedChanged: widget.onPinnedChanged,
+            ),
           ],
         ),
       ),
@@ -792,8 +790,13 @@ class _ReactionChip extends StatelessWidget {
 class _ActionBar extends ConsumerStatefulWidget {
   final NoteModel note;
   final Future<void> Function(String reaction) onReaction;
+  final VoidCallback? onPinnedChanged;
 
-  const _ActionBar({required this.note, required this.onReaction});
+  const _ActionBar({
+    required this.note,
+    required this.onReaction,
+    this.onPinnedChanged,
+  });
 
   @override
   ConsumerState<_ActionBar> createState() => _ActionBarState();
@@ -909,6 +912,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                                       content: Text('ピン留めを解除しました'),
                                     ),
                                   );
+                                  widget.onPinnedChanged?.call();
                                 }
                               } else {
                                 await api.pinNote(widget.note.id);
@@ -916,6 +920,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(content: Text('ピン留めしました')),
                                   );
+                                  widget.onPinnedChanged?.call();
                                 }
                               }
                             } catch (e) {

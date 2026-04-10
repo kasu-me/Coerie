@@ -694,7 +694,12 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                     delegate: SliverChildBuilderDelegate((context, i) {
                       final notes = pinnedAsync.value!;
                       if (i >= notes.length) return null;
-                      return NoteCard(note: notes[i], pinnedByUser: user);
+                      return NoteCard(
+                        note: notes[i],
+                        pinnedByUser: user,
+                        onPinnedChanged: () =>
+                            ref.invalidate(_pinnedNotesProvider(widget.userId)),
+                      );
                     }, childCount: pinnedAsync.value!.length),
                   ),
                   const SliverToBoxAdapter(child: Divider(height: 1)),
