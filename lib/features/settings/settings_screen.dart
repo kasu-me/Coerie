@@ -39,10 +39,13 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
 
+          // --- タイムライン（大カテゴリ）---
+          _SectionHeader('タイムライン'),
+
           // --- フォントサイズ ---
-          _SectionHeader('フォントサイズ'),
+          _SubSectionHeader('フォントサイズ'),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.fromLTRB(24, 8, 16, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -65,9 +68,9 @@ class SettingsScreen extends ConsumerWidget {
           ),
 
           // --- アイコンサイズ ---
-          _SectionHeader('アイコンサイズ'),
+          _SubSectionHeader('アイコンサイズ'),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.fromLTRB(24, 8, 16, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -89,9 +92,10 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
 
-          // --- リアルタイム更新 ---
-          _SectionHeader('タイムライン'),
+          // --- ノート ---
+          _SubSectionHeader('ノート'),
           SwitchListTile(
+            contentPadding: const EdgeInsets.only(left: 24, right: 16),
             title: const Text('リアルタイム更新'),
             subtitle: const Text('WebSocketでタイムラインを自動更新する'),
             value: settings.realtimeUpdate,
@@ -99,6 +103,7 @@ class SettingsScreen extends ConsumerWidget {
                 ref.read(settingsProvider.notifier).setRealtimeUpdate(v),
           ),
           SwitchListTile(
+            contentPadding: const EdgeInsets.only(left: 24, right: 16),
             title: const Text('投稿日時を相対表示'),
             subtitle: Text(
               settings.dateTimeRelative ? '例: 3分前、2時間前' : '例: 2026/03/30 12:34',
@@ -109,6 +114,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           if (!settings.dateTimeRelative)
             ListTile(
+              contentPadding: const EdgeInsets.only(left: 24, right: 16),
               leading: const Icon(Icons.schedule),
               title: const Text('絶対時刻のタイムゾーン'),
               subtitle: Text(_timezoneLabel(settings.timezoneOffsetHours)),
@@ -117,6 +123,7 @@ class SettingsScreen extends ConsumerWidget {
                   _pickTimezone(context, ref, settings.timezoneOffsetHours),
             ),
           SwitchListTile(
+            contentPadding: const EdgeInsets.only(left: 24, right: 16),
             title: const Text('MFMアニメーション'),
             subtitle: const Text('スピン・レインボーなどのアニメーション効果を有効にする'),
             value: settings.mfmAnimation,
@@ -124,6 +131,7 @@ class SettingsScreen extends ConsumerWidget {
                 ref.read(settingsProvider.notifier).setMfmAnimation(v),
           ),
           SwitchListTile(
+            contentPadding: const EdgeInsets.only(left: 24, right: 16),
             title: const Text('長い投稿を省略表示'),
             subtitle: const Text('一定の高さを超えた投稿を折りたたみ「続きを読む」ボタンを表示する'),
             value: settings.collapseNote,
@@ -449,13 +457,33 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
       child: Text(
         title,
         style: TextStyle(
-          fontSize: 12,
+          fontSize: 16,
           fontWeight: FontWeight.bold,
           color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
+    );
+  }
+}
+
+class _SubSectionHeader extends StatelessWidget {
+  final String title;
+  const _SubSectionHeader(this.title);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).colorScheme.secondary,
         ),
       ),
     );
