@@ -21,6 +21,7 @@ const _permissions = [
   'read:blocks',
   'write:blocks',
   'write:report-abuse',
+  'write:votes',
 ];
 
 /// MiAuth をアプリ内 WebView で完結させる画面。
