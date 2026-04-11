@@ -17,6 +17,7 @@ class MfmContent extends StatelessWidget {
   final Map<String, String> emojiUrlMap;
   final TextStyle? style;
   final bool enableAnimations;
+  final void Function(String username, String? host)? onMentionTap;
 
   const MfmContent({
     super.key,
@@ -24,6 +25,7 @@ class MfmContent extends StatelessWidget {
     this.emojiUrlMap = const {},
     this.style,
     this.enableAnimations = false,
+    this.onMentionTap,
   });
 
   // ---- 静的ユーティリティ ----
@@ -349,7 +351,7 @@ class MfmContent extends StatelessWidget {
           style: style.copyWith(color: theme.colorScheme.primary),
           recognizer: TapGestureRecognizer()
             ..onTap = () {
-              // TODO: プロフィールページへのナビゲーション
+              onMentionTap?.call(node.username, node.host);
             },
         ),
       ];

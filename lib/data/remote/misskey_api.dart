@@ -196,6 +196,16 @@ class MisskeyApi {
     return UserModel.fromJson(res.data as Map<String, dynamic>, host: host);
   }
 
+  Future<UserModel> getUserByUsername(
+    String username, {
+    String? userHost,
+  }) async {
+    final params = <String, dynamic>{'username': username};
+    if (userHost != null) params['host'] = userHost;
+    final res = await _dio.post('users/show', data: _body(params));
+    return UserModel.fromJson(res.data as Map<String, dynamic>, host: host);
+  }
+
   Future<List<NoteModel>> getUserNotes({
     required String userId,
     int limit = 20,

@@ -108,6 +108,21 @@ class _NoteCardState extends ConsumerState<NoteCard> {
     });
   }
 
+  Future<void> _onMentionTap(String username, String? host) async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+    try {
+      final user = await api.getUserByUsername(username, userHost: host);
+      if (mounted) context.push('/profile/${user.id}');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ユーザーが見つかりませんでした: @$username')));
+      }
+    }
+  }
+
   Future<void> _handleVote(int idx) async {
     final api = ref.read(misskeyApiProvider);
     if (api == null || _localPoll == null || _isVoting) return;
@@ -615,6 +630,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                           emojiUrlMap: emojiUrlMap,
                           style: TextStyle(fontSize: settings.fontSize),
                           enableAnimations: settings.mfmAnimation,
+                          onMentionTap: _onMentionTap,
                         ),
                       )
                     : MfmContent(
@@ -622,6 +638,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                         emojiUrlMap: emojiUrlMap,
                         style: TextStyle(fontSize: settings.fontSize),
                         enableAnimations: settings.mfmAnimation,
+                        onMentionTap: _onMentionTap,
                       ),
               ),
 
@@ -633,6 +650,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                   note: note.renote!,
                   emojiUrlMap: emojiUrlMap,
                   fontSize: settings.fontSize,
+                  onMentionTap: _onMentionTap,
                 ),
               ),
 
@@ -805,11 +823,13 @@ class _QuotedNote extends StatelessWidget {
   final NoteModel note;
   final Map<String, String> emojiUrlMap;
   final double fontSize;
+  final void Function(String username, String? host)? onMentionTap;
 
   const _QuotedNote({
     required this.note,
     this.emojiUrlMap = const {},
     this.fontSize = 14.0,
+    this.onMentionTap,
   });
 
   @override
@@ -875,6 +895,7 @@ class _QuotedNote extends StatelessWidget {
                   emojiUrlMap: emojiUrlMap,
                   style: TextStyle(fontSize: fontSize * 0.95),
                   enableAnimations: false,
+                  onMentionTap: onMentionTap,
                 ),
               ),
             if (displayNote.files.isNotEmpty)
