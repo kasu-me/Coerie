@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/providers/account_provider.dart';
+import '../auth/miauth_webview_screen.dart';
 
 class AccountSettingsScreen extends ConsumerWidget {
   const AccountSettingsScreen({super.key});
@@ -28,6 +29,17 @@ class AccountSettingsScreen extends ConsumerWidget {
                       padding: EdgeInsets.zero,
                     ),
                   IconButton(
+                    icon: const Icon(Icons.key_outlined),
+                    tooltip: 'トークンを再取得',
+                    onPressed: () => _reauthorize(
+                      context,
+                      ref,
+                      account.id,
+                      account.host,
+                      account.name,
+                    ),
+                  ),
+                  IconButton(
                     icon: const Icon(Icons.delete_outline),
                     onPressed: () => _confirmRemoveAccount(
                       context,
@@ -48,6 +60,50 @@ class AccountSettingsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _reauthorize(
+    BuildContext context,
+    WidgetRef ref,
+    String id,
+    String host,
+    String name,
+  ) async {
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('トークンを再取得'),
+            content: Text('$name のトークンを再取得しますか？\n認証画面が開きます。'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('キャンセル'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('続ける'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+
+    if (!context.mounted) return;
+    final result = await Navigator.of(context)
+        .push<({String token, dynamic user})>(
+          MaterialPageRoute(builder: (_) => MiAuthWebViewScreen(host: host)),
+        );
+
+    if (result == null) return;
+    await ref.read(accountProvider.notifier).updateToken(id, result.token);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('トークンを更新しました')));
+    }
   }
 
   Future<void> _confirmRemoveAccount(

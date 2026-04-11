@@ -59,6 +59,24 @@ class AccountNotifier extends StateNotifier<List<AccountModel>> {
     _load();
   }
 
+  /// トークンを更新する（トークン失効・権限追加時の再取得に使用）
+  Future<void> updateToken(String accountId, String newToken) async {
+    final box = HiveService.accountsBox;
+    final account = state.firstWhere((a) => a.id == accountId);
+    final updated = AccountModel(
+      id: account.id,
+      host: account.host,
+      token: newToken,
+      userId: account.userId,
+      username: account.username,
+      name: account.name,
+      avatarUrl: account.avatarUrl,
+      isActive: account.isActive,
+    );
+    await box.put(accountId, updated);
+    _load();
+  }
+
   /// インポート用: 既存IDと重複しないアカウントのみ追加する（アクティブ状態を変更しない）
   Future<void> importAccounts(List<AccountModel> accounts) async {
     final box = HiveService.accountsBox;
