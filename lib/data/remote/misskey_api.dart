@@ -63,6 +63,7 @@ class MisskeyApi {
     String? renoteId,
     List<String> fileIds = const [],
     List<String>? visibleUserIds,
+    Map<String, dynamic>? poll,
   }) async {
     final params = <String, dynamic>{'visibility': visibility};
     if (text != null && text.isNotEmpty) params['text'] = text;
@@ -73,11 +74,23 @@ class MisskeyApi {
     if (visibleUserIds != null && visibleUserIds.isNotEmpty) {
       params['visibleUserIds'] = visibleUserIds;
     }
+    if (poll != null) {
+      params['poll'] = poll;
+    }
 
     final res = await _dio.post('notes/create', data: _body(params));
     return NoteModel.fromJson(
       (res.data as Map<String, dynamic>)['createdNote'] as Map<String, dynamic>,
       host: host,
+    );
+  }
+
+  // ---- 投票 ----
+
+  Future<void> votePoll(String noteId, int choice) async {
+    await _dio.post(
+      'notes/polls/vote',
+      data: _body({'noteId': noteId, 'choice': choice}),
     );
   }
 

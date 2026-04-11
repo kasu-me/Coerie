@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/clip_model.dart';
 import '../../../data/models/note_model.dart';
+import '../../../data/models/poll_model.dart';
 import '../../../data/models/user_model.dart';
 import '../../../shared/widgets/media_player_screen.dart';
 import '../../../core/constants/app_constants.dart';
@@ -68,12 +69,15 @@ class _NoteCardState extends ConsumerState<NoteCard> {
   bool _cwExpanded = false;
   final Set<int> _revealedSensitiveIndexes = {};
   StreamSubscription<NoteUpdateEvent>? _noteUpdateSub;
+  PollModel? _localPoll;
+  bool _isVoting = false;
 
   @override
   void initState() {
     super.initState();
     _localReactions = Map.from(widget.note.reactions);
     _myReaction = widget.note.myReaction;
+    _localPoll = widget.note.poll;
     WidgetsBinding.instance.addPostFrameCallback((_) => _subscribeNote());
   }
 
@@ -92,6 +96,8 @@ class _NoteCardState extends ConsumerState<NoteCard> {
     final activeUserId = ref.read(activeAccountProvider)?.userId;
     // 自分の操作は _handleReaction で既に反映済みなのでスキップ
     if (event.userId == activeUserId) return;
+    // 投票イベントはここでは処理しない（ローカル更新は投票操作時に行う）
+    if (event.type == 'pollVoted') return;
 
     setState(() {
       if (event.type == 'reacted' && event.reaction != null) {
@@ -100,6 +106,45 @@ class _NoteCardState extends ConsumerState<NoteCard> {
         _decrementReaction(event.reaction!);
       }
     });
+  }
+
+  Future<void> _handleVote(int idx) async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null || _localPoll == null || _isVoting) return;
+    final choice = _localPoll!.choices[idx];
+    if (choice.isVoted) return;
+    if (!_localPoll!.multiple && _localPoll!.choices.any((c) => c.isVoted)) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('既に投票済みです')));
+      return;
+    }
+
+    setState(() => _isVoting = true);
+    try {
+      await api.votePoll(widget.note.id, idx);
+      // optimistic update
+      final updated = _localPoll!.choices.map((c) => c).toList();
+      final prev = updated[idx];
+      updated[idx] = PollChoiceModel(
+        text: prev.text,
+        votes: prev.votes + 1,
+        isVoted: true,
+      );
+      _localPoll = PollModel(
+        multiple: _localPoll!.multiple,
+        expiresAt: _localPoll!.expiresAt,
+        choices: updated,
+      );
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('投票に失敗しました: $e')));
+    } finally {
+      if (mounted) setState(() => _isVoting = false);
+    }
   }
 
   // リアクション Chip またはピッカーからのリアクション操作を一元処理
@@ -156,6 +201,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
       _myReaction = widget.note.myReaction;
       _cwExpanded = false;
       _revealedSensitiveIndexes.clear();
+      _localPoll = widget.note.poll;
       // 購読し直し
       final streaming = ref.read(streamingServiceProvider);
       if (streaming != null) {
@@ -608,6 +654,82 @@ class _NoteCardState extends ConsumerState<NoteCard> {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: _MediaGrid(files: note.files),
+              ),
+
+            // 投票（Poll）がある場合の表示
+            if (_localPoll != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: List.generate(_localPoll!.choices.length, (i) {
+                    final choice = _localPoll!.choices[i];
+                    final total = _localPoll!.choices.fold<int>(
+                      0,
+                      (p, e) => p + e.votes,
+                    );
+                    final pct = total > 0 ? (choice.votes / total) : 0.0;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: InkWell(
+                        onTap: _isVoting ? null : () => _handleVote(i),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: choice.isVoted
+                                ? Theme.of(context).colorScheme.surfaceVariant
+                                : Theme.of(context).colorScheme.surface,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.outlineVariant,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      choice.text,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '${choice.votes}票',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: pct,
+                                  minHeight: 6,
+                                  backgroundColor: Theme.of(
+                                    context,
+                                  ).colorScheme.surfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
               ),
 
             // リアクション（ローカル状態から表示）

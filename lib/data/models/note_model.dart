@@ -1,4 +1,5 @@
 import 'user_model.dart';
+import 'poll_model.dart';
 
 class DriveFileModel {
   final String id;
@@ -72,6 +73,7 @@ class NoteModel {
 
   /// リモートノートの ActivityPub URI（リモートアカウントのノートのみ）
   final String? uri;
+  final PollModel? poll;
 
   const NoteModel({
     required this.id,
@@ -91,6 +93,7 @@ class NoteModel {
     this.renote,
     this.url,
     this.uri,
+    this.poll,
   });
 
   static const _sentinel = Object();
@@ -100,6 +103,7 @@ class NoteModel {
     Object? myReaction = _sentinel,
     int? repliesCount,
     int? renoteCount,
+    PollModel? poll,
   }) => NoteModel(
     id: id,
     createdAt: createdAt,
@@ -120,6 +124,7 @@ class NoteModel {
     renote: renote,
     url: url,
     uri: uri,
+    poll: poll ?? this.poll,
   );
 
   factory NoteModel.fromJson(Map<String, dynamic> json, {String host = ''}) {
@@ -174,6 +179,9 @@ class NoteModel {
           : null,
       url: json['url'] as String?,
       uri: json['uri'] as String?,
+      poll: json['poll'] != null && json['poll'] is Map<String, dynamic>
+          ? PollModel.fromJson(json['poll'] as Map<String, dynamic>)
+          : null,
     );
   }
 }

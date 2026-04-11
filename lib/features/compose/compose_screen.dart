@@ -72,6 +72,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   bool _isReplyToDirect = false;
   List<Map<String, dynamic>> _emojiSuggestions = [];
   AccountModel? _selectedAccount;
+  Map<String, dynamic>? _poll;
 
   @override
   void initState() {
@@ -348,6 +349,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         replyId: widget.replyId,
         renoteId: widget.renoteId,
         visibleUserIds: visibleUserIds,
+        poll: _poll,
       );
 
       if (_currentDraftId != null) {
@@ -372,6 +374,182 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       }
     } finally {
       if (mounted) setState(() => _isPosting = false);
+    }
+  }
+
+  Future<void> _showPollEditor() async {
+    // Prepare controllers and state outside the modal builder so they persist across rebuilds
+    final existing = _poll;
+    final initChoices = (existing != null && existing['choices'] is List)
+        ? List<String>.from(existing['choices'] as List)
+        : <String>['', ''];
+    final controllers = initChoices
+        .map((s) => TextEditingController(text: s))
+        .toList();
+    bool multiple = existing != null
+        ? (existing['multiple'] as bool? ?? false)
+        : false;
+    int expiresHours = 0;
+    if (existing != null && existing['expiresAt'] is String) {
+      try {
+        final dt = DateTime.parse(existing['expiresAt'] as String);
+        expiresHours = dt.difference(DateTime.now()).inHours.clamp(0, 9999);
+      } catch (_) {}
+    }
+
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(ctx).bottom,
+            left: 16,
+            right: 16,
+            top: 12,
+          ),
+          child: StatefulBuilder(
+            builder: (c, setModalState) {
+              void addChoice() {
+                if (controllers.length >= 6) return;
+                controllers.add(TextEditingController());
+                setModalState(() {});
+              }
+
+              void removeChoice(int idx) {
+                if (controllers.length <= 2) return;
+                controllers.removeAt(idx);
+                setModalState(() {});
+              }
+
+              return SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          const Text(
+                            '投票を作成',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('キャンセル'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    ...List.generate(controllers.length, (i) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: controllers[i],
+                                decoration: InputDecoration(
+                                  hintText: '選択肢 ${i + 1}',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            if (controllers.length > 2)
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline),
+                                onPressed: () => removeChoice(i),
+                              ),
+                          ],
+                        ),
+                      );
+                    }),
+                    Row(
+                      children: [
+                        TextButton.icon(
+                          onPressed: addChoice,
+                          icon: const Icon(Icons.add),
+                          label: const Text('選択肢を追加'),
+                        ),
+                        const Spacer(),
+                      ],
+                    ),
+                    SwitchListTile(
+                      value: multiple,
+                      onChanged: (v) => setModalState(() => multiple = v),
+                      title: const Text('複数選択を許可'),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          const Text('有効期限（時間）:'),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 90,
+                            child: TextField(
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                hintText: '0 (無期限)',
+                              ),
+                              onChanged: (v) => setModalState(
+                                () => expiresHours = int.tryParse(v) ?? 0,
+                              ),
+                              controller: TextEditingController(
+                                text: expiresHours > 0 ? '$expiresHours' : '',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              final choices = controllers
+                                  .map((c) => c.text.trim())
+                                  .where((s) => s.isNotEmpty)
+                                  .toList();
+                              if (choices.length < 2) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('選択肢は2つ以上必要です')),
+                                );
+                                return;
+                              }
+                              final Map<String, dynamic> out = {
+                                'choices': choices,
+                                'multiple': multiple,
+                              };
+                              if (expiresHours > 0) {
+                                out['expiresAt'] = DateTime.now()
+                                    .add(Duration(hours: expiresHours))
+                                    .toIso8601String();
+                                out['expiresHours'] = expiresHours;
+                              }
+                              Navigator.pop(ctx, out);
+                            },
+                            child: const Text('保存'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    if (result != null) {
+      setState(() => _poll = result);
     }
   }
 
@@ -690,6 +868,48 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                 onSelect: _insertEmojiSuggestion,
               ),
 
+            // 投票プレビュー
+            if (_poll != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                    color: theme.colorScheme.surfaceContainerHighest,
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.poll, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          (_poll?['choices'] as List<dynamic>)
+                              .take(3)
+                              .join(' / '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if ((_poll?['multiple'] as bool? ?? false))
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: Text('複数可', style: theme.textTheme.labelSmall),
+                        ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        tooltip: '投票を削除',
+                        onPressed: () => setState(() => _poll = null),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
             // 添付画像プレビュー（テキストエリアとフッターの間）
             if (_attachedMedia.isNotEmpty)
               Padding(
@@ -910,6 +1130,16 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                       tooltip: 'センシティブコンテンツ',
                       onPressed: () =>
                           setState(() => _isSensitive = !_isSensitive),
+                    ),
+
+                    // 投票作成
+                    IconButton(
+                      icon: Icon(
+                        Icons.poll,
+                        color: _poll != null ? theme.colorScheme.primary : null,
+                      ),
+                      tooltip: '投票を追加',
+                      onPressed: _isPosting ? null : _showPollEditor,
                     ),
 
                     // 絵文字ピッカー
