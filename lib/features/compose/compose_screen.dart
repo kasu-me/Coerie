@@ -401,148 +401,154 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       context: context,
       isScrollControlled: true,
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(ctx).bottom,
-            left: 16,
-            right: 16,
-            top: 12,
-          ),
-          child: StatefulBuilder(
-            builder: (c, setModalState) {
-              void addChoice() {
-                if (controllers.length >= 6) return;
-                controllers.add(TextEditingController());
-                setModalState(() {});
-              }
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.only(
+              // keyboard inset + system nav bar safe area will be respected by SafeArea
+              bottom: MediaQuery.viewInsetsOf(ctx).bottom,
+              left: 16,
+              right: 16,
+              top: 12,
+            ),
+            child: StatefulBuilder(
+              builder: (c, setModalState) {
+                void addChoice() {
+                  if (controllers.length >= 6) return;
+                  controllers.add(TextEditingController());
+                  setModalState(() {});
+                }
 
-              void removeChoice(int idx) {
-                if (controllers.length <= 2) return;
-                controllers.removeAt(idx);
-                setModalState(() {});
-              }
+                void removeChoice(int idx) {
+                  if (controllers.length <= 2) return;
+                  controllers.removeAt(idx);
+                  setModalState(() {});
+                }
 
-              return SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        children: [
-                          const Text(
-                            '投票を作成',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const Spacer(),
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: const Text('キャンセル'),
-                          ),
-                        ],
-                      ),
-                    ),
-                    ...List.generate(controllers.length, (i) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
+                return SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Row(
                           children: [
-                            Expanded(
+                            const Text(
+                              '投票を作成',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            const Spacer(),
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('キャンセル'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ...List.generate(controllers.length, (i) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: controllers[i],
+                                  decoration: InputDecoration(
+                                    hintText: '選択肢 ${i + 1}',
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              if (controllers.length > 2)
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline),
+                                  onPressed: () => removeChoice(i),
+                                ),
+                            ],
+                          ),
+                        );
+                      }),
+                      Row(
+                        children: [
+                          TextButton.icon(
+                            onPressed: addChoice,
+                            icon: const Icon(Icons.add),
+                            label: const Text('選択肢を追加'),
+                          ),
+                          const Spacer(),
+                        ],
+                      ),
+                      SwitchListTile(
+                        value: multiple,
+                        onChanged: (v) => setModalState(() => multiple = v),
+                        title: const Text('複数選択を許可'),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          children: [
+                            const Text('有効期限（時間）:'),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 90,
                               child: TextField(
-                                controller: controllers[i],
-                                decoration: InputDecoration(
-                                  hintText: '選択肢 ${i + 1}',
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  hintText: '0 (無期限)',
+                                ),
+                                onChanged: (v) => setModalState(
+                                  () => expiresHours = int.tryParse(v) ?? 0,
+                                ),
+                                controller: TextEditingController(
+                                  text: expiresHours > 0 ? '$expiresHours' : '',
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            if (controllers.length > 2)
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline),
-                                onPressed: () => removeChoice(i),
-                              ),
                           ],
                         ),
-                      );
-                    }),
-                    Row(
-                      children: [
-                        TextButton.icon(
-                          onPressed: addChoice,
-                          icon: const Icon(Icons.add),
-                          label: const Text('選択肢を追加'),
-                        ),
-                        const Spacer(),
-                      ],
-                    ),
-                    SwitchListTile(
-                      value: multiple,
-                      onChanged: (v) => setModalState(() => multiple = v),
-                      title: const Text('複数選択を許可'),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Row(
+                      ),
+                      Row(
                         children: [
-                          const Text('有効期限（時間）:'),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            width: 90,
-                            child: TextField(
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                isDense: true,
-                                hintText: '0 (無期限)',
-                              ),
-                              onChanged: (v) => setModalState(
-                                () => expiresHours = int.tryParse(v) ?? 0,
-                              ),
-                              controller: TextEditingController(
-                                text: expiresHours > 0 ? '$expiresHours' : '',
-                              ),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                final choices = controllers
+                                    .map((c) => c.text.trim())
+                                    .where((s) => s.isNotEmpty)
+                                    .toList();
+                                if (choices.length < 2) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('選択肢は2つ以上必要です'),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                final Map<String, dynamic> out = {
+                                  'choices': choices,
+                                  'multiple': multiple,
+                                };
+                                if (expiresHours > 0) {
+                                  out['expiresAt'] = DateTime.now()
+                                      .add(Duration(hours: expiresHours))
+                                      .toIso8601String();
+                                  out['expiresHours'] = expiresHours;
+                                }
+                                Navigator.pop(ctx, out);
+                              },
+                              child: const Text('保存'),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () {
-                              final choices = controllers
-                                  .map((c) => c.text.trim())
-                                  .where((s) => s.isNotEmpty)
-                                  .toList();
-                              if (choices.length < 2) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('選択肢は2つ以上必要です')),
-                                );
-                                return;
-                              }
-                              final Map<String, dynamic> out = {
-                                'choices': choices,
-                                'multiple': multiple,
-                              };
-                              if (expiresHours > 0) {
-                                out['expiresAt'] = DateTime.now()
-                                    .add(Duration(hours: expiresHours))
-                                    .toIso8601String();
-                                out['expiresHours'] = expiresHours;
-                              }
-                              Navigator.pop(ctx, out);
-                            },
-                            child: const Text('保存'),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                ),
-              );
-            },
+                      const SizedBox(height: 12),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         );
       },
