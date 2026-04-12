@@ -22,7 +22,25 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
   bool _isLoading = false;
   bool _hasMore = true;
   String? _error;
+  // false: newest first（降順）, true: oldest first（昇順）
+  bool _ascending = false;
   final _scrollController = ScrollController();
+
+  void _sortNotes() {
+    _notes.sort(
+      (a, b) => _ascending
+          ? a.createdAt.compareTo(b.createdAt)
+          : b.createdAt.compareTo(a.createdAt),
+    );
+  }
+
+  /// ページネーション用に常に最古ノートのIDを返す
+  String? get _oldestNoteId {
+    if (_notes.isEmpty) return null;
+    return _notes
+        .reduce((a, b) => a.createdAt.isBefore(b.createdAt) ? a : b)
+        .id;
+  }
 
   @override
   void initState() {
@@ -60,6 +78,7 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
       if (mounted) {
         setState(() {
           _notes = notes;
+          _sortNotes();
           _hasMore = notes.length >= 20;
         });
       }
@@ -79,11 +98,12 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
       final more = await api.getClipNotes(
         clipId: widget.clip.id,
         limit: 20,
-        untilId: _notes.last.id,
+        untilId: _oldestNoteId,
       );
       if (mounted) {
         setState(() {
           _notes.addAll(more);
+          _sortNotes();
           _hasMore = more.length >= 20;
         });
       }
@@ -95,6 +115,41 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// 昇順切り替え時に未読込の古いノートを全て取得する
+  Future<void> _ensureAllLoaded() async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+    setState(() => _isLoading = true);
+    try {
+      while (_hasMore) {
+        final more = await api.getClipNotes(
+          clipId: widget.clip.id,
+          limit: 100,
+          untilId: _oldestNoteId,
+        );
+        if (!mounted) return;
+        setState(() {
+          _notes.addAll(more);
+          _hasMore = more.length >= 100;
+        });
+        if (more.isEmpty) break;
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('読み込みに失敗しました: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _sortNotes();
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -182,6 +237,22 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            icon: Icon(_ascending ? Icons.arrow_upward : Icons.arrow_downward),
+            tooltip: _ascending ? '古い順（昇順）' : '新しい順（降順）',
+            onPressed: _isLoading
+                ? null
+                : () async {
+                    final toAscending = !_ascending;
+                    setState(() => _ascending = toAscending);
+                    if (toAscending && _hasMore) {
+                      // 未読込の古いノートを全て取得してから昇順表示
+                      await _ensureAllLoaded();
+                    } else {
+                      setState(() => _sortNotes());
+                    }
+                  },
+          ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
           PopupMenuButton<String>(
             onSelected: (v) {

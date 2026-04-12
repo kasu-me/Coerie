@@ -20,11 +20,21 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
   List<ClipModel> _clips = [];
   bool _isLoading = false;
   String? _error;
+  // false: newest first (降順), true: oldest first (昇順)
+  bool _ascending = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  void _sortClips() {
+    _clips.sort((a, b) {
+      return _ascending
+          ? a.createdAt.compareTo(b.createdAt)
+          : b.createdAt.compareTo(a.createdAt);
+    });
   }
 
   Future<void> _load() async {
@@ -36,7 +46,11 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
     if (api == null) return;
     try {
       final clips = await api.getClips(userId: widget.ownerUserId);
-      if (mounted) setState(() => _clips = clips);
+      if (mounted)
+        setState(() {
+          _clips = clips;
+          _sortClips();
+        });
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {
@@ -285,6 +299,16 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
               : 'クリップ',
         ),
         actions: [
+          IconButton(
+            icon: Icon(_ascending ? Icons.arrow_upward : Icons.arrow_downward),
+            tooltip: _ascending ? '古い順（昇順）' : '新しい順（降順）',
+            onPressed: () {
+              setState(() {
+                _ascending = !_ascending;
+                _sortClips();
+              });
+            },
+          ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),
