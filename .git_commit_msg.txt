@@ -1,5 +1,0 @@
-fix: 複数の機能の改善
-
-- 日本語フォントを優先して表示するよう修正（google_fonts導入、AppThemeに Noto Sans JP を設定、MaterialAppに locale: ja_JP を追加）
-- 削除して再編集で添付ファイルを保持するよう修正（/compose に initialFiles を渡し、ComposeScreenで復元）
-- フォロワー限定投稿のリノートを無効化し視覚化（ボタンをグレーアウト、onTap を nullable に変更）
