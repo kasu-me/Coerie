@@ -194,8 +194,12 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
       );
     } else {
       list = RefreshIndicator(
-        onRefresh: () =>
-            ref.read(timelineProvider(widget.timelineType).notifier).refresh(),
+        onRefresh: () {
+          setState(() => _newNotesCount = 0);
+          return ref
+              .read(timelineProvider(widget.timelineType).notifier)
+              .refresh();
+        },
         child: ListView.builder(
           controller: _scrollController,
           itemCount: state.notes.length + (state.isLoadingMore ? 1 : 0),

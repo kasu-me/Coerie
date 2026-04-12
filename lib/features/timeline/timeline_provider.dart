@@ -210,11 +210,19 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
       if (newNotes.isNotEmpty) {
         // WebSocket の prependNote と競合した場合の重複を除去
         final existingIds = state.notes.map((n) => n.id).toSet();
-        final unique = newNotes
-            .where((n) => !existingIds.contains(n.id))
+        // sinceId を使うと Misskey API は昇順（古い順）でノートを返すため、
+        // 降順（新しい順）に並べ替えてから先頭に挿入する
+        final unique =
+            newNotes.where((n) => !existingIds.contains(n.id)).toList()
+              ..sort((a, b) => b.id.compareTo(a.id));
+        // refresh() と競合した場合、unique に現在の先頭より古いノートが
+        // 含まれていると順番が乱れるため、現在の先頭より新しいものだけ挿入する
+        final currentTopId = state.notes.first.id;
+        final toInsert = unique
+            .where((n) => n.id.compareTo(currentTopId) > 0)
             .toList();
-        if (unique.isNotEmpty) {
-          state = state.copyWith(notes: [...unique, ...state.notes]);
+        if (toInsert.isNotEmpty) {
+          state = state.copyWith(notes: [...toInsert, ...state.notes]);
         }
       }
       return newNotes;
