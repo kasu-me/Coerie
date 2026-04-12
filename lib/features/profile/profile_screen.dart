@@ -401,16 +401,108 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                   pinned: true,
                   actions: isOwnProfile
                       ? [
-                          IconButton(
-                            icon: const _AppBarIcon(Icons.edit_outlined),
-                            onPressed: _showEditProfileSheet,
-                            tooltip: 'プロフィールを編集',
-                          ),
-                          IconButton(
-                            icon: const _AppBarIcon(Icons.person_add_alt_1),
-                            onPressed: _showFollowRequestsSheet,
-                            tooltip: 'フォローリクエスト',
-                          ),
+                          if (_isLoadingAction)
+                            const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            )
+                          else
+                            PopupMenuButton<String>(
+                              icon: const _AppBarIcon(Icons.more_vert),
+                              onSelected: (value) async {
+                                if (value == 'open') {
+                                  final host = user.host.isNotEmpty
+                                      ? user.host
+                                      : ref.read(activeAccountProvider)?.host ??
+                                            '';
+                                  if (host.isEmpty) {
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('公開URLが見つかりません'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  final uri = Uri.parse(
+                                    'https://$host/@${Uri.encodeComponent(user.username)}',
+                                  );
+                                  final ok = await launchUrl(
+                                    uri,
+                                    mode: LaunchMode.externalApplication,
+                                  );
+                                  if (!mounted) return;
+                                  if (!ok) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('ブラウザで開けませんでした'),
+                                      ),
+                                    );
+                                  }
+                                }
+                                if (value == 'edit') {
+                                  _showEditProfileSheet();
+                                }
+                                if (value == 'follow_requests') {
+                                  _showFollowRequestsSheet();
+                                }
+                                if (value == 'clips') {
+                                  context.push(
+                                    '/users/${user.id}/clips',
+                                    extra: user,
+                                  );
+                                }
+                              },
+                              itemBuilder: (ctx) => [
+                                PopupMenuItem(
+                                  value: 'open',
+                                  child: Row(
+                                    children: const [
+                                      Icon(Icons.open_in_browser),
+                                      SizedBox(width: 8),
+                                      Text('ブラウザで表示'),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: const [
+                                      Icon(Icons.edit_outlined),
+                                      SizedBox(width: 8),
+                                      Text('プロフィール編集'),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'follow_requests',
+                                  child: Row(
+                                    children: const [
+                                      Icon(Icons.person_add_alt_1),
+                                      SizedBox(width: 8),
+                                      Text('フォローリクエスト'),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'clips',
+                                  child: Row(
+                                    children: const [
+                                      Icon(Icons.bookmark_outline),
+                                      SizedBox(width: 8),
+                                      Text('クリップを表示'),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                         ]
                       : [
                           if (_isLoadingAction)
