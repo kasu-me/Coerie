@@ -6,6 +6,10 @@ import 'widgets/note_card.dart';
 import '../../core/streaming/streaming_service.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
+import '../../core/constants/app_constants.dart';
+import '../../data/models/app_settings_model.dart';
+import '../../shared/providers/account_tabs_provider.dart';
+import '../../shared/providers/misskey_api_provider.dart';
 
 class TimelineScreen extends ConsumerStatefulWidget {
   final String timelineType;
@@ -22,6 +26,8 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
   StreamSubscription? _streamSub;
   int _newNotesCount = 0;
   bool _wasReconnecting = false;
+  bool _sourceMissing = false;
+  bool _checkedSourceExists = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -39,11 +45,75 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
     if (oldWidget.timelineType != widget.timelineType) {
       _streamSub?.cancel();
       _streamSub = null;
-      setState(() => _newNotesCount = 0);
+      setState(() {
+        _newNotesCount = 0;
+        _checkedSourceExists = false;
+        _sourceMissing = false;
+      });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _subscribeStream();
       });
     }
+  }
+
+  Future<void> _checkSourceExists() async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+    final t = widget.timelineType;
+    try {
+      if (t.startsWith('list:')) {
+        final id = t.substring(5);
+        final lists = await api.getLists();
+        final exists = lists.any((l) => (l['id'] as String?) == id);
+        if (mounted) setState(() => _sourceMissing = !exists);
+      } else if (t.startsWith('antenna:')) {
+        final id = t.substring(8);
+        final ants = await api.getAntennas();
+        final exists = ants.any((a) => (a['id'] as String?) == id);
+        if (mounted) setState(() => _sourceMissing = !exists);
+      }
+    } catch (_) {
+      // ignore errors; do not mark as missing on API failures
+    }
+  }
+
+  Future<void> _removeTabFromHome() async {
+    final accountId = ref.read(activeAccountProvider)?.id ?? '';
+    if (accountId.isEmpty) return;
+    final tabs = List<TabConfigModel>.from(
+      ref.read(accountTabsProvider(accountId)),
+    );
+    final t = widget.timelineType;
+    final isList = t.startsWith('list:');
+    final isAntenna = t.startsWith('antenna:');
+    final idToMatch = isList
+        ? t.substring(5)
+        : isAntenna
+        ? t.substring(8)
+        : null;
+    if (idToMatch == null) return;
+    final idx = tabs.indexWhere(
+      (tab) =>
+          tab.type ==
+              (isList
+                  ? AppConstants.tabTypeList
+                  : AppConstants.tabTypeAntenna) &&
+          tab.sourceId == idToMatch,
+    );
+    if (idx < 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('タブが見つかりませんでした')));
+      }
+      return;
+    }
+    tabs.removeAt(idx);
+    await ref.read(accountTabsProvider(accountId).notifier).setTabs(tabs);
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('ホームタブから削除しました')));
   }
 
   void _subscribeStream() {
@@ -140,11 +210,45 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
 
     final state = ref.watch(timelineProvider(widget.timelineType));
 
+    // list/antenna タブについて、該当ソースが存在するかを一度だけ確認する
+    if (!_checkedSourceExists &&
+        (widget.timelineType.startsWith('list:') ||
+            widget.timelineType.startsWith('antenna:')) &&
+        !state.isLoading) {
+      _checkedSourceExists = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _checkSourceExists();
+      });
+    }
+
     if (state.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
     if (state.error != null) {
+      // ソース削除判定が真なら専用の削除UIを優先表示
+      if (_sourceMissing) {
+        final isList = widget.timelineType.startsWith('list:');
+        final label = isList ? 'リスト' : 'アンテナ';
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.delete_outline, size: 64),
+              const SizedBox(height: 12),
+              Text(
+                '$label は削除されました',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _removeTabFromHome,
+                child: const Text('ホームから削除'),
+              ),
+            ],
+          ),
+        );
+      }
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -215,6 +319,30 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
               note: state.notes[index],
             );
           },
+        ),
+      );
+    }
+
+    // ソースが削除されている場合は専用のメッセージと削除ボタンを表示
+    if (_sourceMissing) {
+      final isList = widget.timelineType.startsWith('list:');
+      final label = isList ? 'リスト' : 'アンテナ';
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.delete_outline, size: 64),
+            const SizedBox(height: 12),
+            Text(
+              '$label は削除されました',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: _removeTabFromHome,
+              child: const Text('ホームから削除'),
+            ),
+          ],
         ),
       );
     }
