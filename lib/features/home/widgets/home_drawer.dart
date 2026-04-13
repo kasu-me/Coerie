@@ -68,6 +68,14 @@ class HomeDrawer extends ConsumerWidget {
                       );
                     },
                   ),
+                  ListTile(
+                    leading: const Icon(Icons.volume_off_outlined),
+                    title: const Text('ミュート・ブロック'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.push('/mute-block');
+                    },
+                  ),
                   const Divider(),
                   ListTile(
                     leading: const Icon(Icons.search),
@@ -101,19 +109,27 @@ class HomeDrawer extends ConsumerWidget {
                   ),
                   const Divider(),
                   ListTile(
-                    leading: const Icon(Icons.bookmark_outline),
-                    title: const Text('クリップ'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/clips');
-                    },
-                  ),
-                  ListTile(
                     leading: const Icon(Icons.cloud_outlined),
                     title: const Text('ドライブ'),
                     onTap: () {
                       Navigator.of(context).pop();
                       context.push('/drive');
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.edit_note),
+                    title: const Text('下書き'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.push('/drafts');
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.bookmark_outline),
+                    title: const Text('クリップ'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.push('/clips');
                     },
                   ),
                   ListTile(
@@ -132,22 +148,6 @@ class HomeDrawer extends ConsumerWidget {
                       Navigator.of(context).pop();
                       // TODO: アンテナ管理画面を実装
                       context.push('/antenna');
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.edit_note),
-                    title: const Text('下書き'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/drafts');
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.volume_off_outlined),
-                    title: const Text('ミュート・ブロック'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/mute-block');
                     },
                   ),
                 ],
