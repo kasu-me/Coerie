@@ -156,25 +156,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ? _EmptyTabsView()
           : Column(
               children: [
-                TabBar(
-                  controller: _tabController,
-                  isScrollable: tabs.length > 4,
-                  tabs: tabs.map((t) {
-                    if (t.type == AppConstants.tabTypeNotifications) {
-                      final unread = ref.watch(
-                        notificationsBadgeProvider(accountId),
-                      );
-                      return unread > 0
-                          ? Tab(
-                              child: Badge(
-                                label: Text('$unread'),
-                                child: Text(t.label),
-                              ),
-                            )
-                          : Tab(text: t.label);
-                    }
-                    return Tab(text: t.label);
-                  }).toList(),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    // 1タブあたり最低72dpを目安に、画面幅に収まるか判定
+                    const kMinTabWidth = 72.0;
+                    final needsScroll =
+                        tabs.length * kMinTabWidth > constraints.maxWidth;
+                    return TabBar(
+                      controller: _tabController,
+                      isScrollable: needsScroll,
+                      tabAlignment: needsScroll
+                          ? TabAlignment.start
+                          : TabAlignment.fill,
+                      tabs: tabs.map((t) {
+                        if (t.type == AppConstants.tabTypeNotifications) {
+                          final unread = ref.watch(
+                            notificationsBadgeProvider(accountId),
+                          );
+                          return unread > 0
+                              ? Tab(
+                                  child: Badge(
+                                    label: Text('$unread'),
+                                    child: Text(t.label),
+                                  ),
+                                )
+                              : Tab(text: t.label);
+                        }
+                        return Tab(text: t.label);
+                      }).toList(),
+                    );
+                  },
                 ),
                 Expanded(
                   child: TabBarView(
