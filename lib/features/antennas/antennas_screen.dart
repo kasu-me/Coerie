@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:uuid/uuid.dart';
+import '../../core/constants/app_constants.dart';
+import '../../data/models/app_settings_model.dart';
 import '../../data/models/user_model.dart';
+import '../../shared/providers/account_provider.dart';
+import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 
@@ -97,6 +102,60 @@ class _AntennasScreenState extends ConsumerState<AntennasScreen> {
     }
   }
 
+  Future<void> _addToHomeTab(Map<String, dynamic> antenna) async {
+    final name = antenna['name'] as String? ?? 'アンテナ';
+    final id = antenna['id'] as String? ?? '';
+    final labelController = TextEditingController(text: name);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ホームタブに追加'),
+        content: TextField(
+          controller: labelController,
+          decoration: const InputDecoration(
+            labelText: 'タブ名',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('追加'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final label = labelController.text.trim().isEmpty
+        ? name
+        : labelController.text.trim();
+    final accountId = ref.read(activeAccountProvider)?.id ?? '';
+    final currentTabs = List<TabConfigModel>.from(
+      ref.read(accountTabsProvider(accountId)),
+    );
+    currentTabs.add(
+      TabConfigModel(
+        id: const Uuid().v4(),
+        label: label,
+        type: AppConstants.tabTypeAntenna,
+        sourceId: id,
+      ),
+    );
+    await ref
+        .read(accountTabsProvider(accountId).notifier)
+        .setTabs(currentTabs);
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('「$label」タブを追加しました')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -172,10 +231,21 @@ class _AntennasScreenState extends ConsumerState<AntennasScreen> {
             ),
             trailing: PopupMenuButton<String>(
               onSelected: (value) {
+                if (value == 'add_tab') _addToHomeTab(item);
                 if (value == 'edit') _showEditSheet(antenna: item);
                 if (value == 'delete') _deleteAntenna(item);
               },
               itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'add_tab',
+                  child: Row(
+                    children: [
+                      Icon(Icons.add_to_photos_outlined),
+                      SizedBox(width: 8),
+                      Text('ホームタブに追加'),
+                    ],
+                  ),
+                ),
                 const PopupMenuItem(
                   value: 'edit',
                   child: Row(
