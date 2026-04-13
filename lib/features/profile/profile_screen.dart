@@ -168,9 +168,31 @@ class _FollowListNotifier extends StateNotifier<_FollowListState> {
       final untilId = loadMore && state.users.isNotEmpty
           ? state.users.last.id
           : null;
-      final users = isFollowing
+      var users = isFollowing
           ? await api.getFollowing(userId, limit: 30, untilId: untilId)
           : await api.getFollowers(userId, limit: 30, untilId: untilId);
+
+      // users/relation エンドポイントで一括してリレーション情報を取得し、
+      // 各 UserModel のフラグを更新する（効率化）。失敗した場合は元の users を利用。
+      try {
+        final ids = users.map((u) => u.id).toList();
+        final relations = await api.getUsersRelation(ids);
+        if (relations.isNotEmpty) {
+          users = users.map((u) {
+            final rel = relations[u.id];
+            if (rel == null) return u;
+            return u.copyWith(
+              isFollowing: rel['isFollowing'] as bool? ?? u.isFollowing,
+              isFollowed: rel['isFollowed'] as bool? ?? u.isFollowed,
+              isBlocking: rel['isBlocking'] as bool? ?? u.isBlocking,
+              isMuted: rel['isMuted'] as bool? ?? u.isMuted,
+            );
+          }).toList();
+        }
+      } catch (_) {
+        // ignore and fall back to original users
+      }
+
       state = state.copyWith(
         isLoading: false,
         users: loadMore ? [...state.users, ...users] : users,

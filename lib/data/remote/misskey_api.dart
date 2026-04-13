@@ -268,6 +268,50 @@ class MisskeyApi {
     }).toList();
   }
 
+  /// 指定ユーザー群に対するリレーションを一括取得する。
+  ///
+  /// 返却は userId -> relation map の形。
+  /// Misskey の `users/relation` エンドポイントの戻り値はサーバ実装やバージョンで
+  /// 形式が異なることがあるため、Map / List の両ケースを扱います。
+  Future<Map<String, Map<String, dynamic>>> getUsersRelation(
+    List<String> userIds, {
+    String? sourceUserId,
+  }) async {
+    if (userIds.isEmpty) return {};
+    final params = <String, dynamic>{'userIds': userIds};
+    if (sourceUserId != null) params['userId'] = sourceUserId;
+    final res = await _dio.post('users/relation', data: _body(params));
+    final data = res.data;
+
+    final Map<String, Map<String, dynamic>> result = {};
+    if (data is Map<String, dynamic>) {
+      // 既に userId -> relation のマップになっている可能性
+      for (final entry in data.entries) {
+        if (entry.value is Map<String, dynamic>) {
+          result[entry.key] = Map<String, dynamic>.from(
+            entry.value as Map<String, dynamic>,
+          );
+        } else {
+          result[entry.key] = {'value': entry.value};
+        }
+      }
+    } else if (data is List) {
+      for (final e in data) {
+        if (e is Map<String, dynamic>) {
+          // relation オブジェクトに userId / id / target などが含まれる場合がある
+          final id =
+              e['userId'] as String? ??
+              e['id'] as String? ??
+              e['target'] as String?;
+          if (id != null) {
+            result[id] = Map<String, dynamic>.from(e);
+          }
+        }
+      }
+    }
+    return result;
+  }
+
   Future<void> followUser(String userId) async {
     await _dio.post('following/create', data: _body({'userId': userId}));
   }

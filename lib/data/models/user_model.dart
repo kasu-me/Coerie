@@ -64,4 +64,42 @@ class UserModel {
       isMuted: json['isMuted'] as bool? ?? false,
     );
   }
+
+  UserModel copyWith({
+    String? id,
+    String? name,
+    String? username,
+    String? host,
+    String? avatarUrl,
+    String? bannerUrl,
+    int? followingCount,
+    int? followersCount,
+    int? notesCount,
+    String? description,
+    List<String>? pinnedNoteIds,
+    List<UserFieldModel>? fields,
+    bool? isFollowing,
+    bool? isFollowed,
+    bool? isBlocking,
+    bool? isMuted,
+  }) {
+    return UserModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      username: username ?? this.username,
+      host: host ?? this.host,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      bannerUrl: bannerUrl ?? this.bannerUrl,
+      followingCount: followingCount ?? this.followingCount,
+      followersCount: followersCount ?? this.followersCount,
+      notesCount: notesCount ?? this.notesCount,
+      description: description ?? this.description,
+      pinnedNoteIds: pinnedNoteIds ?? this.pinnedNoteIds,
+      fields: fields ?? this.fields,
+      isFollowing: isFollowing ?? this.isFollowing,
+      isFollowed: isFollowed ?? this.isFollowed,
+      isBlocking: isBlocking ?? this.isBlocking,
+      isMuted: isMuted ?? this.isMuted,
+    );
+  }
 }
