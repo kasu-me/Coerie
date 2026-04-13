@@ -137,7 +137,6 @@ class HomeDrawer extends ConsumerWidget {
                     title: const Text('リスト'),
                     onTap: () {
                       Navigator.of(context).pop();
-                      // TODO: リスト管理画面を実装
                       context.push('/list');
                     },
                   ),
@@ -146,7 +145,6 @@ class HomeDrawer extends ConsumerWidget {
                     title: const Text('アンテナ'),
                     onTap: () {
                       Navigator.of(context).pop();
-                      // TODO: アンテナ管理画面を実装
                       context.push('/antenna');
                     },
                   ),
