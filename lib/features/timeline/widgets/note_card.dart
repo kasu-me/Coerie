@@ -6,6 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:io';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../../data/models/clip_model.dart';
 import '../../../data/models/note_model.dart';
 import '../../../data/models/poll_model.dart';
@@ -1893,6 +1896,10 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final popupBg = theme.colorScheme.surface;
+    final popupOn = theme.colorScheme.onSurface;
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -1904,6 +1911,35 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
                 style: const TextStyle(color: Colors.white),
               )
             : null,
+        actions: [
+          PopupMenuButton<String>(
+            color: popupBg,
+            icon: const Icon(Icons.more_vert, color: Colors.white),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            elevation: 8,
+            offset: const Offset(0, 8),
+            onSelected: (v) {
+              if (v == 'download') _downloadCurrent();
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'download',
+                child: Row(
+                  children: [
+                    Icon(Icons.download_rounded, color: popupOn, size: 20),
+                    const SizedBox(width: 12),
+                    Text(
+                      'ダウンロード',
+                      style: TextStyle(color: popupOn, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: SafeArea(
         top: false,
@@ -1931,6 +1967,51 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
         ),
       ),
     );
+  }
+
+  Future<void> _downloadCurrent() async {
+    final url = widget.urls[_current];
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('ダウンロードを開始します...')));
+    try {
+      final dio = Dio();
+      String filename = Uri.tryParse(url)?.pathSegments.last ?? 'file';
+
+      Directory? dir;
+      try {
+        if (Platform.isAndroid) {
+          final dirs = await getExternalStorageDirectories(
+            type: StorageDirectory.downloads,
+          );
+          if (dirs != null && dirs.isNotEmpty) {
+            dir = dirs.first;
+          } else {
+            dir = await getExternalStorageDirectory();
+          }
+        } else if (Platform.isIOS) {
+          dir = await getApplicationDocumentsDirectory();
+        } else {
+          dir = await getDownloadsDirectory();
+          dir ??= await getApplicationDocumentsDirectory();
+        }
+      } catch (_) {
+        dir = await getApplicationDocumentsDirectory();
+      }
+
+      final saveFile = File('${dir!.path}${Platform.pathSeparator}$filename');
+      final tempFile = File('${saveFile.path}.part');
+
+      await dio.download(url, tempFile.path);
+      if (await tempFile.exists()) {
+        await tempFile.rename(saveFile.path);
+      }
+
+      messenger.showSnackBar(
+        SnackBar(content: Text('保存しました: ${saveFile.path}')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(const SnackBar(content: Text('ダウンロードに失敗しました')));
+    }
   }
 }
 
