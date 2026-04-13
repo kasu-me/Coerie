@@ -51,14 +51,10 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
       if (prev?.id != next?.id) {
         // isLoading: true で即座にローディング表示に切り替える
         state = const TimelineState(isLoading: true);
-        // リスト/アンテナタブはアカウント固有のIDと紐付いているため
-        // アカウント切り替え時はここで再取得しない（タブが切り替われば新しいキーで取得される）
-        if (!timelineType.startsWith('list:') &&
-            !timelineType.startsWith('antenna:')) {
-          // microtask で遅延させることで misskeyApiProvider が新アカウントで
-          // 再計算されてから fetch が実行されることを保証する
-          Future.microtask(() => fetchNotes());
-        }
+        // アカウント切り替え時は各タイムラインを再取得する。
+        // microtask で遅延させることで misskeyApiProvider が新アカウントで
+        // 再計算されてから fetch が実行されることを保証する
+        Future.microtask(() => fetchNotes());
       }
     });
     // ストリーミングサービスの削除イベントを購読
