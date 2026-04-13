@@ -510,11 +510,136 @@ class MisskeyApi {
     return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
   }
 
+  Future<Map<String, dynamic>> createList({required String name}) async {
+    final res = await _dio.post(
+      'users/lists/create',
+      data: _body({'name': name}),
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateList({
+    required String listId,
+    String? name,
+    bool? isPublic,
+  }) async {
+    final params = <String, dynamic>{'listId': listId};
+    if (name != null) params['name'] = name;
+    if (isPublic != null) params['isPublic'] = isPublic;
+    final res = await _dio.post('users/lists/update', data: _body(params));
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<void> deleteList({required String listId}) async {
+    await _dio.post('users/lists/delete', data: _body({'listId': listId}));
+  }
+
+  Future<List<Map<String, dynamic>>> getListMembers({
+    required String listId,
+    int limit = 100,
+  }) async {
+    final res = await _dio.post(
+      'users/lists/get-memberships',
+      data: _body({'listId': listId, 'forPublic': false, 'limit': limit}),
+    );
+    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  Future<void> addListMember({
+    required String listId,
+    required String userId,
+  }) async {
+    await _dio.post(
+      'users/lists/push',
+      data: _body({'listId': listId, 'userId': userId}),
+    );
+  }
+
+  Future<void> removeListMember({
+    required String listId,
+    required String userId,
+  }) async {
+    await _dio.post(
+      'users/lists/pull',
+      data: _body({'listId': listId, 'userId': userId}),
+    );
+  }
+
   // ---- アンテナ ----
 
   Future<List<Map<String, dynamic>>> getAntennas() async {
     final res = await _dio.post('antennas/list', data: _body({}));
     return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> createAntenna({
+    required String name,
+    required String src,
+    required List<List<String>> keywords,
+    required List<List<String>> excludeKeywords,
+    required List<String> users,
+    required bool caseSensitive,
+    required bool withReplies,
+    required bool withFile,
+    bool localOnly = false,
+    bool excludeBots = false,
+    bool excludeNotesInSensitiveChannel = false,
+    String? userListId,
+  }) async {
+    final params = <String, dynamic>{
+      'name': name,
+      'src': src,
+      'keywords': keywords,
+      'excludeKeywords': excludeKeywords,
+      'users': users,
+      'caseSensitive': caseSensitive,
+      'withReplies': withReplies,
+      'withFile': withFile,
+      'localOnly': localOnly,
+      'excludeBots': excludeBots,
+      'excludeNotesInSensitiveChannel': excludeNotesInSensitiveChannel,
+    };
+    if (userListId != null) params['userListId'] = userListId;
+    final res = await _dio.post('antennas/create', data: _body(params));
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateAntenna({
+    required String antennaId,
+    required String name,
+    required String src,
+    required List<List<String>> keywords,
+    required List<List<String>> excludeKeywords,
+    required List<String> users,
+    required bool caseSensitive,
+    required bool withReplies,
+    required bool withFile,
+    bool localOnly = false,
+    bool excludeBots = false,
+    bool excludeNotesInSensitiveChannel = false,
+    String? userListId,
+  }) async {
+    final params = <String, dynamic>{
+      'antennaId': antennaId,
+      'name': name,
+      'src': src,
+      'keywords': keywords,
+      'excludeKeywords': excludeKeywords,
+      'users': users,
+      'caseSensitive': caseSensitive,
+      'withReplies': withReplies,
+      'withFile': withFile,
+      'localOnly': localOnly,
+      'excludeBots': excludeBots,
+      'excludeNotesInSensitiveChannel': excludeNotesInSensitiveChannel,
+    };
+    if (userListId != null) params['userListId'] = userListId;
+    final res = await _dio.post('antennas/update', data: _body(params));
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<void> deleteAntenna({required String antennaId}) async {
+    await _dio.post('antennas/delete', data: _body({'antennaId': antennaId}));
   }
 
   // ---- ノート操作 ----
