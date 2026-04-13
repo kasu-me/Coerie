@@ -9,6 +9,9 @@ import '../../features/auth/login_screen.dart';
 import '../../features/clips/clips_screen.dart';
 import '../../features/clips/clip_notes_screen.dart';
 import '../../data/models/clip_model.dart';
+import '../../features/lists/lists_screen.dart';
+import '../../features/antennas/antennas_screen.dart';
+import '../../features/timeline/timeline_screen.dart';
 import '../../features/drive/drive_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/compose/compose_screen.dart';
@@ -100,6 +103,23 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(path: '/clips', builder: (context, state) => const ClipsScreen()),
+      GoRoute(path: '/list', builder: (context, state) => const ListsScreen()),
+      GoRoute(
+        path: '/list/:listId',
+        builder: (context, state) {
+          final extra = state.extra;
+          if (extra is Map<String, dynamic>) {
+            final listId = state.pathParameters['listId']!;
+            final name = extra['name'] as String? ?? 'リスト';
+            return Scaffold(
+              appBar: AppBar(title: Text(name)),
+              body: TimelineScreen(timelineType: 'list:$listId'),
+            );
+          }
+          final listId = state.pathParameters['listId']!;
+          return _ListLoader(listId: listId);
+        },
+      ),
       GoRoute(
         path: '/clips/:clipId',
         builder: (context, state) {
@@ -118,6 +138,26 @@ final routerProvider = Provider<GoRouter>((ref) {
           final extra = state.extra;
           if (extra is UserModel) userName = extra.name;
           return ClipsScreen(ownerUserId: userId, ownerUserName: userName);
+        },
+      ),
+      GoRoute(
+        path: '/antenna',
+        builder: (context, state) => const AntennasScreen(),
+      ),
+      GoRoute(
+        path: '/antenna/:antennaId',
+        builder: (context, state) {
+          final extra = state.extra;
+          if (extra is Map<String, dynamic>) {
+            final antennaId = state.pathParameters['antennaId']!;
+            final name = extra['name'] as String? ?? 'アンテナ';
+            return Scaffold(
+              appBar: AppBar(title: Text(name)),
+              body: TimelineScreen(timelineType: 'antenna:$antennaId'),
+            );
+          }
+          final antennaId = state.pathParameters['antennaId']!;
+          return _AntennaLoader(antennaId: antennaId);
         },
       ),
       GoRoute(
@@ -226,6 +266,108 @@ class _ClipLoader extends ConsumerWidget {
         }
         final clip = snapshot.data!;
         return ClipNotesScreen(clip: clip, host: host);
+      },
+    );
+  }
+}
+
+class _ListLoader extends ConsumerWidget {
+  final String listId;
+  const _ListLoader({required this.listId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final MisskeyApi? api = ref.read(misskeyApiProvider);
+
+    if (api == null) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: const Center(child: Text('読み込むにはアカウントが必要です')),
+      );
+    }
+
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: () async {
+        final lists = await api.getLists();
+        Map<String, dynamic>? found;
+        for (final m in lists) {
+          if ((m['id'] as String?) == listId) {
+            found = m;
+            break;
+          }
+        }
+        return found;
+      }(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            appBar: AppBar(),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(),
+            body: Center(child: Text('リストの読み込みに失敗しました: ${snapshot.error}')),
+          );
+        }
+        final item = snapshot.data;
+        final title = item?['name'] as String? ?? 'リスト';
+        return Scaffold(
+          appBar: AppBar(title: Text(title)),
+          body: TimelineScreen(timelineType: 'list:$listId'),
+        );
+      },
+    );
+  }
+}
+
+class _AntennaLoader extends ConsumerWidget {
+  final String antennaId;
+  const _AntennaLoader({required this.antennaId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final MisskeyApi? api = ref.read(misskeyApiProvider);
+
+    if (api == null) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: const Center(child: Text('読み込むにはアカウントが必要です')),
+      );
+    }
+
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: () async {
+        final items = await api.getAntennas();
+        Map<String, dynamic>? found;
+        for (final m in items) {
+          if ((m['id'] as String?) == antennaId) {
+            found = m;
+            break;
+          }
+        }
+        return found;
+      }(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            appBar: AppBar(),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(),
+            body: Center(child: Text('アンテナの読み込みに失敗しました: ${snapshot.error}')),
+          );
+        }
+        final item = snapshot.data;
+        final title = item?['name'] as String? ?? 'アンテナ';
+        return Scaffold(
+          appBar: AppBar(title: Text(title)),
+          body: TimelineScreen(timelineType: 'antenna:$antennaId'),
+        );
       },
     );
   }

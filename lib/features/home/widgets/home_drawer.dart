@@ -117,6 +117,24 @@ class HomeDrawer extends ConsumerWidget {
                     },
                   ),
                   ListTile(
+                    leading: const Icon(Icons.list),
+                    title: const Text('リスト'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      // TODO: リスト管理画面を実装
+                      context.push('/list');
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.settings_input_antenna),
+                    title: const Text('アンテナ'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      // TODO: アンテナ管理画面を実装
+                      context.push('/antenna');
+                    },
+                  ),
+                  ListTile(
                     leading: const Icon(Icons.edit_note),
                     title: const Text('下書き'),
                     onTap: () {
