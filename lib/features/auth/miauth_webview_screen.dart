@@ -3,26 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../data/models/user_model.dart';
-
-const _permissions = [
-  'read:account',
-  'write:account',
-  'read:notifications',
-  'write:notifications',
-  'read:reactions',
-  'write:reactions',
-  'write:notes',
-  'read:following',
-  'write:following',
-  'read:drive',
-  'write:drive',
-  'read:mutes',
-  'write:mutes',
-  'read:blocks',
-  'write:blocks',
-  'write:report-abuse',
-  'write:votes',
-];
+import '../../core/auth/miauth_permissions.dart';
 
 /// MiAuth をアプリ内 WebView で完結させる画面。
 /// 認証成功時は `({String token, UserModel user})` を pop で返す。
@@ -50,7 +31,7 @@ class _MiAuthWebViewScreenState extends State<MiAuthWebViewScreen> {
     // Uri.https の queryParameters は値をパーセントエンコードするため、
     // permission の ':' ',' がエンコードされて Misskey に認識されない問題を回避する。
     // 公式ドキュメントの例に倣い Uri.parse で手動構築する。
-    final permStr = _permissions.join(',');
+    final permStr = miauthPermissions.join(',');
     final authUrl = Uri.parse(
       'https://${widget.host}/miauth/$_sessionId'
       '?name=Coerie'

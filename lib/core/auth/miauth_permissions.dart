@@ -1,0 +1,19 @@
+// Shared permissions for MiAuth flows
+const List<String> miauthPermissions = [
+  'read:account',
+  'write:account',
+  'read:notifications',
+  'write:notifications',
+  'read:reactions',
+  'write:reactions',
+  'write:notes',
+  'read:following',
+  'write:following',
+  'read:drive',
+  'write:drive',
+  'read:mutes',
+  'write:mutes',
+  'read:blocks',
+  'write:blocks',
+  'write:report-abuse',
+];

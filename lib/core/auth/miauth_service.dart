@@ -5,25 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 import '../../data/models/user_model.dart';
-
-const _permissions = [
-  'read:account',
-  'write:account',
-  'read:notifications',
-  'write:notifications',
-  'read:reactions',
-  'write:reactions',
-  'write:notes',
-  'read:following',
-  'write:following',
-  'read:drive',
-  'write:drive',
-  'read:mutes',
-  'write:mutes',
-  'read:blocks',
-  'write:blocks',
-  'write:report-abuse',
-];
+import 'miauth_permissions.dart';
 
 class MiAuthService {
   MiAuthService._();
@@ -58,7 +40,7 @@ class MiAuthService {
     String host,
   ) async {
     final sessionId = const Uuid().v4();
-    final permStr = _permissions.join(',');
+    final permStr = miauthPermissions.join(',');
 
     // Misskey 公式ドキュメントの例に合わせ、permission値はリテラルの
     // コロン・カンマのまま渡す。Uri.https(queryParameters) は各値を
