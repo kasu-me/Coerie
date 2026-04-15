@@ -36,45 +36,55 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
   void _addTab() {
     showModalBottomSheet(
       context: context,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(ctx).bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'タブの種類を選択',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+      builder: (ctx) => SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'タブの種類を選択',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
               ),
-            ),
-            ...AppConstants.tabTypeLabels.entries.map(
-              (e) => ListTile(
-                leading: Icon(_tabIcon(e.key)),
-                title: Text(e.value),
-                onTap: () {
-                  Navigator.pop(context);
-                  if (e.key == AppConstants.tabTypeList) {
-                    _pickAndAddSourceTab(
-                      type: AppConstants.tabTypeList,
-                      title: 'リストを選択',
-                      loader: () => ref.read(misskeyApiProvider)!.getLists(),
-                      icon: Icons.list,
-                    );
-                  } else if (e.key == AppConstants.tabTypeAntenna) {
-                    _pickAndAddSourceTab(
-                      type: AppConstants.tabTypeAntenna,
-                      title: 'アンテナを選択',
-                      loader: () => ref.read(misskeyApiProvider)!.getAntennas(),
-                      icon: Icons.settings_input_antenna,
-                    );
-                  } else {
-                    _showLabelInput(e.key, e.value);
-                  }
-                },
+              ...AppConstants.tabTypeLabels.entries.map(
+                (e) => ListTile(
+                  leading: Icon(_tabIcon(e.key)),
+                  title: Text(e.value),
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (e.key == AppConstants.tabTypeList) {
+                      _pickAndAddSourceTab(
+                        type: AppConstants.tabTypeList,
+                        title: 'リストを選択',
+                        loader: () => ref.read(misskeyApiProvider)!.getLists(),
+                        icon: Icons.list,
+                      );
+                    } else if (e.key == AppConstants.tabTypeAntenna) {
+                      _pickAndAddSourceTab(
+                        type: AppConstants.tabTypeAntenna,
+                        title: 'アンテナを選択',
+                        loader: () =>
+                            ref.read(misskeyApiProvider)!.getAntennas(),
+                        icon: Icons.settings_input_antenna,
+                      );
+                    } else if (e.key == AppConstants.tabTypeChannel) {
+                      _pickAndAddSourceTab(
+                        type: AppConstants.tabTypeChannel,
+                        title: 'チャンネルを選択',
+                        loader: () =>
+                            ref.read(misskeyApiProvider)!.getChannelsFollowed(),
+                        icon: Icons.tv,
+                      );
+                    } else {
+                      _showLabelInput(e.key, e.value);
+                    }
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -310,6 +320,7 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
     AppConstants.tabTypeNotifications => Icons.notifications_outlined,
     AppConstants.tabTypeList => Icons.list,
     AppConstants.tabTypeAntenna => Icons.settings_input_antenna,
+    AppConstants.tabTypeChannel => Icons.tv,
     _ => Icons.tab,
   };
 }

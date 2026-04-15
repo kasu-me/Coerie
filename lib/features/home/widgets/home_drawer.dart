@@ -148,6 +148,14 @@ class HomeDrawer extends ConsumerWidget {
                       context.push('/antenna');
                     },
                   ),
+                  ListTile(
+                    leading: const Icon(Icons.tv),
+                    title: const Text('チャンネル'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.push('/channels');
+                    },
+                  ),
                 ],
               ),
             ),

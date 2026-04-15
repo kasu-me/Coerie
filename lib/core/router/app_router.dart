@@ -34,6 +34,8 @@ import '../../features/profile/profile_screen.dart';
 import '../../data/models/user_model.dart';
 import '../../features/timeline/note_detail_screen.dart';
 import '../../features/search/search_screen.dart';
+import '../../features/channels/channels_screen.dart';
+import '../../features/channels/channel_detail_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final accountState = ref.watch(accountProvider);
@@ -220,6 +222,22 @@ final routerProvider = Provider<GoRouter>((ref) {
           return SearchScreen(
             initialTab: initialTab,
             initialQuery: initialQuery,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/channels',
+        builder: (context, state) => const ChannelsScreen(),
+      ),
+      GoRoute(
+        path: '/channels/:channelId',
+        builder: (context, state) {
+          final channelId = state.pathParameters['channelId']!;
+          final extra = state.extra;
+          final initialData = extra is Map<String, dynamic> ? extra : null;
+          return ChannelDetailScreen(
+            channelId: channelId,
+            initialData: initialData,
           );
         },
       ),

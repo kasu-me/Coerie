@@ -16,4 +16,6 @@ const List<String> miauthPermissions = [
   'read:blocks',
   'write:blocks',
   'write:report-abuse',
+  'read:channels',
+  'write:channels',
 ];

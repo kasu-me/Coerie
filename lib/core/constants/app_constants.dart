@@ -25,6 +25,7 @@ class AppConstants {
   static const String tabTypeNotifications = 'notifications';
   static const String tabTypeList = 'list';
   static const String tabTypeAntenna = 'antenna';
+  static const String tabTypeChannel = 'channel';
 
   static const Map<String, String> visibilityLabels = {
     visibilityPublic: '全体公開',
@@ -41,5 +42,6 @@ class AppConstants {
     tabTypeNotifications: '通知',
     tabTypeList: 'リスト',
     tabTypeAntenna: 'アンテナ',
+    tabTypeChannel: 'チャンネル',
   };
 }

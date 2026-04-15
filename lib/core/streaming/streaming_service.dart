@@ -115,16 +115,32 @@ class StreamingService {
   void _resubscribeAll() {
     // タイムラインチャンネル
     for (final timelineType in _subscribedTimelines) {
-      final channelName = _channelMap[timelineType];
-      if (channelName == null) continue;
-      final id = const Uuid().v4();
-      _channelSubscriptions[id] = timelineType;
-      _channel?.sink.add(
-        jsonEncode({
-          'type': 'connect',
-          'body': {'channel': channelName, 'id': id},
-        }),
-      );
+      if (timelineType.startsWith('channel:')) {
+        final channelId = timelineType.substring(8);
+        final id = const Uuid().v4();
+        _channelSubscriptions[id] = timelineType;
+        _channel?.sink.add(
+          jsonEncode({
+            'type': 'connect',
+            'body': {
+              'channel': 'channel',
+              'id': id,
+              'params': {'channelId': channelId},
+            },
+          }),
+        );
+      } else {
+        final channelName = _channelMap[timelineType];
+        if (channelName == null) continue;
+        final id = const Uuid().v4();
+        _channelSubscriptions[id] = timelineType;
+        _channel?.sink.add(
+          jsonEncode({
+            'type': 'connect',
+            'body': {'channel': channelName, 'id': id},
+          }),
+        );
+      }
     }
     // subNote
     for (final noteId in _noteSubCounts.keys) {
@@ -262,6 +278,12 @@ class StreamingService {
   }
 
   Stream<NoteModel>? subscribeTimeline(String timelineType) {
+    // チャンネルタイムラインの場合は Misskey の "channel" チャンネルを使用する
+    if (timelineType.startsWith('channel:')) {
+      final channelId = timelineType.substring(8);
+      return _subscribeChannelTimeline(timelineType, channelId);
+    }
+
     final channelName = _channelMap[timelineType];
     if (channelName == null) return null;
 
@@ -280,6 +302,35 @@ class StreamingService {
       jsonEncode({
         'type': 'connect',
         'body': {'channel': channelName, 'id': id},
+      }),
+    );
+
+    return _timelineControllers[timelineType]!.stream;
+  }
+
+  Stream<NoteModel>? _subscribeChannelTimeline(
+    String timelineType,
+    String channelId,
+  ) {
+    // 再接続時に再登録できるよう記憶
+    _subscribedTimelines.add(timelineType);
+
+    _timelineControllers.putIfAbsent(
+      timelineType,
+      () => StreamController<NoteModel>.broadcast(),
+    );
+
+    final id = const Uuid().v4();
+    _channelSubscriptions[id] = timelineType;
+
+    _channel?.sink.add(
+      jsonEncode({
+        'type': 'connect',
+        'body': {
+          'channel': 'channel',
+          'id': id,
+          'params': {'channelId': channelId},
+        },
       }),
     );
 

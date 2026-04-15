@@ -71,6 +71,13 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
         final ants = await api.getAntennas();
         final exists = ants.any((a) => (a['id'] as String?) == id);
         if (mounted) setState(() => _sourceMissing = !exists);
+      } else if (t.startsWith('channel:')) {
+        final id = t.substring(8);
+        try {
+          await api.getChannel(id);
+        } catch (_) {
+          if (mounted) setState(() => _sourceMissing = true);
+        }
       }
     } catch (_) {
       // ignore errors; do not mark as missing on API failures
@@ -86,19 +93,22 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
     final t = widget.timelineType;
     final isList = t.startsWith('list:');
     final isAntenna = t.startsWith('antenna:');
+    final isChannel = t.startsWith('channel:');
     final idToMatch = isList
         ? t.substring(5)
         : isAntenna
         ? t.substring(8)
+        : isChannel
+        ? t.substring(8)
         : null;
     if (idToMatch == null) return;
+    final tabType = isList
+        ? AppConstants.tabTypeList
+        : isAntenna
+        ? AppConstants.tabTypeAntenna
+        : AppConstants.tabTypeChannel;
     final idx = tabs.indexWhere(
-      (tab) =>
-          tab.type ==
-              (isList
-                  ? AppConstants.tabTypeList
-                  : AppConstants.tabTypeAntenna) &&
-          tab.sourceId == idToMatch,
+      (tab) => tab.type == tabType && tab.sourceId == idToMatch,
     );
     if (idx < 0) {
       if (mounted) {
@@ -210,10 +220,11 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
 
     final state = ref.watch(timelineProvider(widget.timelineType));
 
-    // list/antenna タブについて、該当ソースが存在するかを一度だけ確認する
+    // list/antenna/channel タブについて、該当ソースが存在するかを一度だけ確認する
     if (!_checkedSourceExists &&
         (widget.timelineType.startsWith('list:') ||
-            widget.timelineType.startsWith('antenna:')) &&
+            widget.timelineType.startsWith('antenna:') ||
+            widget.timelineType.startsWith('channel:')) &&
         !state.isLoading) {
       _checkedSourceExists = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -229,7 +240,12 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
       // ソース削除判定が真なら専用の削除UIを優先表示
       if (_sourceMissing) {
         final isList = widget.timelineType.startsWith('list:');
-        final label = isList ? 'リスト' : 'アンテナ';
+        final isChannel = widget.timelineType.startsWith('channel:');
+        final label = isList
+            ? 'リスト'
+            : isChannel
+            ? 'チャンネル'
+            : 'アンテナ';
         return Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -326,7 +342,12 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
     // ソースが削除されている場合は専用のメッセージと削除ボタンを表示
     if (_sourceMissing) {
       final isList = widget.timelineType.startsWith('list:');
-      final label = isList ? 'リスト' : 'アンテナ';
+      final isChannel = widget.timelineType.startsWith('channel:');
+      final label = isList
+          ? 'リスト'
+          : isChannel
+          ? 'チャンネル'
+          : 'アンテナ';
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

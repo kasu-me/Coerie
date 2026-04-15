@@ -989,4 +989,143 @@ class MisskeyApi {
       data: _body({'clipId': clipId, 'noteId': noteId}),
     );
   }
+
+  // ---- チャンネル ----
+
+  /// チャンネルの詳細情報を取得する（channels/show）
+  Future<Map<String, dynamic>> getChannel(String channelId) async {
+    final res = await _dio.post(
+      'channels/show',
+      data: _body({'channelId': channelId}),
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
+  /// トレンドのチャンネル一覧を取得する（channels/featured）
+  Future<List<Map<String, dynamic>>> getChannelsFeatured() async {
+    final res = await _dio.post('channels/featured', data: _body({}));
+    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  /// お気に入りのチャンネル一覧を取得する（channels/my-favorites）
+  Future<List<Map<String, dynamic>>> getChannelsMyFavorites() async {
+    final res = await _dio.post('channels/my-favorites', data: _body({}));
+    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  /// フォロー中のチャンネル一覧を取得する（channels/followed）
+  Future<List<Map<String, dynamic>>> getChannelsFollowed({
+    int limit = 30,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('channels/followed', data: _body(params));
+    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  /// 管理中のチャンネル一覧を取得する（channels/owned）
+  Future<List<Map<String, dynamic>>> getChannelsOwned({
+    int limit = 30,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('channels/owned', data: _body(params));
+    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  /// チャンネルを検索する（channels/search）
+  Future<List<Map<String, dynamic>>> searchChannels({
+    required String query,
+    int limit = 20,
+    String? untilId,
+    String type = 'nameAndDescription',
+  }) async {
+    final params = <String, dynamic>{
+      'query': query,
+      'limit': limit,
+      'type': type,
+    };
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('channels/search', data: _body(params));
+    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  /// チャンネルを作成する（channels/create）
+  Future<Map<String, dynamic>> createChannel({
+    required String name,
+    String? description,
+    String? bannerId,
+    String color = '#000',
+    bool? isSensitive,
+    bool? allowRenoteToExternal,
+  }) async {
+    final params = <String, dynamic>{'name': name, 'color': color};
+    if (description != null && description.isNotEmpty) {
+      params['description'] = description;
+    }
+    if (bannerId != null) params['bannerId'] = bannerId;
+    if (isSensitive != null) params['isSensitive'] = isSensitive;
+    if (allowRenoteToExternal != null) {
+      params['allowRenoteToExternal'] = allowRenoteToExternal;
+    }
+    final res = await _dio.post('channels/create', data: _body(params));
+    return res.data as Map<String, dynamic>;
+  }
+
+  /// チャンネル情報を更新する（channels/update）
+  Future<Map<String, dynamic>> updateChannel({
+    required String channelId,
+    String? name,
+    String? description,
+    String? bannerId,
+    String? color,
+    bool? isArchived,
+    bool? isSensitive,
+    bool? allowRenoteToExternal,
+  }) async {
+    final params = <String, dynamic>{'channelId': channelId};
+    if (name != null) params['name'] = name;
+    if (description != null) params['description'] = description;
+    if (bannerId != null) params['bannerId'] = bannerId;
+    if (color != null) params['color'] = color;
+    if (isArchived != null) params['isArchived'] = isArchived;
+    if (isSensitive != null) params['isSensitive'] = isSensitive;
+    if (allowRenoteToExternal != null) {
+      params['allowRenoteToExternal'] = allowRenoteToExternal;
+    }
+    final res = await _dio.post('channels/update', data: _body(params));
+    return res.data as Map<String, dynamic>;
+  }
+
+  /// チャンネルをアーカイブ（削除相当）する（channels/update で isArchived: true）
+  /// Misskey には channels/delete エンドポイントが存在しないため、
+  /// アーカイブによって実質的にチャンネルを非公開にします。
+  Future<void> archiveChannel(String channelId) async {
+    await updateChannel(channelId: channelId, isArchived: true);
+  }
+
+  /// チャンネルをフォローする（channels/follow）
+  Future<void> followChannel(String channelId) async {
+    await _dio.post('channels/follow', data: _body({'channelId': channelId}));
+  }
+
+  /// チャンネルのフォローを解除する（channels/unfollow）
+  Future<void> unfollowChannel(String channelId) async {
+    await _dio.post('channels/unfollow', data: _body({'channelId': channelId}));
+  }
+
+  /// チャンネルをお気に入りに登録する（channels/favorite）
+  Future<void> favoriteChannel(String channelId) async {
+    await _dio.post('channels/favorite', data: _body({'channelId': channelId}));
+  }
+
+  /// チャンネルのお気に入りを解除する（channels/unfavorite）
+  Future<void> unfavoriteChannel(String channelId) async {
+    await _dio.post(
+      'channels/unfavorite',
+      data: _body({'channelId': channelId}),
+    );
+  }
 }

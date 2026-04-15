@@ -229,10 +229,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  /// リスト/アンテナタブは "list:id" / "antenna:id" 形式のキーを使う
+  /// リスト/アンテナ/チャンネルタブは "list:id" / "antenna:id" / "channel:id" 形式のキーを使う
   String _timelineKey(TabConfigModel tab) {
     if ((tab.type == AppConstants.tabTypeList ||
-            tab.type == AppConstants.tabTypeAntenna) &&
+            tab.type == AppConstants.tabTypeAntenna ||
+            tab.type == AppConstants.tabTypeChannel) &&
         tab.sourceId != null) {
       return '${tab.type}:${tab.sourceId}';
     }

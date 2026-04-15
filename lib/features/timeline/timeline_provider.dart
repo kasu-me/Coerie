@@ -83,6 +83,7 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
   String getEndpoint(String type) {
     if (type.startsWith('list:')) return 'notes/user-list-timeline';
     if (type.startsWith('antenna:')) return 'antennas/notes';
+    if (type.startsWith('channel:')) return 'channels/timeline';
     return switch (type) {
       AppConstants.tabTypeHome => 'notes/timeline',
       AppConstants.tabTypeLocal => 'notes/local-timeline',
@@ -95,6 +96,7 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
   Map<String, dynamic> getExtraParams(String type) {
     if (type.startsWith('list:')) return {'listId': type.substring(5)};
     if (type.startsWith('antenna:')) return {'antennaId': type.substring(8)};
+    if (type.startsWith('channel:')) return {'channelId': type.substring(8)};
     return {};
   }
 
