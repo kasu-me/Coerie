@@ -1154,12 +1154,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
             // フッター上段
             Container(
-              padding: EdgeInsets.fromLTRB(
-                12,
-                6,
-                12,
-                MediaQuery.viewPaddingOf(context).bottom + 6,
-              ),
+              // 下段で SafeArea を使っているためここではナビゲーションバー分の余白は付けない
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
               decoration: BoxDecoration(
                 border: Border(
                   top: BorderSide(color: theme.colorScheme.outlineVariant),
@@ -1211,30 +1207,42 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                         : 'チャンネルを選択',
                     onPressed: _showChannelPicker,
                   ),
-                  if (_selectedChannelName != null) ...[
-                    const SizedBox(width: 6),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 120),
-                      child: Text(
-                        _selectedChannelName!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        Icons.close,
-                        size: 18,
-                        color: theme.colorScheme.outline,
-                      ),
-                      onPressed: () => setState(() {
-                        _selectedChannelId = null;
-                        _selectedChannelName = null;
-                      }),
-                    ),
-                  ],
-                  const Spacer(),
+
+                  // チャンネル名を Expanded で中央エリアに収める（右側ボタンを押し出さない）
+                  Expanded(
+                    child: _selectedChannelName != null
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: InputChip(
+                              label: Text(
+                                _selectedChannelName!.isEmpty
+                                    ? 'チャンネル'
+                                    : _selectedChannelName!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                              ),
+                              onDeleted: () => setState(() {
+                                _selectedChannelId = null;
+                                _selectedChannelName = null;
+                              }),
+                              backgroundColor: theme.colorScheme.surfaceVariant,
+                              shape: StadiumBorder(
+                                side: BorderSide(
+                                  color: theme.colorScheme.outlineVariant,
+                                ),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
 
                   // 公開範囲ボタン
                   IconButton(
@@ -1269,11 +1277,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               top: false,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                decoration: BoxDecoration(
-                  border: Border(
-                    top: BorderSide(color: theme.colorScheme.outlineVariant),
-                  ),
-                ),
                 child: Row(
                   children: [
                     // メディア添付（最大4件）
