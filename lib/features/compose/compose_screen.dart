@@ -38,6 +38,7 @@ class ComposeScreen extends ConsumerStatefulWidget {
   final List<DriveFileModel>? initialFiles;
   final List<XFile>? initialLocalFiles;
   final String? initialCw;
+  final String? initialChannelId;
   final bool initialIsSensitive;
 
   const ComposeScreen({
@@ -52,6 +53,7 @@ class ComposeScreen extends ConsumerStatefulWidget {
     this.initialFiles,
     this.initialLocalFiles,
     this.initialCw,
+    this.initialChannelId,
     this.initialIsSensitive = false,
   });
 
@@ -72,6 +74,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   bool _isReplyToDirect = false;
   List<Map<String, dynamic>> _emojiSuggestions = [];
   AccountModel? _selectedAccount;
+  String? _selectedChannelId;
+  String? _selectedChannelName;
   Map<String, dynamic>? _poll;
 
   @override
@@ -137,6 +141,21 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
             }
           });
         }
+      });
+    }
+
+    // 初期チャネルが渡されていれば名前を取得して表示
+    _selectedChannelId = widget.initialChannelId;
+    if (_selectedChannelId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final account = _selectedAccount;
+        if (account == null) return;
+        final api = MisskeyApi(host: account.host, token: account.token);
+        try {
+          final ch = await api.getChannel(_selectedChannelId!);
+          if (mounted)
+            setState(() => _selectedChannelName = ch['name'] as String?);
+        } catch (_) {}
       });
     }
   }
@@ -350,6 +369,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         renoteId: widget.renoteId,
         visibleUserIds: visibleUserIds,
         poll: _poll,
+        channelId: _selectedChannelId,
       );
 
       if (_currentDraftId != null) {
@@ -658,6 +678,123 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         ),
       ),
     );
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchChannels(MisskeyApi api) async {
+    final followed = await api.getChannelsFollowed(limit: 100);
+    final owned = await api.getChannelsOwned(limit: 100);
+    final Map<String, Map<String, dynamic>> map = {};
+    for (final c in followed) {
+      final id = c['id'] as String?;
+      if (id != null) map[id] = c;
+    }
+    for (final c in owned) {
+      final id = c['id'] as String?;
+      if (id != null) map[id] = c;
+    }
+    final list = map.values.toList();
+    list.sort(
+      (a, b) =>
+          (a['name'] as String? ?? '').compareTo(b['name'] as String? ?? ''),
+    );
+    return list;
+  }
+
+  Future<void> _showChannelPicker() async {
+    final account = _selectedAccount ?? ref.read(activeAccountProvider);
+    if (account == null) return;
+    final api = MisskeyApi(host: account.host, token: account.token);
+    final selected = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(ctx).bottom,
+            ),
+            child: SizedBox(
+              height: MediaQuery.of(ctx).size.height * 0.6,
+              child: Column(
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      'チャンネルを選択',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: FutureBuilder<List<Map<String, dynamic>>>(
+                      future: _fetchChannels(api),
+                      builder: (c, snap) {
+                        if (snap.connectionState == ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        if (snap.hasError) {
+                          return Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Center(
+                              child: Text('チャンネルの読み込みに失敗しました: ${snap.error}'),
+                            ),
+                          );
+                        }
+                        final list = snap.data ?? [];
+                        return ListView.separated(
+                          itemCount: list.length + 1,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (ctx2, i) {
+                            if (i == 0) {
+                              return ListTile(
+                                title: const Text('なし（チャンネル選択を解除）'),
+                                onTap: () =>
+                                    Navigator.pop(ctx, <String, dynamic>{}),
+                              );
+                            }
+                            final ch = list[i - 1];
+                            final name = ch['name'] as String? ?? '';
+                            final desc = ch['description'] as String?;
+                            return ListTile(
+                              title: Text(name),
+                              subtitle: desc != null && desc.isNotEmpty
+                                  ? Text(
+                                      desc,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    )
+                                  : null,
+                              onTap: () => Navigator.pop(ctx, ch),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    if (selected == null) return;
+    if (selected.isEmpty) {
+      setState(() {
+        _selectedChannelId = null;
+        _selectedChannelName = null;
+      });
+    } else {
+      setState(() {
+        _selectedChannelId = selected['id'] as String?;
+        _selectedChannelName = selected['name'] as String?;
+      });
+    }
   }
 
   @override
@@ -1017,7 +1154,12 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
             // フッター上段
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: EdgeInsets.fromLTRB(
+                12,
+                6,
+                12,
+                MediaQuery.viewPaddingOf(context).bottom + 6,
+              ),
               decoration: BoxDecoration(
                 border: Border(
                   top: BorderSide(color: theme.colorScheme.outlineVariant),
@@ -1053,6 +1195,45 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                       fontWeight: _isOverLimit ? FontWeight.bold : null,
                     ),
                   ),
+                  const SizedBox(width: 8),
+
+                  // チャンネル選択ボタン
+                  IconButton(
+                    icon: Icon(
+                      Icons.tag,
+                      size: 20,
+                      color: _selectedChannelId != null
+                          ? theme.colorScheme.primary
+                          : null,
+                    ),
+                    tooltip: _selectedChannelName != null
+                        ? 'チャンネル: ${_selectedChannelName!}'
+                        : 'チャンネルを選択',
+                    onPressed: _showChannelPicker,
+                  ),
+                  if (_selectedChannelName != null) ...[
+                    const SizedBox(width: 6),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 120),
+                      child: Text(
+                        _selectedChannelName!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.close,
+                        size: 18,
+                        color: theme.colorScheme.outline,
+                      ),
+                      onPressed: () => setState(() {
+                        _selectedChannelId = null;
+                        _selectedChannelName = null;
+                      }),
+                    ),
+                  ],
                   const Spacer(),
 
                   // 公開範囲ボタン

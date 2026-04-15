@@ -64,6 +64,7 @@ class MisskeyApi {
     List<String> fileIds = const [],
     List<String>? visibleUserIds,
     Map<String, dynamic>? poll,
+    String? channelId,
   }) async {
     final params = <String, dynamic>{'visibility': visibility};
     if (text != null && text.isNotEmpty) params['text'] = text;
@@ -76,6 +77,9 @@ class MisskeyApi {
     }
     if (poll != null) {
       params['poll'] = poll;
+    }
+    if (channelId != null) {
+      params['channelId'] = channelId;
     }
 
     final res = await _dio.post('notes/create', data: _body(params));

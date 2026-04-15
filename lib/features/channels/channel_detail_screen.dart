@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/constants/app_constants.dart';
 import '../../data/models/app_settings_model.dart';
@@ -8,6 +9,7 @@ import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../timeline/timeline_screen.dart';
+import '../timeline/timeline_provider.dart';
 
 class ChannelDetailScreen extends ConsumerStatefulWidget {
   final String channelId;
@@ -217,6 +219,21 @@ class _ChannelDetailScreenState extends ConsumerState<ChannelDetailScreen>
                 _TimelineTab(channelId: widget.channelId),
               ],
             ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          await context.push(
+            '/compose',
+            extra: {'channelId': widget.channelId},
+          );
+          if (!mounted) return;
+          try {
+            ref
+                .read(timelineProvider('channel:${widget.channelId}').notifier)
+                .refresh();
+          } catch (_) {}
+        },
+        child: const Icon(Icons.create),
+      ),
     );
   }
 }

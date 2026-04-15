@@ -211,7 +211,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          await context.push('/compose');
+          String? channelId;
+          if (_tabController != null) {
+            final idx = _tabController!.index;
+            if (idx >= 0 && idx < tabs.length) {
+              final tab = tabs[idx];
+              if (tab.type == AppConstants.tabTypeChannel &&
+                  tab.sourceId != null) {
+                channelId = tab.sourceId;
+              }
+            }
+          }
+
+          if (channelId != null) {
+            await context.push('/compose', extra: {'channelId': channelId});
+          } else {
+            await context.push('/compose');
+          }
+
           // 投稿後にタイムラインを全タブでリフレッシュ
           if (mounted) {
             final currentAccountId = ref.read(activeAccountProvider)?.id ?? '';
