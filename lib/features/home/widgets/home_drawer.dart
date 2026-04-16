@@ -62,6 +62,7 @@ class HomeDrawer extends ConsumerWidget {
                       showModalBottomSheet(
                         context: context,
                         isScrollControlled: true,
+                        useSafeArea: true,
                         builder: (ctx) => FollowRequestsSheet(
                           profileOwnerId: activeAccount.userId,
                         ),
@@ -266,6 +267,7 @@ class _ProfileHeader extends StatelessWidget {
   void _showAccountSwitcher(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      useSafeArea: true,
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(ctx).bottom),
         child: Column(

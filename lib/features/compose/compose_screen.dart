@@ -205,6 +205,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
     final source = await showModalBottomSheet<_MediaSource>(
       context: context,
+      useSafeArea: true,
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(ctx).bottom),
         child: Column(
@@ -582,6 +583,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   void _showVisibilityPicker() {
     showModalBottomSheet(
       context: context,
+      useSafeArea: true,
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(ctx).bottom),
         child: Column(
@@ -632,6 +634,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     if (accounts.length <= 1) return; // 1アカウントのみなら何もしない
     showModalBottomSheet(
       context: context,
+      useSafeArea: true,
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(ctx).bottom),
         child: Column(

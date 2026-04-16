@@ -1002,6 +1002,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
     final selected = await showModalBottomSheet<String?>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (ctx) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.7,
@@ -1024,6 +1025,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (ctx) => FollowRequestsSheet(
         profileOwnerId: widget.userId,
         onChanged: () {

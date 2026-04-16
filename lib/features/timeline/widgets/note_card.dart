@@ -1448,6 +1448,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (sheetCtx) =>
           _ClipPickerSheet(clips: clips, noteId: widget.note.id),
     );
@@ -1504,6 +1505,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     final name = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (_) => const EmojiPickerSheet(),
     );
     if (name == null || !mounted) return;

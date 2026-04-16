@@ -143,6 +143,7 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
     // ignore: use_build_context_synchronously
     final selected = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
+      useSafeArea: true,
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(ctx).bottom),
         child: FutureBuilder<List<Map<String, dynamic>>>(

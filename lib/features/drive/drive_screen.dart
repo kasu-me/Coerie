@@ -307,6 +307,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (ctx) => _FolderPickerSheet(
         currentFolderId: _currentFolderId,
         onFolderSelected: (selectedFolderId) async {
@@ -372,6 +373,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (ctx) => _FolderPickerSheet(
         currentFolderId: _currentFolderId,
         onFolderSelected: (selectedFolderId) async {

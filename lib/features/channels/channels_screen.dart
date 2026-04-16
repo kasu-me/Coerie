@@ -115,9 +115,7 @@ class _ChannelTile extends StatelessWidget {
           : _colorIcon(channelColor),
       title: Row(
         children: [
-          Flexible(
-            child: Text(name, overflow: TextOverflow.ellipsis),
-          ),
+          Flexible(child: Text(name, overflow: TextOverflow.ellipsis)),
           if (isArchived) ...[
             const SizedBox(width: 4),
             Container(
@@ -151,10 +149,7 @@ class _ChannelTile extends StatelessWidget {
               itemBuilder: (_) => menuItems!,
             )
           : null,
-      onTap: () => context.push(
-        '/channels/${channel['id']}',
-        extra: channel,
-      ),
+      onTap: () => context.push('/channels/${channel['id']}', extra: channel),
     );
   }
 
@@ -288,7 +283,9 @@ class _SearchTabState extends ConsumerState<_SearchTab>
     }
     if (_results.isEmpty) {
       return const Center(
-        child: Text('\u30c1\u30e3\u30f3\u30cd\u30eb\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3067\u3057\u305f'),
+        child: Text(
+          '\u30c1\u30e3\u30f3\u30cd\u30eb\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3067\u3057\u305f',
+        ),
       );
     }
     return ListView.separated(
@@ -330,7 +327,10 @@ class _FeaturedTabState extends ConsumerState<_FeaturedTab>
     final api = ref.read(misskeyApiProvider);
     if (api == null) {
       if (mounted) {
-        setState(() => _error = '\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059');
+        setState(
+          () =>
+              _error = '\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059',
+        );
       }
       return;
     }
@@ -404,7 +404,10 @@ class _FavoritesTabState extends ConsumerState<_FavoritesTab>
     final api = ref.read(misskeyApiProvider);
     if (api == null) {
       if (mounted) {
-        setState(() => _error = '\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059');
+        setState(
+          () =>
+              _error = '\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059',
+        );
       }
       return;
     }
@@ -478,7 +481,10 @@ class _FollowedTabState extends ConsumerState<_FollowedTab>
     final api = ref.read(misskeyApiProvider);
     if (api == null) {
       if (mounted) {
-        setState(() => _error = '\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059');
+        setState(
+          () =>
+              _error = '\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059',
+        );
       }
       return;
     }
@@ -552,7 +558,10 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
     final api = ref.read(misskeyApiProvider);
     if (api == null) {
       if (mounted) {
-        setState(() => _error = '\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059');
+        setState(
+          () =>
+              _error = '\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059',
+        );
       }
       return;
     }
@@ -660,7 +669,9 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
           children: [
             Icon(Icons.tv, size: 64, color: Colors.grey),
             SizedBox(height: 16),
-            Text('\u7ba1\u7406\u4e2d\u306e\u30c1\u30e3\u30f3\u30cd\u30eb\u306f\u3042\u308a\u307e\u305b\u3093'),
+            Text(
+              '\u7ba1\u7406\u4e2d\u306e\u30c1\u30e3\u30f3\u30cd\u30eb\u306f\u3042\u308a\u307e\u305b\u3093',
+            ),
             SizedBox(height: 8),
             Text(
               '\u53f3\u4e0b\u306e + \u30dc\u30bf\u30f3\u3067\u30c1\u30e3\u30f3\u30cd\u30eb\u3092\u4f5c\u6210\u3067\u304d\u307e\u3059',
@@ -704,9 +715,7 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
                     const SizedBox(width: 8),
                     Text(
                       '\u30a2\u30fc\u30ab\u30a4\u30d6',
-                      style: TextStyle(
-                        color: Theme.of(ctx).colorScheme.error,
-                      ),
+                      style: TextStyle(color: Theme.of(ctx).colorScheme.error),
                     ),
                   ],
                 ),
@@ -857,89 +866,95 @@ class _ChannelEditSheetState extends ConsumerState<_ChannelEditSheet> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.channel != null;
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            isEdit
-                ? '\u30c1\u30e3\u30f3\u30cd\u30eb\u3092\u7de8\u96c6'
-                : '\u65b0\u3057\u3044\u30c1\u30e3\u30f3\u30cd\u30eb\u3092\u4f5c\u6210',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: '\u30c1\u30e3\u30f3\u30cd\u30eb\u540d *',
-              border: OutlineInputBorder(),
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom:
+              MediaQuery.viewPaddingOf(context).bottom +
+              MediaQuery.viewInsetsOf(context).bottom +
+              16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              isEdit
+                  ? '\u30c1\u30e3\u30f3\u30cd\u30eb\u3092\u7de8\u96c6'
+                  : '\u65b0\u3057\u3044\u30c1\u30e3\u30f3\u30cd\u30eb\u3092\u4f5c\u6210',
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-            autofocus: !isEdit,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _descriptionController,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: '\u8aac\u660e',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _colorController,
-            decoration: const InputDecoration(
-              labelText: '\u30ab\u30e9\u30fc\uff08#RRGGBB\uff09',
-              border: OutlineInputBorder(),
-              hintText: '#000000',
-            ),
-          ),
-          const SizedBox(height: 8),
-          SwitchListTile(
-            value: _isSensitive,
-            onChanged: (v) => setState(() => _isSensitive = v),
-            title: const Text(
-              '\u30bb\u30f3\u30b7\u30c6\u30a3\u30d6\u306a\u30c1\u30e3\u30f3\u30cd\u30eb',
-            ),
-            contentPadding: EdgeInsets.zero,
-          ),
-          SwitchListTile(
-            value: _allowRenoteToExternal,
-            onChanged: (v) => setState(() => _allowRenoteToExternal = v),
-            title: const Text(
-              '\u5916\u90e8\u3078\u306e\u30ea\u30ce\u30fc\u30c8\u3092\u8a31\u53ef',
-            ),
-            contentPadding: EdgeInsets.zero,
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('\u30ad\u30e3\u30f3\u30bb\u30eb'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: '\u30c1\u30e3\u30f3\u30cd\u30eb\u540d *',
+                border: OutlineInputBorder(),
               ),
-              const SizedBox(width: 8),
-              FilledButton(
-                onPressed: _isSaving ? null : _save,
-                child: _isSaving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(isEdit ? '\u4fdd\u5b58' : '\u4f5c\u6210'),
+              autofocus: !isEdit,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _descriptionController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: '\u8aac\u660e',
+                border: OutlineInputBorder(),
               ),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _colorController,
+              decoration: const InputDecoration(
+                labelText: '\u30ab\u30e9\u30fc\uff08#RRGGBB\uff09',
+                border: OutlineInputBorder(),
+                hintText: '#000000',
+              ),
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              value: _isSensitive,
+              onChanged: (v) => setState(() => _isSensitive = v),
+              title: const Text(
+                '\u30bb\u30f3\u30b7\u30c6\u30a3\u30d6\u306a\u30c1\u30e3\u30f3\u30cd\u30eb',
+              ),
+              contentPadding: EdgeInsets.zero,
+            ),
+            SwitchListTile(
+              value: _allowRenoteToExternal,
+              onChanged: (v) => setState(() => _allowRenoteToExternal = v),
+              title: const Text(
+                '\u5916\u90e8\u3078\u306e\u30ea\u30ce\u30fc\u30c8\u3092\u8a31\u53ef',
+              ),
+              contentPadding: EdgeInsets.zero,
+            ),
+            SizedBox(height: 8 + MediaQuery.viewPaddingOf(context).bottom),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('\u30ad\u30e3\u30f3\u30bb\u30eb'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: _isSaving ? null : _save,
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(isEdit ? '\u4fdd\u5b58' : '\u4f5c\u6210'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
