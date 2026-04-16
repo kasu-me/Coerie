@@ -866,95 +866,90 @@ class _ChannelEditSheetState extends ConsumerState<_ChannelEditSheet> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.channel != null;
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 16,
-          bottom:
-              MediaQuery.viewPaddingOf(context).bottom +
-              MediaQuery.viewInsetsOf(context).bottom +
-              16,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              isEdit
-                  ? '\u30c1\u30e3\u30f3\u30cd\u30eb\u3092\u7de8\u96c6'
-                  : '\u65b0\u3057\u3044\u30c1\u30e3\u30f3\u30cd\u30eb\u3092\u4f5c\u6210',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: '\u30c1\u30e3\u30f3\u30cd\u30eb\u540d *',
-                border: OutlineInputBorder(),
-              ),
-              autofocus: !isEdit,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _descriptionController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: '\u8aac\u660e',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _colorController,
-              decoration: const InputDecoration(
-                labelText: '\u30ab\u30e9\u30fc\uff08#RRGGBB\uff09',
-                border: OutlineInputBorder(),
-                hintText: '#000000',
-              ),
-            ),
-            const SizedBox(height: 8),
-            SwitchListTile(
-              value: _isSensitive,
-              onChanged: (v) => setState(() => _isSensitive = v),
-              title: const Text(
-                '\u30bb\u30f3\u30b7\u30c6\u30a3\u30d6\u306a\u30c1\u30e3\u30f3\u30cd\u30eb',
-              ),
-              contentPadding: EdgeInsets.zero,
-            ),
-            SwitchListTile(
-              value: _allowRenoteToExternal,
-              onChanged: (v) => setState(() => _allowRenoteToExternal = v),
-              title: const Text(
-                '\u5916\u90e8\u3078\u306e\u30ea\u30ce\u30fc\u30c8\u3092\u8a31\u53ef',
-              ),
-              contentPadding: EdgeInsets.zero,
-            ),
-            SizedBox(height: 8 + MediaQuery.viewPaddingOf(context).bottom),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      minChildSize: 0.5,
+      maxChildSize: 1.0,
+      expand: false,
+      builder: (ctx, scrollController) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+            child: Row(
               children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('\u30ad\u30e3\u30f3\u30bb\u30eb'),
+                Expanded(
+                  child: Text(
+                    isEdit ? 'チャンネルを編集' : '新しいチャンネルを作成',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: _isSaving ? null : _save,
-                  child: _isSaving
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(isEdit ? '\u4fdd\u5b58' : '\u4f5c\u6210'),
-                ),
+                if (_isSaving)
+                  const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                else
+                  FilledButton(
+                    onPressed: _save,
+                    child: Text(isEdit ? '保存' : '作成'),
+                  ),
               ],
             ),
-          ],
-        ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView(
+              controller: scrollController,
+              padding: const EdgeInsets.all(16),
+              children: [
+                TextField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'チャンネル名 *',
+                    border: OutlineInputBorder(),
+                  ),
+                  autofocus: !isEdit,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _descriptionController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: '説明',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _colorController,
+                  decoration: const InputDecoration(
+                    labelText: 'カラー（#RRGGBB）',
+                    border: OutlineInputBorder(),
+                    hintText: '#000000',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  value: _isSensitive,
+                  onChanged: (v) => setState(() => _isSensitive = v),
+                  title: const Text('センシティブなチャンネル'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                SwitchListTile(
+                  value: _allowRenoteToExternal,
+                  onChanged: (v) => setState(() => _allowRenoteToExternal = v),
+                  title: const Text('外部へのリノートを許可'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const SizedBox(height: 32),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

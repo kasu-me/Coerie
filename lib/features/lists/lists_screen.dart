@@ -53,154 +53,22 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
     }
   }
 
-  Future<void> _showCreateDialog() async {
-    final nameController = TextEditingController();
-    bool isPublic = false;
-
-    final confirmed = await showDialog<bool>(
+  void _showCreateSheet() {
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('新しいリストを作成'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'リスト名',
-                  hintText: 'リストの名前を入力',
-                ),
-                autofocus: true,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Checkbox(
-                    value: isPublic,
-                    onChanged: (v) =>
-                        setDialogState(() => isPublic = v ?? false),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  GestureDetector(
-                    onTap: () => setDialogState(() => isPublic = !isPublic),
-                    child: const Text('公開する'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('キャンセル'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('作成'),
-            ),
-          ],
-        ),
-      ),
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => _ListEditSheet(onSaved: _load),
     );
-
-    if (confirmed != true || !mounted) return;
-    final name = nameController.text.trim();
-    if (name.isEmpty) return;
-
-    final api = ref.read(misskeyApiProvider);
-    if (api == null) return;
-    try {
-      final created = await api.createList(name: name);
-      // isPublic は create では設定できないため、trueの場合は update で設定する
-      if (isPublic) {
-        final listId = created['id'] as String?;
-        if (listId != null) {
-          await api.updateList(listId: listId, isPublic: true);
-        }
-      }
-      await _load();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('作成に失敗しました: $e')));
-      }
-    }
   }
 
-  Future<void> _showEditDialog(Map<String, dynamic> list) async {
-    final nameController = TextEditingController(
-      text: list['name'] as String? ?? '',
-    );
-    bool isPublic = list['isPublic'] as bool? ?? false;
-
-    final confirmed = await showDialog<bool>(
+  void _showEditSheet(Map<String, dynamic> list) {
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('リストを編集'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'リスト名'),
-                autofocus: true,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Checkbox(
-                    value: isPublic,
-                    onChanged: (v) =>
-                        setDialogState(() => isPublic = v ?? false),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  GestureDetector(
-                    onTap: () => setDialogState(() => isPublic = !isPublic),
-                    child: const Text('公開する'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('キャンセル'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('保存'),
-            ),
-          ],
-        ),
-      ),
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => _ListEditSheet(list: list, onSaved: _load),
     );
-
-    if (confirmed != true || !mounted) return;
-    final name = nameController.text.trim();
-    if (name.isEmpty) return;
-
-    final api = ref.read(misskeyApiProvider);
-    if (api == null) return;
-    try {
-      await api.updateList(
-        listId: list['id'] as String,
-        name: name,
-        isPublic: isPublic,
-      );
-      await _load();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('更新に失敗しました: $e')));
-      }
-    }
   }
 
   Future<void> _deleteList(Map<String, dynamic> list) async {
@@ -316,7 +184,7 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _showCreateDialog,
+        onPressed: _showCreateSheet,
         child: const Icon(Icons.add),
       ),
       body: SafeArea(child: _buildBody()),
@@ -379,7 +247,7 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
             trailing: PopupMenuButton<String>(
               onSelected: (value) {
                 if (value == 'add_tab') _addToHomeTab(item);
-                if (value == 'edit') _showEditDialog(item);
+                if (value == 'edit') _showEditSheet(item);
                 if (value == 'members') _showMembersSheet(item);
                 if (value == 'delete') _deleteList(item);
               },
@@ -429,6 +297,154 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
             onTap: () => context.push('/list/$id', extra: item),
           );
         },
+      ),
+    );
+  }
+}
+
+// ---- リスト作成/編集ボトムシート ----
+
+class _ListEditSheet extends ConsumerStatefulWidget {
+  final Map<String, dynamic>? list;
+  final VoidCallback onSaved;
+
+  const _ListEditSheet({this.list, required this.onSaved});
+
+  @override
+  ConsumerState<_ListEditSheet> createState() => _ListEditSheetState();
+}
+
+class _ListEditSheetState extends ConsumerState<_ListEditSheet> {
+  final _nameController = TextEditingController();
+  bool _isPublic = false;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final l = widget.list;
+    if (l != null) {
+      _nameController.text = l['name'] as String? ?? '';
+      _isPublic = l['isPublic'] as bool? ?? false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('リスト名を入力してください')));
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) {
+      setState(() => _isSaving = false);
+      return;
+    }
+
+    try {
+      if (widget.list == null) {
+        final created = await api.createList(name: name);
+        // isPublic は create では設定できないため、trueの場合は update で設定する
+        if (_isPublic) {
+          final listId = created['id'] as String?;
+          if (listId != null) {
+            await api.updateList(listId: listId, isPublic: true);
+          }
+        }
+      } else {
+        await api.updateList(
+          listId: widget.list!['id'] as String,
+          name: name,
+          isPublic: _isPublic,
+        );
+      }
+      widget.onSaved();
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('保存に失敗しました: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEditing = widget.list != null;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      minChildSize: 0.5,
+      maxChildSize: 1.0,
+      expand: false,
+      builder: (ctx, scrollController) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    isEditing ? 'リストを編集' : '新しいリストを作成',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                if (_isSaving)
+                  const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                else
+                  FilledButton(
+                    onPressed: _save,
+                    child: Text(isEditing ? '保存' : '作成'),
+                  ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView(
+              controller: scrollController,
+              padding: const EdgeInsets.all(16),
+              children: [
+                TextField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'リスト名',
+                    hintText: 'リストの名前を入力',
+                    border: OutlineInputBorder(),
+                  ),
+                  autofocus: !isEditing,
+                ),
+                const SizedBox(height: 16),
+                SwitchListTile(
+                  value: _isPublic,
+                  onChanged: (v) => setState(() => _isPublic = v),
+                  title: const Text('公開する'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const SizedBox(height: 32),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

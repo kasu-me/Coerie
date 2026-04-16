@@ -58,171 +58,22 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
     }
   }
 
-  Future<void> _showCreateDialog() async {
-    final nameController = TextEditingController();
-    final descController = TextEditingController();
-    bool isPublic = false;
-
-    final confirmed = await showDialog<bool>(
+  void _showCreateSheet() {
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('新しいクリップを作成'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'タイトル',
-                  hintText: 'クリップのタイトルを入力',
-                ),
-                autofocus: true,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: descController,
-                decoration: const InputDecoration(
-                  labelText: '説明（任意）',
-                  hintText: '説明を入力',
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Checkbox(
-                    value: isPublic,
-                    onChanged: (v) =>
-                        setDialogState(() => isPublic = v ?? false),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  GestureDetector(
-                    onTap: () => setDialogState(() => isPublic = !isPublic),
-                    child: const Text('公開する'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('キャンセル'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('作成'),
-            ),
-          ],
-        ),
-      ),
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => _ClipEditSheet(onSaved: _load),
     );
-
-    if (confirmed != true || !mounted) return;
-    final name = nameController.text.trim();
-    if (name.isEmpty) return;
-
-    final api = ref.read(misskeyApiProvider);
-    if (api == null) return;
-    try {
-      await api.createClip(
-        name: name,
-        description: descController.text.trim().isEmpty
-            ? null
-            : descController.text.trim(),
-        isPublic: isPublic,
-      );
-      await _load();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('作成に失敗しました: $e')));
-      }
-    }
   }
 
-  Future<void> _showEditDialog(ClipModel clip) async {
-    final nameController = TextEditingController(text: clip.name);
-    final descController = TextEditingController(text: clip.description ?? '');
-    bool isPublic = clip.isPublic;
-
-    final confirmed = await showDialog<bool>(
+  void _showEditSheet(ClipModel clip) {
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('クリップを編集'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'タイトル'),
-                autofocus: true,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: descController,
-                decoration: const InputDecoration(labelText: '説明（任意）'),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Checkbox(
-                    value: isPublic,
-                    onChanged: (v) =>
-                        setDialogState(() => isPublic = v ?? false),
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  GestureDetector(
-                    onTap: () => setDialogState(() => isPublic = !isPublic),
-                    child: const Text('公開する'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('キャンセル'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('保存'),
-            ),
-          ],
-        ),
-      ),
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => _ClipEditSheet(clip: clip, onSaved: _load),
     );
-
-    if (confirmed != true || !mounted) return;
-    final name = nameController.text.trim();
-    if (name.isEmpty) return;
-
-    final api = ref.read(misskeyApiProvider);
-    if (api == null) return;
-    try {
-      await api.updateClip(
-        clipId: clip.id,
-        name: name,
-        description: descController.text.trim().isEmpty
-            ? null
-            : descController.text.trim(),
-        isPublic: isPublic,
-      );
-      await _load();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('更新に失敗しました: $e')));
-      }
-    }
   }
 
   Future<void> _deleteClip(ClipModel clip) async {
@@ -314,7 +165,7 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
       ),
       floatingActionButton: isOwn
           ? FloatingActionButton(
-              onPressed: _showCreateDialog,
+              onPressed: _showCreateSheet,
               child: const Icon(Icons.add),
             )
           : null,
@@ -397,7 +248,7 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
                 PopupMenuButton<String>(
                   onSelected: (value) {
                     if (value == 'copy') _copyClipUrl(clip);
-                    if (value == 'edit') _showEditDialog(clip);
+                    if (value == 'edit') _showEditSheet(clip);
                     if (value == 'delete') _deleteClip(clip);
                   },
                   itemBuilder: (_) => [
@@ -440,6 +291,169 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
             onTap: () => context.push('/clips/${clip.id}', extra: clip),
           );
         },
+      ),
+    );
+  }
+}
+
+// ---- クリップ作成/編集ボトムシート ----
+
+class _ClipEditSheet extends ConsumerStatefulWidget {
+  final ClipModel? clip;
+  final VoidCallback onSaved;
+
+  const _ClipEditSheet({this.clip, required this.onSaved});
+
+  @override
+  ConsumerState<_ClipEditSheet> createState() => _ClipEditSheetState();
+}
+
+class _ClipEditSheetState extends ConsumerState<_ClipEditSheet> {
+  final _nameController = TextEditingController();
+  final _descController = TextEditingController();
+  bool _isPublic = false;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final c = widget.clip;
+    if (c != null) {
+      _nameController.text = c.name;
+      _descController.text = c.description ?? '';
+      _isPublic = c.isPublic;
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('タイトルを入力してください')));
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) {
+      setState(() => _isSaving = false);
+      return;
+    }
+
+    try {
+      if (widget.clip == null) {
+        await api.createClip(
+          name: name,
+          description: _descController.text.trim().isEmpty
+              ? null
+              : _descController.text.trim(),
+          isPublic: _isPublic,
+        );
+      } else {
+        await api.updateClip(
+          clipId: widget.clip!.id,
+          name: name,
+          description: _descController.text.trim().isEmpty
+              ? null
+              : _descController.text.trim(),
+          isPublic: _isPublic,
+        );
+      }
+      widget.onSaved();
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('保存に失敗しました: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEditing = widget.clip != null;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      minChildSize: 0.5,
+      maxChildSize: 1.0,
+      expand: false,
+      builder: (ctx, scrollController) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    isEditing ? 'クリップを編集' : '新しいクリップを作成',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                if (_isSaving)
+                  const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                else
+                  FilledButton(
+                    onPressed: _save,
+                    child: Text(isEditing ? '保存' : '作成'),
+                  ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView(
+              controller: scrollController,
+              padding: const EdgeInsets.all(16),
+              children: [
+                TextField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'タイトル',
+                    hintText: 'クリップのタイトルを入力',
+                    border: OutlineInputBorder(),
+                  ),
+                  autofocus: !isEditing,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _descController,
+                  decoration: const InputDecoration(
+                    labelText: '説明（任意）',
+                    hintText: '説明を入力',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 16),
+                SwitchListTile(
+                  value: _isPublic,
+                  onChanged: (v) => setState(() => _isPublic = v),
+                  title: const Text('公開する'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                const SizedBox(height: 32),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
