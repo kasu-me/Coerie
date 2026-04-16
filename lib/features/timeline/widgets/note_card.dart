@@ -1887,13 +1887,33 @@ class _FullscreenImageViewer extends StatefulWidget {
   State<_FullscreenImageViewer> createState() => _FullscreenImageViewerState();
 }
 
-class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
+class _FullscreenImageViewerState extends State<_FullscreenImageViewer>
+    with SingleTickerProviderStateMixin {
   late int _current;
+  late List<TransformationController> _controllers;
+  late AnimationController _animationController;
+  Animation<Matrix4>? _animation;
+  TapDownDetails? _doubleTapDetails;
 
   @override
   void initState() {
     super.initState();
     _current = widget.initialIndex;
+    _controllers = List.generate(
+      widget.urls.length,
+      (_) => TransformationController(),
+    );
+    _animationController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 200),
+        )..addListener(() {
+          // update current controller during animation
+          final anim = _animation;
+          if (anim != null && _controllers.length > _current) {
+            _controllers[_current].value = anim.value;
+          }
+        });
   }
 
   @override
@@ -1949,19 +1969,24 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
           controller: PageController(initialPage: widget.initialIndex),
           itemCount: widget.urls.length,
           onPageChanged: (i) => setState(() => _current = i),
-          itemBuilder: (_, i) => InteractiveViewer(
-            minScale: 0.5,
-            maxScale: 5.0,
-            child: Center(
-              child: CachedNetworkImage(
-                imageUrl: widget.urls[i],
-                fit: BoxFit.contain,
-                placeholder: (_, _) =>
-                    const CircularProgressIndicator(color: Colors.white),
-                errorWidget: (_, _, _) => const Icon(
-                  Icons.broken_image_outlined,
-                  color: Colors.white,
-                  size: 64,
+          itemBuilder: (_, i) => GestureDetector(
+            onDoubleTapDown: (details) => _doubleTapDetails = details,
+            onDoubleTap: () => _handleDoubleTap(i),
+            child: InteractiveViewer(
+              transformationController: _controllers[i],
+              minScale: 0.5,
+              maxScale: 5.0,
+              child: Center(
+                child: CachedNetworkImage(
+                  imageUrl: widget.urls[i],
+                  fit: BoxFit.contain,
+                  placeholder: (_, _) =>
+                      const CircularProgressIndicator(color: Colors.white),
+                  errorWidget: (_, _, _) => const Icon(
+                    Icons.broken_image_outlined,
+                    color: Colors.white,
+                    size: 64,
+                  ),
                 ),
               ),
             ),
@@ -1969,6 +1994,40 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer> {
         ),
       ),
     );
+  }
+
+  void _handleDoubleTap(int index) {
+    if (index < 0 || index >= _controllers.length) return;
+    final controller = _controllers[index];
+    final currentScale = controller.value.getMaxScaleOnAxis();
+    final double targetScale = currentScale > 1.0 ? 1.0 : 2.5;
+    final begin = controller.value;
+
+    // focal point: where the user double-tapped (in the widget's local coords)
+    final focal = _doubleTapDetails?.localPosition ?? Offset.zero;
+
+    // compute translation so that the focal point remains under the finger
+    final tx = -focal.dx * (targetScale - 1);
+    final ty = -focal.dy * (targetScale - 1);
+
+    final end = Matrix4.identity()..translate(tx, ty);
+    end.multiply(Matrix4.diagonal3Values(targetScale, targetScale, 1.0));
+
+    _animation = Matrix4Tween(begin: begin, end: end).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+    _animationController.forward(from: 0);
+
+    _doubleTapDetails = null;
+  }
+
+  @override
+  void dispose() {
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    _animationController.dispose();
+    super.dispose();
   }
 
   Future<void> _downloadCurrent() async {
