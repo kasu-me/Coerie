@@ -690,21 +690,38 @@ class MfmContent extends StatelessWidget {
     }
 
     final baseFontSize = style.fontSize ?? 14;
-    final rubyStyle = style.copyWith(fontSize: baseFontSize * 0.5);
+    // height: 1.0 でルビとベーステキストの行間を詰める
+    final rubyStyle = style.copyWith(fontSize: baseFontSize * 0.5, height: 1.0);
+
+    // ルビを Unicode コードポイント単位で分割（均等割り付け用）
+    final rubyChars = rubyReading.runes.map(String.fromCharCode).toList();
 
     return _RubyBaselineWrapper(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(rubyReading, style: rubyStyle),
-          RichText(
-            text: TextSpan(
-              style: style,
-              children: _buildSpans(baseChildren, style, ctx),
+      // IntrinsicWidth + stretch で Column の幅を最も広い子に合わせる。
+      // ルビ < ベーステキスト → ルビ Row が引き伸ばされ均等割り付け。
+      // ルビ > ベーステキスト → RichText が引き伸ばされ textAlign.center で中央配置。
+      child: IntrinsicWidth(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: rubyChars.length <= 1
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.spaceBetween,
+              children: rubyChars
+                  .map((c) => Text(c, style: rubyStyle))
+                  .toList(),
             ),
-          ),
-        ],
+            RichText(
+              textAlign: TextAlign.center,
+              text: TextSpan(
+                style: style,
+                children: _buildSpans(baseChildren, style, ctx),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1167,27 +1184,32 @@ class _RubyBaselineWrapper extends SingleChildRenderObjectWidget {
 class _RubyBaselineRenderBox extends RenderProxyBox {
   @override
   double? computeDistanceToActualBaseline(TextBaseline baseline) {
-    final c = child;
-    if (c is! RenderFlex) {
+    // IntrinsicWidth などの RenderProxyBox を透過して RenderFlex (Column) を探す
+    RenderBox? current = child;
+    while (current != null && current is! RenderFlex) {
+      current = current is RenderProxyBox ? current.child : null;
+    }
+    if (current is! RenderFlex) {
       return super.computeDistanceToActualBaseline(baseline);
     }
 
     // Column の最初の子（ルビ読み）を取得し、次のノード（ベーステキスト）へ進む
-    final firstChild = c.firstChild;
+    final firstChild = current.firstChild;
     if (firstChild == null) {
       return super.computeDistanceToActualBaseline(baseline);
     }
-    final firstParentData = firstChild.parentData! as FlexParentData;
-    final secondChild = firstParentData.nextSibling;
+    final secondChild = (firstChild.parentData as FlexParentData?)?.nextSibling;
     if (secondChild == null) {
       return super.computeDistanceToActualBaseline(baseline);
     }
 
     // ベーステキスト（2番目の子）の y オフセット + そのベースライン距離を返す
-    final secondParentData = secondChild.parentData! as FlexParentData;
+    final secondOffsetDy =
+        (secondChild.parentData as FlexParentData?)?.offset.dy;
+    if (secondOffsetDy == null) return null;
     final childBaseline = secondChild.getDistanceToActualBaseline(baseline);
     if (childBaseline == null) return null;
 
-    return secondParentData.offset.dy + childBaseline;
+    return secondOffsetDy + childBaseline;
   }
 }
