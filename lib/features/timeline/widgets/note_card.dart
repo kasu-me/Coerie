@@ -132,10 +132,11 @@ class _NoteCardState extends ConsumerState<NoteCard> {
     final choice = _localPoll!.choices[idx];
     if (choice.isVoted) return;
     if (!_localPoll!.multiple && _localPoll!.choices.any((c) => c.isVoted)) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('既に投票済みです')));
+      }
       return;
     }
 
@@ -156,10 +157,11 @@ class _NoteCardState extends ConsumerState<NoteCard> {
         choices: updated,
       );
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('投票に失敗しました: $e')));
+      }
     } finally {
       if (mounted) setState(() => _isVoting = false);
     }
@@ -281,7 +283,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                               height: 22,
                               width: 22,
                               fit: BoxFit.contain,
-                              errorWidget: (_, __, ___) => Text(
+                              errorWidget: (_, _, _) => Text(
                                 reactionKey,
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
@@ -295,7 +297,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                               height: 22,
                               width: 22,
                               fit: BoxFit.contain,
-                              errorWidget: (_, __, ___) => Text(
+                              errorWidget: (_, _, _) => Text(
                                 reactionKey,
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
@@ -345,7 +347,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                     height: 320,
                     child: ListView.separated(
                       itemCount: users.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      separatorBuilder: (_, _) => const Divider(height: 1),
                       itemBuilder: (c, i) {
                         final u = users[i];
                         return ListTile(
@@ -702,7 +704,9 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                           ),
                           decoration: BoxDecoration(
                             color: choice.isVoted
-                                ? Theme.of(context).colorScheme.surfaceVariant
+                                ? Theme.of(
+                                    context,
+                                  ).colorScheme.surfaceContainerHighest
                                 : Theme.of(context).colorScheme.surface,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
@@ -741,7 +745,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                                   minHeight: 6,
                                   backgroundColor: Theme.of(
                                     context,
-                                  ).colorScheme.surfaceVariant,
+                                  ).colorScheme.surfaceContainerHighest,
                                 ),
                               ),
                             ],
@@ -848,7 +852,7 @@ class _QuotedNote extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceVariant,
+          color: theme.colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: theme.colorScheme.outlineVariant),
         ),
@@ -1071,7 +1075,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     final isRemoteUser = widget.note.user.host.isNotEmpty;
     final remoteNoteUrl = widget.note.uri;
 
-    String _buildReportComment() {
+    String buildReportComment() {
       final buf = StringBuffer();
       if (isRemoteUser && remoteNoteUrl != null) {
         buf.writeln('Note: $remoteNoteUrl');
@@ -1303,7 +1307,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                     useSafeArea: true,
                     builder: (_) => ReportAbuseSheet(
                       userId: widget.note.user.id,
-                      initialComment: _buildReportComment(),
+                      initialComment: buildReportComment(),
                     ),
                   );
                 },
@@ -1894,11 +1898,14 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer>
   late AnimationController _animationController;
   Animation<Matrix4>? _animation;
   TapDownDetails? _doubleTapDetails;
+  bool _isZoomed = false;
+  late PageController _pageController;
 
   @override
   void initState() {
     super.initState();
     _current = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
     _controllers = List.generate(
       widget.urls.length,
       (_) => TransformationController(),
@@ -1914,6 +1921,17 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer>
             _controllers[_current].value = anim.value;
           }
         });
+    if (_controllers.isNotEmpty) {
+      _controllers[_current].addListener(_onTransformChanged);
+    }
+  }
+
+  void _onTransformChanged() {
+    final scale = _controllers[_current].value.getMaxScaleOnAxis();
+    final zoomed = scale > 1.01;
+    if (zoomed != _isZoomed) {
+      setState(() => _isZoomed = zoomed);
+    }
   }
 
   @override
@@ -1966,9 +1984,19 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer>
       body: SafeArea(
         top: false,
         child: PageView.builder(
-          controller: PageController(initialPage: widget.initialIndex),
+          controller: _pageController,
+          physics: _isZoomed
+              ? const NeverScrollableScrollPhysics()
+              : const PageScrollPhysics(),
           itemCount: widget.urls.length,
-          onPageChanged: (i) => setState(() => _current = i),
+          onPageChanged: (i) {
+            _controllers[_current].removeListener(_onTransformChanged);
+            setState(() {
+              _current = i;
+              _isZoomed = false;
+            });
+            _controllers[i].addListener(_onTransformChanged);
+          },
           itemBuilder: (_, i) => GestureDetector(
             onDoubleTapDown: (details) => _doubleTapDetails = details,
             onDoubleTap: () => _handleDoubleTap(i),
@@ -2023,6 +2051,10 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer>
 
   @override
   void dispose() {
+    if (_controllers.isNotEmpty && _current < _controllers.length) {
+      _controllers[_current].removeListener(_onTransformChanged);
+    }
+    _pageController.dispose();
     for (final c in _controllers) {
       c.dispose();
     }
