@@ -64,11 +64,14 @@ class _ScrollToTopFabState extends State<ScrollToTopFab> {
       duration: const Duration(milliseconds: 200),
       child: IgnorePointer(
         ignoring: !_show,
-        child: FloatingActionButton.small(
-          heroTag: 'scrollToTop_${widget.scrollController.hashCode}',
-          onPressed: _scrollToTop,
-          tooltip: 'トップへ戻る',
-          child: const Icon(Icons.keyboard_arrow_up),
+        child: Tooltip(
+          preferBelow: false,
+          message: 'トップへ戻る',
+          child: FloatingActionButton.small(
+            heroTag: 'scrollToTop_${widget.scrollController.hashCode}',
+            onPressed: _scrollToTop,
+            child: const Icon(Icons.keyboard_arrow_up),
+          ),
         ),
       ),
     );
