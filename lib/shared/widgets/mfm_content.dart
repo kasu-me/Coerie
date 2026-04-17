@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:mfm_parser/mfm_parser.dart' as mfm;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:go_router/go_router.dart';
@@ -642,10 +643,70 @@ class MfmContent extends StatelessWidget {
         if (!enableAnimations) return _buildSpans(children, style, ctx);
         return _buildAnimationSpans(node.name, node.args, children, style, ctx);
 
+      // 振り仮名 ($[ruby ベーステキスト ルビ])
+      // 最後のスペースより前がベーステキスト、後がルビ読みになる
+      case 'ruby':
+        return [
+          WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: _buildRubyWidget(children, style, ctx),
+          ),
+        ];
+
       // 未対応の関数名 → 子ノードをそのまま表示
       default:
         return _buildSpans(children, style, ctx);
     }
+  }
+
+  /// $[ruby] のルビウィジェットを構築する。
+  ///
+  /// 子ノードリストの末尾テキストを最後のスペースで分割し、
+  /// 前半をベーステキスト、後半をルビ読みとして Column に積む。
+  Widget _buildRubyWidget(
+    List<mfm.MfmNode> children,
+    TextStyle style,
+    BuildContext ctx,
+  ) {
+    String rubyReading = '';
+    List<mfm.MfmNode> baseChildren = List.from(children);
+
+    if (children.isNotEmpty && children.last is mfm.MfmText) {
+      final lastText = (children.last as mfm.MfmText).text;
+      final lastSpace = lastText.lastIndexOf(' ');
+      if (lastSpace >= 0) {
+        rubyReading = lastText.substring(lastSpace + 1);
+        final beforeText = lastText.substring(0, lastSpace);
+        baseChildren = [
+          ...children.take(children.length - 1),
+          if (beforeText.isNotEmpty) mfm.MfmText(beforeText),
+        ];
+      } else {
+        // スペースなし → テキスト全体をルビ読みとして扱い、ベースは前の子ノード
+        rubyReading = lastText;
+        baseChildren = children.take(children.length - 1).toList();
+      }
+    }
+
+    final baseFontSize = style.fontSize ?? 14;
+    final rubyStyle = style.copyWith(fontSize: baseFontSize * 0.5);
+
+    return _RubyBaselineWrapper(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(rubyReading, style: rubyStyle),
+          RichText(
+            text: TextSpan(
+              style: style,
+              children: _buildSpans(baseChildren, style, ctx),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   List<InlineSpan> _buildAnimationSpans(
@@ -1088,5 +1149,45 @@ class _RainbowWidgetState extends State<_RainbowWidget>
       },
       child: widget.child,
     );
+  }
+}
+
+// ---- Ruby ベースライン補正ウィジェット ----
+
+/// Column はデフォルトでベースラインを報告しないため、
+/// 2番目の子（ベーステキスト）のベースラインを親に伝える RenderProxyBox。
+class _RubyBaselineWrapper extends SingleChildRenderObjectWidget {
+  const _RubyBaselineWrapper({required super.child});
+
+  @override
+  _RubyBaselineRenderBox createRenderObject(BuildContext context) =>
+      _RubyBaselineRenderBox();
+}
+
+class _RubyBaselineRenderBox extends RenderProxyBox {
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) {
+    final c = child;
+    if (c is! RenderFlex) {
+      return super.computeDistanceToActualBaseline(baseline);
+    }
+
+    // Column の最初の子（ルビ読み）を取得し、次のノード（ベーステキスト）へ進む
+    final firstChild = c.firstChild;
+    if (firstChild == null) {
+      return super.computeDistanceToActualBaseline(baseline);
+    }
+    final firstParentData = firstChild.parentData! as FlexParentData;
+    final secondChild = firstParentData.nextSibling;
+    if (secondChild == null) {
+      return super.computeDistanceToActualBaseline(baseline);
+    }
+
+    // ベーステキスト（2番目の子）の y オフセット + そのベースライン距離を返す
+    final secondParentData = secondChild.parentData! as FlexParentData;
+    final childBaseline = secondChild.getDistanceToActualBaseline(baseline);
+    if (childBaseline == null) return null;
+
+    return secondParentData.offset.dy + childBaseline;
   }
 }
