@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../core/constants/app_constants.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/note_model.dart';
@@ -25,7 +26,7 @@ final class _DriveMedia extends _AttachedMedia {
   _DriveMedia(this.driveFile);
 }
 
-enum _MediaSource { gallery, camera, drive }
+enum _MediaSource { gallery, camera, drive, videoGallery, videoCamera, audio }
 
 class ComposeScreen extends ConsumerStatefulWidget {
   final String? draftId;
@@ -202,7 +203,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       ).showSnackBar(const SnackBar(content: Text('添付できるファイルは最大4件です')));
       return;
     }
-
     final source = await showModalBottomSheet<_MediaSource>(
       context: context,
       useSafeArea: true,
@@ -213,13 +213,28 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('ギャラリーから選択'),
+              title: const Text('ギャラリーから画像を選択'),
               onTap: () => Navigator.pop(context, _MediaSource.gallery),
             ),
             ListTile(
+              leading: const Icon(Icons.video_library_outlined),
+              title: const Text('ギャラリーから動画を選択'),
+              onTap: () => Navigator.pop(context, _MediaSource.videoGallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.audio_file_outlined),
+              title: const Text('音声ファイルを選択'),
+              onTap: () => Navigator.pop(context, _MediaSource.audio),
+            ),
+            ListTile(
               leading: const Icon(Icons.camera_alt_outlined),
-              title: const Text('カメラで撮影'),
+              title: const Text('カメラで写真を撮影'),
               onTap: () => Navigator.pop(context, _MediaSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.videocam_outlined),
+              title: const Text('カメラで動画を撮影'),
+              onTap: () => Navigator.pop(context, _MediaSource.videoCamera),
             ),
             ListTile(
               leading: const Icon(Icons.cloud_outlined),
@@ -232,8 +247,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     );
     if (source == null) return;
 
+    final remaining = 4 - _attachedMedia.length;
+
     if (source == _MediaSource.drive) {
-      final remaining = 4 - _attachedMedia.length;
       if (!mounted) return;
       final selected = await context.push<List<DriveFileModel>>(
         '/drive',
@@ -250,18 +266,90 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     }
 
     final picker = ImagePicker();
+
     if (source == _MediaSource.gallery) {
-      final remaining = 4 - _attachedMedia.length;
       final files = await picker.pickMultiImage(limit: remaining);
-      if (files.isNotEmpty) {
+      if (files != null && files.isNotEmpty) {
         setState(() => _attachedMedia.addAll(files.map(_LocalMedia.new)));
       }
-    } else {
-      final file = await picker.pickImage(source: ImageSource.camera);
-      if (file != null) {
-        setState(() => _attachedMedia.add(_LocalMedia(file)));
-      }
+      return;
     }
+
+    if (source == _MediaSource.videoGallery) {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.video,
+        allowMultiple: true,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        final selected = result.files
+            .where((pf) => pf.path != null)
+            .take(remaining)
+            .map((pf) => XFile(pf.path!))
+            .toList();
+        if (selected.isNotEmpty)
+          setState(() => _attachedMedia.addAll(selected.map(_LocalMedia.new)));
+      }
+      return;
+    }
+
+    if (source == _MediaSource.audio) {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.audio,
+        allowMultiple: true,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        final selected = result.files
+            .where((pf) => pf.path != null)
+            .take(remaining)
+            .map((pf) => XFile(pf.path!))
+            .toList();
+        if (selected.isNotEmpty)
+          setState(() => _attachedMedia.addAll(selected.map(_LocalMedia.new)));
+      }
+      return;
+    }
+
+    if (source == _MediaSource.videoCamera) {
+      final file = await picker.pickVideo(source: ImageSource.camera);
+      if (file != null) setState(() => _attachedMedia.add(_LocalMedia(file)));
+      return;
+    }
+
+    if (source == _MediaSource.camera) {
+      final file = await picker.pickImage(source: ImageSource.camera);
+      if (file != null) setState(() => _attachedMedia.add(_LocalMedia(file)));
+    }
+  }
+
+  bool _isImagePath(String p) {
+    final s = p.toLowerCase();
+    return s.endsWith('.png') ||
+        s.endsWith('.jpg') ||
+        s.endsWith('.jpeg') ||
+        s.endsWith('.gif') ||
+        s.endsWith('.webp') ||
+        s.endsWith('.heic') ||
+        s.endsWith('.heif');
+  }
+
+  bool _isVideoPath(String p) {
+    final s = p.toLowerCase();
+    return s.endsWith('.mp4') ||
+        s.endsWith('.mov') ||
+        s.endsWith('.mkv') ||
+        s.endsWith('.webm') ||
+        s.endsWith('.3gp') ||
+        s.endsWith('.avi');
+  }
+
+  bool _isAudioPath(String p) {
+    final s = p.toLowerCase();
+    return s.endsWith('.mp3') ||
+        s.endsWith('.wav') ||
+        s.endsWith('.m4a') ||
+        s.endsWith('.aac') ||
+        s.endsWith('.ogg') ||
+        s.endsWith('.flac');
   }
 
   void _removeMedia(int index) {
@@ -1074,12 +1162,50 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: switch (media) {
-                              _LocalMedia m => Image.file(
-                                File(m.file.path),
-                                width: 100,
-                                height: 100,
-                                fit: BoxFit.cover,
-                              ),
+                              _LocalMedia m =>
+                                _isImagePath(m.file.path)
+                                    ? Image.file(
+                                        File(m.file.path),
+                                        width: 100,
+                                        height: 100,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : Container(
+                                        width: 100,
+                                        height: 100,
+                                        color: theme
+                                            .colorScheme
+                                            .surfaceContainerHighest,
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              _isVideoPath(m.file.path)
+                                                  ? Icons.play_arrow
+                                                  : Icons.audiotrack,
+                                              color: theme.colorScheme.primary,
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 4,
+                                                  ),
+                                              child: Text(
+                                                File(
+                                                  m.file.path,
+                                                ).uri.pathSegments.last,
+                                                style:
+                                                    theme.textTheme.labelSmall,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                               _DriveMedia m =>
                                 m.driveFile.isImage
                                     ? CachedNetworkImage(
