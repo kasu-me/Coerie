@@ -67,7 +67,7 @@ class MainActivity : FlutterActivity() {
 				if (sendToDart) {
 					methodChannel?.invokeMethod("onSharedText", sharedText)
 				}
-			} else if (type.startsWith("image") || type.startsWith("video")) {
+			} else if (type.startsWith("image") || type.startsWith("video") || type.startsWith("audio")) {
 				val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
 				if (uri != null) {
 					val path = resolveToTempFile(uri)
