@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
@@ -594,22 +596,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
 
   Widget _buildBody(BuildContext context) {
     if (_error != null && _folders.isEmpty && _files.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 48,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 16),
-            const Text('読み込みに失敗しました'),
-            const SizedBox(height: 8),
-            FilledButton(onPressed: _load, child: const Text('再試行')),
-          ],
-        ),
-      );
+      return Center(child: Text('読み込みに失敗: $_error'));
     }
 
     if (_isLoading && _folders.isEmpty && _files.isEmpty) {
@@ -1182,42 +1169,213 @@ class _FolderPickerSheetState extends ConsumerState<_FolderPickerSheet> {
 
 // ---- 画像プレビュー画面 ----
 
-class _DriveImagePreviewScreen extends StatelessWidget {
+class _DriveImagePreviewScreen extends StatefulWidget {
   final DriveFileModel file;
 
   const _DriveImagePreviewScreen({required this.file});
 
   @override
+  State<_DriveImagePreviewScreen> createState() =>
+      _DriveImagePreviewScreenState();
+}
+
+class _DriveImagePreviewScreenState extends State<_DriveImagePreviewScreen>
+    with SingleTickerProviderStateMixin {
+  late TransformationController _controller;
+  late AnimationController _animationController;
+  Animation<Matrix4>? _animation;
+  TapDownDetails? _doubleTapDetails;
+  bool _isZoomed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TransformationController();
+    _animationController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 200),
+        )..addListener(() {
+          final anim = _animation;
+          if (anim != null) {
+            _controller.value = anim.value;
+          }
+        });
+    _controller.addListener(_onTransformChanged);
+  }
+
+  void _onTransformChanged() {
+    final scale = _controller.value.getMaxScaleOnAxis();
+    final zoomed = scale > 1.01;
+    if (zoomed != _isZoomed) {
+      setState(() => _isZoomed = zoomed);
+    }
+  }
+
+  void _handleDoubleTap() {
+    final controller = _controller;
+    final currentScale = controller.value.getMaxScaleOnAxis();
+    final double targetScale = currentScale > 1.0 ? 1.0 : 2.5;
+    final begin = controller.value;
+
+    final focal = _doubleTapDetails?.localPosition ?? Offset.zero;
+
+    final tx = -focal.dx * (targetScale - 1);
+    final ty = -focal.dy * (targetScale - 1);
+
+    final end = Matrix4.identity()..translate(tx, ty);
+    end.multiply(Matrix4.diagonal3Values(targetScale, targetScale, 1.0));
+
+    _animation = Matrix4Tween(begin: begin, end: end).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+    _animationController.forward(from: 0);
+
+    _doubleTapDetails = null;
+  }
+
+  Future<void> _downloadFile() async {
+    final url = widget.file.url;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('ダウンロードを開始します...')));
+    try {
+      final dio = Dio();
+      String filename =
+          Uri.tryParse(url)?.pathSegments.last ?? widget.file.name;
+
+      Directory? dir;
+      try {
+        if (Platform.isAndroid) {
+          final dirs = await getExternalStorageDirectories(
+            type: StorageDirectory.downloads,
+          );
+          if (dirs != null && dirs.isNotEmpty) {
+            dir = dirs.first;
+          } else {
+            dir = await getExternalStorageDirectory();
+          }
+        } else if (Platform.isIOS) {
+          dir = await getApplicationDocumentsDirectory();
+        } else {
+          dir = await getDownloadsDirectory();
+          dir ??= await getApplicationDocumentsDirectory();
+        }
+      } catch (_) {
+        dir = await getApplicationDocumentsDirectory();
+      }
+
+      final saveFile = File('${dir!.path}${Platform.pathSeparator}$filename');
+      final tempFile = File('${saveFile.path}.part');
+
+      await dio.download(url, tempFile.path);
+      if (await tempFile.exists()) {
+        await tempFile.rename(saveFile.path);
+      }
+
+      messenger.showSnackBar(
+        SnackBar(content: Text('保存しました: ${saveFile.path}')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(const SnackBar(content: Text('ダウンロードに失敗しました')));
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_onTransformChanged);
+    _animationController.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final popupBg = theme.colorScheme.surface;
+    final popupOn = theme.colorScheme.onSurface;
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: Text(file.name, style: const TextStyle(color: Colors.white)),
+        title: Text(
+          widget.file.name,
+          style: const TextStyle(color: Colors.white),
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.open_in_browser, color: Colors.white),
-            tooltip: 'ブラウザで開く',
-            onPressed: () => launchUrl(
-              Uri.parse(file.url),
-              mode: LaunchMode.externalApplication,
+          PopupMenuButton<String>(
+            color: popupBg,
+            icon: const Icon(Icons.more_vert, color: Colors.white),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
             ),
+            elevation: 8,
+            offset: const Offset(0, 8),
+            onSelected: (v) {
+              if (v == 'download') _downloadFile();
+              if (v == 'open')
+                launchUrl(
+                  Uri.parse(widget.file.url),
+                  mode: LaunchMode.externalApplication,
+                );
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'download',
+                child: Row(
+                  children: [
+                    Icon(Icons.download_rounded, color: popupOn, size: 20),
+                    const SizedBox(width: 12),
+                    Text(
+                      'ダウンロード',
+                      style: TextStyle(color: popupOn, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'open',
+                child: Row(
+                  children: [
+                    Icon(Icons.open_in_browser, color: popupOn, size: 20),
+                    const SizedBox(width: 12),
+                    Text(
+                      'ブラウザで開く',
+                      style: TextStyle(color: popupOn, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
-      body: Center(
-        child: InteractiveViewer(
-          minScale: 0.5,
-          maxScale: 8,
-          child: CachedNetworkImage(
-            imageUrl: file.url,
-            placeholder: (_, _) =>
-                const CircularProgressIndicator(color: Colors.white),
-            errorWidget: (_, _, _) => const Icon(
-              Icons.broken_image_outlined,
-              color: Colors.white54,
-              size: 64,
+      body: SafeArea(
+        top: false,
+        bottom: false,
+        child: GestureDetector(
+          onDoubleTapDown: (details) => _doubleTapDetails = details,
+          onDoubleTap: _handleDoubleTap,
+          child: SizedBox.expand(
+            child: InteractiveViewer(
+              transformationController: _controller,
+              minScale: 0.5,
+              maxScale: 5.0,
+              boundaryMargin: const EdgeInsets.all(48),
+              child: Center(
+                child: CachedNetworkImage(
+                  imageUrl: widget.file.url,
+                  fit: BoxFit.contain,
+                  placeholder: (_, __) =>
+                      const CircularProgressIndicator(color: Colors.white),
+                  errorWidget: (_, __, ___) => const Icon(
+                    Icons.broken_image_outlined,
+                    color: Colors.white54,
+                    size: 64,
+                  ),
+                ),
+              ),
             ),
           ),
         ),
