@@ -11,6 +11,9 @@ class MisskeyApi {
   final String? token;
   final Dio _dio;
 
+  /// キャッシュされたサーバーの最大ファイルサイズ（バイト）
+  int? _maxFileSize;
+
   MisskeyApi({required this.host, this.token})
     : _dio = Dio(
         BaseOptions(
@@ -468,12 +471,40 @@ class MisskeyApi {
     );
   }
 
+  /// サーバーの最大ファイルサイズ（バイト）を取得する。
+  /// 取得に失敗した場合はMisskeyのデフォルト値（250MB）を返す。
+  Future<int> fetchMaxFileSize() async {
+    if (_maxFileSize != null) return _maxFileSize!;
+    try {
+      final res = await _dio.post('meta', data: {'detail': false});
+      final data = res.data as Map<String, dynamic>;
+      _maxFileSize =
+          (data['maxFileSize'] as num?)?.toInt() ?? (250 * 1024 * 1024);
+    } catch (_) {
+      _maxFileSize = 250 * 1024 * 1024;
+    }
+    return _maxFileSize!;
+  }
+
   /// ファイルをDriveにアップロードし、ファイルIDを返す。
   Future<String> uploadFile(
     File file, {
     String? name,
     bool isSensitive = false,
   }) async {
+    // アップロード前にサーバーのファイルサイズ制限を確認
+    final maxSize = await fetchMaxFileSize();
+    final fileSize = await file.length();
+    if (fileSize > maxSize) {
+      final maxMB = maxSize ~/ (1024 * 1024);
+      final fileMB = fileSize ~/ (1024 * 1024);
+      throw Exception(
+        'ファイルサイズが大きすぎます（${fileMB}MB）。'
+        'このサーバーの上限は${maxMB}MBです。'
+        '動画を短くするか、画質を下げてお試しください。',
+      );
+    }
+
     final fileName = name ?? file.path.split('/').last.split('\\').last;
     final formData = FormData.fromMap({
       'i': token,
@@ -483,15 +514,29 @@ class MisskeyApi {
     });
 
     // Drive upload は multipart/form-data を使用
+    // 大きなファイルのアップロードに対応するためタイムアウトを長めに設定
     final dio = Dio(
       BaseOptions(
         baseUrl: 'https://$host/api/',
         connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 60),
+        sendTimeout: const Duration(minutes: 10),
+        receiveTimeout: const Duration(minutes: 5),
       ),
     );
-    final res = await dio.post('drive/files/create', data: formData);
-    return (res.data as Map<String, dynamic>)['id'] as String;
+    try {
+      final res = await dio.post('drive/files/create', data: formData);
+      return (res.data as Map<String, dynamic>)['id'] as String;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 413) {
+        final maxMB = maxSize ~/ (1024 * 1024);
+        throw Exception(
+          'ファイルサイズが大きすぎます。'
+          'このサーバーの上限は${maxMB}MBです。'
+          '動画を短くするか、画質を下げてお試しください。',
+        );
+      }
+      rethrow;
+    }
   }
 
   // ---- カスタム絵文字 ----
