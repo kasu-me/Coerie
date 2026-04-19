@@ -414,16 +414,34 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       final fileIds = <String>[];
       if (_attachedMedia.isNotEmpty) {
         setState(() => _isUploadingMedia = true);
-        for (final media in _attachedMedia) {
-          if (media is _LocalMedia) {
-            final id = await api.uploadFile(
-              File(media.file.path),
-              isSensitive: _isSensitive,
-            );
-            fileIds.add(id);
-          } else if (media is _DriveMedia) {
-            fileIds.add(media.driveFile.id);
+        try {
+          for (final media in _attachedMedia) {
+            if (media is _LocalMedia) {
+              final id = await api.uploadFile(
+                File(media.file.path),
+                isSensitive: _isSensitive,
+              );
+              fileIds.add(id);
+            } else if (media is _DriveMedia) {
+              fileIds.add(media.driveFile.id);
+            }
           }
+        } catch (e) {
+          if (mounted) {
+            setState(() {
+              _isPosting = false;
+              _isUploadingMedia = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'アップロードに失敗しました: ${e.toString().replaceFirst('Exception: ', '')}',
+                ),
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
+            );
+          }
+          return;
         }
         setState(() => _isUploadingMedia = false);
       }
