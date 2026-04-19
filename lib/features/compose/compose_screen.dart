@@ -213,13 +213,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('ギャラリーから画像を選択'),
+              title: const Text('ギャラリーから画像/動画を選択'),
               onTap: () => Navigator.pop(context, _MediaSource.gallery),
-            ),
-            ListTile(
-              leading: const Icon(Icons.video_library_outlined),
-              title: const Text('ギャラリーから動画を選択'),
-              onTap: () => Navigator.pop(context, _MediaSource.videoGallery),
             ),
             ListTile(
               leading: const Icon(Icons.audio_file_outlined),
@@ -268,16 +263,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     final picker = ImagePicker();
 
     if (source == _MediaSource.gallery) {
-      final files = await picker.pickMultiImage(limit: remaining);
-      if (files != null && files.isNotEmpty) {
-        setState(() => _attachedMedia.addAll(files.map(_LocalMedia.new)));
-      }
-      return;
-    }
-
-    if (source == _MediaSource.videoGallery) {
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.video,
+        type: FileType.media,
         allowMultiple: true,
       );
       if (result != null && result.files.isNotEmpty) {
