@@ -910,6 +910,16 @@ class _DriveFileTile extends StatelessWidget {
         errorWidget: (_, _, _) =>
             Icon(Icons.broken_image_outlined, color: theme.colorScheme.outline),
       );
+    } else if (file.isVideo) {
+      // 動画はサムネイルがあれば表示、なければ黒背景にする
+      content = file.thumbnailUrl != null
+          ? CachedNetworkImage(
+              imageUrl: file.thumbnailUrl!,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => Container(color: Colors.black),
+              errorWidget: (_, __, ___) => Container(color: Colors.black),
+            )
+          : Container(color: Colors.black);
     } else {
       content = Container(
         color: theme.colorScheme.surfaceContainerHighest,
@@ -944,6 +954,15 @@ class _DriveFileTile extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           ClipRRect(borderRadius: BorderRadius.circular(4), child: content),
+          // 動画の場合は再生アイコンをオーバーレイ
+          if (file.isVideo)
+            const Center(
+              child: CircleAvatar(
+                radius: 22,
+                backgroundColor: Colors.black54,
+                child: Icon(Icons.play_arrow, color: Colors.white, size: 28),
+              ),
+            ),
           if (selectionMode)
             Positioned(
               top: 4,
