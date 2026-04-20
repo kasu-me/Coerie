@@ -259,6 +259,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
   final _scrollController = ScrollController();
   late bool _isBlocking;
   late bool _isMuted;
+  late bool _isFollowed;
   bool _isLoadingAction = false;
 
   @override
@@ -266,6 +267,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
     super.initState();
     _isBlocking = widget.user.isBlocking;
     _isMuted = widget.user.isMuted;
+    _isFollowed = widget.user.isFollowed;
   }
 
   @override
@@ -595,7 +597,12 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                                         false;
                                     if (!confirmed) return;
                                   }
-                                  setState(() => _isLoadingAction = true);
+                                  // 楽観的にバッジを即時非表示にする
+                                  final prevFollowed = _isFollowed;
+                                  setState(() {
+                                    _isLoadingAction = true;
+                                    _isFollowed = false;
+                                  });
                                   try {
                                     await api.invalidateFollower(user.id);
                                     if (!mounted) return;
@@ -617,6 +624,10 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                                     }
                                   } catch (_) {
                                     if (mounted) {
+                                      // 失敗したら状態を元に戻す
+                                      setState(
+                                        () => _isFollowed = prevFollowed,
+                                      );
                                       ScaffoldMessenger.of(
                                         context,
                                       ).showSnackBar(
@@ -706,7 +717,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                                     ],
                                   ),
                                 ),
-                                if (user.isFollowed)
+                                if (_isFollowed)
                                   PopupMenuItem(
                                     value: 'invalidate',
                                     child: Row(
@@ -814,7 +825,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            if (!isOwnProfile && user.isFollowed) ...[
+                            if (!isOwnProfile && _isFollowed) ...[
                               const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(
