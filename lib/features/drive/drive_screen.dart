@@ -920,6 +920,28 @@ class _DriveFileTile extends StatelessWidget {
               errorWidget: (_, __, ___) => Container(color: Colors.black),
             )
           : Container(color: Colors.black);
+    } else if (file.isAudio) {
+      // 音声ファイルはファイルアイコンの代わりに♪を表示
+      content = Container(
+        color: theme.colorScheme.surfaceContainerHighest,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.music_note, size: 28, color: theme.colorScheme.primary),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                file.name,
+                style: theme.textTheme.labelSmall,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+      );
     } else {
       content = Container(
         color: theme.colorScheme.surfaceContainerHighest,
