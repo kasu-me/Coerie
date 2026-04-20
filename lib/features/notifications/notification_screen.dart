@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/streaming/streaming_service.dart';
 import '../../data/models/notification_model.dart';
 import '../compose/emoji_picker_sheet.dart';
+import '../profile/follow_requests_sheet.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/notifications_badge_provider.dart';
 import '../../shared/providers/notifications_tab_visibility_provider.dart';
@@ -274,9 +275,11 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
             if (note != null) ...note.emojis,
             if (note != null) ...note.reactionEmojis,
           };
+          final profileOwnerId = ref.read(activeAccountProvider)?.userId ?? '';
           return _NotificationTile(
             notification: state.items[index],
             emojiUrlMap: emojiUrlMap,
+            profileOwnerId: profileOwnerId,
           );
         },
       ),
@@ -289,10 +292,12 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
 class _NotificationTile extends StatelessWidget {
   final NotificationModel notification;
   final Map<String, String> emojiUrlMap;
+  final String? profileOwnerId;
 
   const _NotificationTile({
     required this.notification,
     this.emojiUrlMap = const {},
+    this.profileOwnerId,
   });
 
   @override
@@ -305,6 +310,18 @@ class _NotificationTile extends StatelessWidget {
         const noteTypes = {'mention', 'reply', 'renote', 'quote', 'reaction'};
         if (n.note != null && noteTypes.contains(n.type)) {
           context.push('/note/${n.note!.id}', extra: n.note);
+        } else if (n.type == 'receiveFollowRequest') {
+          if (profileOwnerId != null && profileOwnerId!.isNotEmpty) {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              useSafeArea: true,
+              builder: (ctx) =>
+                  FollowRequestsSheet(profileOwnerId: profileOwnerId!),
+            );
+          } else if (n.user != null) {
+            context.push('/profile/${n.user!.id}');
+          }
         } else if (n.user != null) {
           context.push('/profile/${n.user!.id}');
         }
