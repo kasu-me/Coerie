@@ -405,8 +405,9 @@ class MfmContent extends StatelessWidget {
     }
 
     if (node is mfm.MfmLink) {
+      // silent (= ?[text](url)) はリンクプレビューを非表示にするだけで
+      // リンク自体はクリック可能なため、通常リンクと同じ処理を行う
       final childSpans = _buildSpans(node.children ?? [], style, ctx);
-      if (node.silent) return childSpans;
       return [
         TextSpan(
           children: childSpans,
@@ -593,12 +594,14 @@ class MfmContent extends StatelessWidget {
 
       // 回転
       case 'rotate':
-        final deg = double.tryParse(node.args['deg']?.toString() ?? '') ?? 0.0;
+        // deg= 引数がない場合は Misskey 公式実装に合わせてデフォルト 90 度
+        final deg = double.tryParse(node.args['deg']?.toString() ?? '') ?? 90.0;
+        final rad = deg * (math.pi / 180);
         return [
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
-            child: Transform.rotate(
-              angle: deg * (3.14159265358979 / 180),
+            child: _RotateWidget(
+              angle: rad,
               child: RichText(
                 text: TextSpan(
                   style: style,
@@ -608,6 +611,123 @@ class MfmContent extends StatelessWidget {
             ),
           ),
         ];
+
+      // 反転 ($[flip.v ...] or $[flip.h,v ...] or $[flip ...])
+      case 'flip':
+        final flipH = !node.args.containsKey('v') || node.args.containsKey('h');
+        final flipV = node.args.containsKey('v');
+        final sx = flipH ? -1.0 : 1.0;
+        final sy = flipV ? -1.0 : 1.0;
+        return [
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Transform.scale(
+              scaleX: sx,
+              scaleY: sy,
+              child: RichText(
+                text: TextSpan(
+                  style: style,
+                  children: _buildSpans(children, style, ctx),
+                ),
+              ),
+            ),
+          ),
+        ];
+
+      // 位置ずらし ($[position.x=0.8,y=0.5 ...])
+      case 'position':
+        final px = double.tryParse(node.args['x']?.toString() ?? '') ?? 0.0;
+        final py = double.tryParse(node.args['y']?.toString() ?? '') ?? 0.0;
+        final em = baseFontSize;
+        return [
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Transform.translate(
+              offset: Offset(px * em, py * em),
+              child: RichText(
+                text: TextSpan(
+                  style: style,
+                  children: _buildSpans(children, style, ctx),
+                ),
+              ),
+            ),
+          ),
+        ];
+
+      // 枠線 ($[border.style=solid,width=4 ...])
+      case 'border':
+        {
+          final styleStr = node.args['style']?.toString() ?? 'solid';
+          final colorStr = node.args['color']?.toString();
+          final borderColor = colorStr != null
+              ? _parseHexColor(colorStr)
+              : null;
+          final widthVal =
+              double.tryParse(node.args['width']?.toString() ?? '') ?? 1.0;
+          final radiusVal =
+              double.tryParse(node.args['radius']?.toString() ?? '') ?? 0.0;
+          BorderStyle bs;
+          switch (styleStr) {
+            case 'hidden':
+              bs = BorderStyle.none;
+              break;
+            case 'dotted':
+            case 'dashed':
+            case 'double':
+            case 'groove':
+            case 'ridge':
+            case 'inset':
+            case 'outset':
+            case 'solid':
+            default:
+              bs = BorderStyle.solid;
+          }
+          final effectiveBorderColor =
+              borderColor ?? Theme.of(ctx).colorScheme.outline;
+          return [
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: effectiveBorderColor,
+                    width: widthVal,
+                    style: bs,
+                  ),
+                  borderRadius: radiusVal > 0
+                      ? BorderRadius.circular(radiusVal)
+                      : null,
+                ),
+                child: RichText(
+                  text: TextSpan(
+                    style: style,
+                    children: _buildSpans(children, style, ctx),
+                  ),
+                ),
+              ),
+            ),
+          ];
+        }
+
+      // UNIX時間 ($[unixtime 1701356400])
+      case 'unixtime':
+        {
+          // 子ノードのテキストを結合して UNIX タイムスタンプを取得
+          final raw = children
+              .whereType<mfm.MfmText>()
+              .map((t) => t.text.trim())
+              .join();
+          final ts = int.tryParse(raw);
+          if (ts == null) return _buildSpans(children, style, ctx);
+          final dt = DateTime.fromMillisecondsSinceEpoch(
+            ts * 1000,
+            isUtc: false,
+          );
+          final formatted =
+              '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')} '
+              '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:${dt.second.toString().padLeft(2, '0')}';
+          return [TextSpan(text: formatted, style: style)];
+        }
 
       // スケール
       case 'scale':
@@ -766,6 +886,9 @@ class MfmContent extends StatelessWidget {
         break;
       case 'rainbow':
         animated = _RainbowWidget(speed: speed, child: childWidget);
+        break;
+      case 'sparkle':
+        animated = _SparkleWidget(child: childWidget);
         break;
       default:
         animated = childWidget;
@@ -1166,6 +1289,212 @@ class _RainbowWidgetState extends State<_RainbowWidget>
       },
       child: widget.child,
     );
+  }
+}
+
+// ---- キラキラウィジェット ----
+
+/// $[sparkle] — 子ウィジェットの上にランダムな星型パーティクルを重ねる。
+class _SparkleWidget extends StatefulWidget {
+  final Widget child;
+  const _SparkleWidget({required this.child});
+
+  @override
+  State<_SparkleWidget> createState() => _SparkleWidgetState();
+}
+
+class _SparkleParticle {
+  double x;
+  double y;
+  double size;
+  double opacity;
+  double phase;
+  _SparkleParticle({
+    required this.x,
+    required this.y,
+    required this.size,
+    required this.opacity,
+    required this.phase,
+  });
+}
+
+class _SparkleWidgetState extends State<_SparkleWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  final List<_SparkleParticle> _particles = [];
+  final _rand = math.Random();
+
+  @override
+  void initState() {
+    super.initState();
+    for (var i = 0; i < 6; i++) {
+      _particles.add(
+        _SparkleParticle(
+          x: _rand.nextDouble(),
+          y: _rand.nextDouble(),
+          size: 4 + _rand.nextDouble() * 6,
+          opacity: 0.0,
+          phase: _rand.nextDouble() * 2 * math.pi,
+        ),
+      );
+    }
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, child) {
+        return CustomPaint(
+          foregroundPainter: _SparklePainter(_particles, _ctrl.value),
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+class _SparklePainter extends CustomPainter {
+  final List<_SparkleParticle> particles;
+  final double t;
+
+  _SparklePainter(this.particles, this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+    for (final p in particles) {
+      final v = math.sin((t * 2 * math.pi) + p.phase);
+      final opacity = ((v + 1) / 2).clamp(0.0, 1.0);
+      paint.color = Colors.yellow.withValues(alpha: opacity * 0.9);
+      final cx = p.x * size.width;
+      final cy = p.y * size.height;
+      final s = p.size * (0.5 + 0.5 * opacity);
+      _drawStar(canvas, paint, cx, cy, s);
+    }
+  }
+
+  void _drawStar(Canvas canvas, Paint paint, double cx, double cy, double r) {
+    final path = Path();
+    const spikes = 4;
+    final inner = r * 0.4;
+    for (var i = 0; i < spikes * 2; i++) {
+      final angle = (i * math.pi / spikes) - math.pi / 2;
+      final radius = i.isEven ? r : inner;
+      final x = cx + math.cos(angle) * radius;
+      final y = cy + math.sin(angle) * radius;
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_SparklePainter old) => old.t != t;
+}
+
+// ---- 回転ウィジェット（レイアウトサイズを回転後の外接矩形に合わせる） ----
+
+/// [Transform.rotate] は描画のみのトランスフォームでレイアウトサイズが変わらないため、
+/// 回転後の外接矩形を正しいレイアウトサイズとして報告するカスタムウィジェット。
+class _RotateWidget extends SingleChildRenderObjectWidget {
+  final double angle;
+  const _RotateWidget({required this.angle, required super.child});
+
+  @override
+  _RotateRenderBox createRenderObject(BuildContext context) =>
+      _RotateRenderBox(angle: angle);
+
+  @override
+  void updateRenderObject(BuildContext context, _RotateRenderBox renderObject) {
+    renderObject.angle = angle;
+  }
+}
+
+class _RotateRenderBox extends RenderProxyBox {
+  double _angle;
+
+  _RotateRenderBox({required double angle}) : _angle = angle;
+
+  double get angle => _angle;
+
+  set angle(double value) {
+    if (_angle == value) return;
+    _angle = value;
+    markNeedsLayout();
+  }
+
+  @override
+  void performLayout() {
+    if (child == null) {
+      size = constraints.smallest;
+      return;
+    }
+    // 回転後の外接矩形でレイアウトサイズを決めるため、
+    // 子は unconstrained で自然なサイズを計算させる
+    child!.layout(const BoxConstraints(), parentUsesSize: true);
+    final w = child!.size.width;
+    final h = child!.size.height;
+    final cosA = math.cos(_angle).abs();
+    final sinA = math.sin(_angle).abs();
+    size = constraints.constrain(
+      Size(w * cosA + h * sinA, w * sinA + h * cosA),
+    );
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if (child == null) return;
+    final childSize = child!.size;
+    // 自ウィジェットの中心を軸に子ウィジェットを回転して描画する
+    final m =
+        Matrix4.translationValues(
+            offset.dx + size.width / 2,
+            offset.dy + size.height / 2,
+            0,
+          )
+          ..multiply(Matrix4.rotationZ(_angle))
+          ..multiply(
+            Matrix4.translationValues(
+              -childSize.width / 2,
+              -childSize.height / 2,
+              0,
+            ),
+          );
+    context.pushTransform(
+      needsCompositing,
+      Offset.zero,
+      m,
+      (ctx, off) => ctx.paintChild(child!, off),
+    );
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
+    if (child == null) return false;
+    final cosA = math.cos(-_angle);
+    final sinA = math.sin(-_angle);
+    final center = size.center(Offset.zero);
+    final dx = position.dx - center.dx;
+    final dy = position.dy - center.dy;
+    final localX = dx * cosA - dy * sinA + child!.size.width / 2;
+    final localY = dx * sinA + dy * cosA + child!.size.height / 2;
+    return child!.hitTest(result, position: Offset(localX, localY));
   }
 }
 
