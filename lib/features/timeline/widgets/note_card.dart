@@ -51,6 +51,7 @@ class NoteCard extends ConsumerStatefulWidget {
   final String? renoteWrapperNoteId;
   final UserModel? pinnedByUser;
   final VoidCallback? onPinnedChanged;
+  final Widget? trailing;
   const NoteCard({
     super.key,
     required this.note,
@@ -60,6 +61,7 @@ class NoteCard extends ConsumerStatefulWidget {
     this.renoteWrapperNoteId,
     this.pinnedByUser,
     this.onPinnedChanged,
+    this.trailing,
   });
 
   @override
@@ -565,6 +567,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                       color: theme.colorScheme.outline,
                     ),
                   ),
+                if (widget.trailing != null) widget.trailing!,
               ],
             ),
 

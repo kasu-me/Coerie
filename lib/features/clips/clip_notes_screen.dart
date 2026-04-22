@@ -316,38 +316,23 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
             );
           }
           final note = _notes[i];
-          return Stack(
-            children: [
-              NoteCard(note: note),
-              Positioned(
-                top: 8,
-                right: 16,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () => _removeNote(note),
-                    child: Tooltip(
-                      message: 'クリップから削除',
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.surface.withValues(alpha: 0.8),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.bookmark_remove,
-                          size: 16,
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                    ),
+          return NoteCard(
+            note: note,
+            trailing: Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Tooltip(
+                message: 'クリップから削除',
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _removeNote(note),
+                  child: Icon(
+                    Icons.bookmark_remove,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.error,
                   ),
                 ),
               ),
-            ],
+            ),
           );
         },
       ),
