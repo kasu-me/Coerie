@@ -43,14 +43,25 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
       _error = null;
     });
     final api = ref.read(misskeyApiProvider);
-    if (api == null) return;
+    if (api == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+    // 自分のクリップを見る場合（ownerUserId が自分のID、または未指定）は
+    // clips/list エンドポイントを使用する（users/clips は公開クリップのみ返すため）
+    final active = ref.read(activeAccountProvider);
+    final isOwn =
+        widget.ownerUserId == null || widget.ownerUserId == active?.userId;
     try {
-      final clips = await api.getClips(userId: widget.ownerUserId);
-      if (mounted)
+      final clips = await api.getClips(
+        userId: isOwn ? null : widget.ownerUserId,
+      );
+      if (mounted) {
         setState(() {
           _clips = clips;
           _sortClips();
         });
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {
@@ -192,20 +203,35 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
       );
     }
     if (_clips.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      return RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           children: [
-            const Icon(Icons.bookmark_border, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text(widget.ownerUserId == null ? 'クリップがありません' : '公開クリップがありません'),
-            const SizedBox(height: 8),
-            Text(
-              widget.ownerUserId == null
-                  ? '右下の + ボタンでクリップを作成できます'
-                  : 'このユーザーは公開クリップを持っていないか、\nサーバーがこの機能に対応していません',
-              style: const TextStyle(color: Colors.grey),
-              textAlign: TextAlign.center,
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.4,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.bookmark_border,
+                      size: 64,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(isOwn ? 'クリップがありません' : '公開クリップがありません'),
+                    const SizedBox(height: 8),
+                    Text(
+                      isOwn
+                          ? '右下の + ボタンでクリップを作成できます'
+                          : 'このユーザーは公開クリップを持っていないか、\nサーバーがこの機能に対応していません',
+                      style: const TextStyle(color: Colors.grey),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -216,7 +242,7 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: _clips.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (context, index) => const Divider(height: 1),
         itemBuilder: (ctx, i) {
           final clip = _clips[i];
           return ListTile(
