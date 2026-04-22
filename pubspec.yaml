@@ -67,6 +67,9 @@ dependencies:
   file_picker: ^8.1.7
   # MFM (Markup language For Misskey) パーサー
   mfm_parser: ^1.0.6
+  # ギャラリーピッカー
+  wechat_assets_picker: ^9.3.1
+  photo_manager: ^3.6.4
 
 dev_dependencies:
   flutter_test:

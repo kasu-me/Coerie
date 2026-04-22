@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import '../../core/constants/app_constants.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/note_model.dart';
@@ -18,7 +19,9 @@ sealed class _AttachedMedia {}
 
 final class _LocalMedia extends _AttachedMedia {
   final XFile file;
-  _LocalMedia(this.file);
+  final AssetEntity? _asset;
+  _LocalMedia(this.file) : _asset = null;
+  _LocalMedia.fromAsset(this.file, this._asset);
 }
 
 final class _DriveMedia extends _AttachedMedia {
@@ -263,18 +266,32 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     final picker = ImagePicker();
 
     if (source == _MediaSource.gallery) {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.media,
-        allowMultiple: true,
+      if (!mounted) return;
+      final assets = await AssetPicker.pickAssets(
+        context,
+        pickerConfig: AssetPickerConfig(
+          maxAssets: remaining,
+          requestType: RequestType.common,
+          selectedAssets: _attachedMedia
+              .whereType<_LocalMedia>()
+              .map((m) => m._asset)
+              .whereType<AssetEntity>()
+              .toList(),
+        ),
       );
-      if (result != null && result.files.isNotEmpty) {
-        final selected = result.files
-            .where((pf) => pf.path != null)
-            .take(remaining)
-            .map((pf) => XFile(pf.path!))
-            .toList();
-        if (selected.isNotEmpty)
-          setState(() => _attachedMedia.addAll(selected.map(_LocalMedia.new)));
+      if (assets != null && assets.isNotEmpty) {
+        final files = await Future.wait(
+          assets.map((a) async {
+            final file = await a.originFile;
+            if (file == null) return null;
+            final xfile = XFile(file.path);
+            return _LocalMedia.fromAsset(xfile, a);
+          }),
+        );
+        final validFiles = files.whereType<_LocalMedia>().toList();
+        if (validFiles.isNotEmpty) {
+          setState(() => _attachedMedia.addAll(validFiles));
+        }
       }
       return;
     }

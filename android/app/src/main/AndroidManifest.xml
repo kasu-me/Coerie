@@ -1,5 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- メディアアクセス権限 (Android 13+) -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <!-- メディアアクセス権限 (Android 12以下) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <application
         android:label="Coerie"
         android:name="${applicationName}"
