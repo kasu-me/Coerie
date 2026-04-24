@@ -277,6 +277,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               .map((m) => m._asset)
               .whereType<AssetEntity>()
               .toList(),
+          textDelegate: const _JaConfirmAssetPickerTextDelegate(),
         ),
       );
       if (assets != null && assets.isNotEmpty) {
@@ -1609,4 +1610,12 @@ class _EmojiSuggestBar extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _JaConfirmAssetPickerTextDelegate
+    extends JapaneseAssetPickerTextDelegate {
+  const _JaConfirmAssetPickerTextDelegate();
+
+  @override
+  String get confirm => '確定';
 }
