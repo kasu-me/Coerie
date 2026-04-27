@@ -846,6 +846,17 @@ class MfmContent extends StatelessWidget {
     );
   }
 
+  /// MFM の speed 引数（例: "1.5s", "2s"）をミリ秒に変換する。
+  /// 引数が null または無効な場合は null を返す（各ウィジェットのデフォルト値を使用する）。
+  static int? _parseSpeedMs(dynamic speedArg) {
+    if (speedArg == null) return null;
+    var s = speedArg.toString().trim();
+    if (s.endsWith('s')) s = s.substring(0, s.length - 1);
+    final secs = double.tryParse(s);
+    if (secs == null || secs <= 0) return null;
+    return (secs * 1000).round();
+  }
+
   List<InlineSpan> _buildAnimationSpans(
     String name,
     Map<String, dynamic> args,
@@ -856,36 +867,65 @@ class MfmContent extends StatelessWidget {
     final childWidget = RichText(
       text: TextSpan(style: style, children: _buildSpans(children, style, ctx)),
     );
-    final speed = double.tryParse(args['speed']?.toString() ?? '') ?? 1.0;
+    final durationMs = _parseSpeedMs(args['speed']);
 
     Widget animated;
     switch (name) {
       case 'spin':
+        final axis = args.containsKey('x')
+            ? _SpinAxis.x
+            : args.containsKey('y')
+            ? _SpinAxis.y
+            : _SpinAxis.z;
         animated = _SpinWidget(
           alternate: args.containsKey('alternate'),
-          speed: speed,
+          axis: axis,
+          durationMs: durationMs ?? 1500,
           child: childWidget,
         );
         break;
       case 'shake':
-        animated = _ShakeWidget(speed: speed, child: childWidget);
+        animated = _ShakeWidget(
+          durationMs: durationMs ?? 500,
+          child: childWidget,
+        );
         break;
       case 'jump':
+        animated = _JumpWidget(
+          durationMs: durationMs ?? 750,
+          child: childWidget,
+        );
+        break;
       case 'fall':
-        animated = _JumpWidget(speed: speed, child: childWidget);
+        animated = _FallWidget(
+          durationMs: durationMs ?? 2000,
+          child: childWidget,
+        );
         break;
       case 'bounce':
-        animated = _BounceWidget(speed: speed, child: childWidget);
+        animated = _BounceWidget(
+          durationMs: durationMs ?? 500,
+          child: childWidget,
+        );
         break;
       case 'jelly':
       case 'tada':
-        animated = _JellyWidget(speed: speed, child: childWidget);
+        animated = _JellyWidget(
+          durationMs: durationMs ?? 1000,
+          child: childWidget,
+        );
         break;
       case 'twitch':
-        animated = _TwitchWidget(speed: speed, child: childWidget);
+        animated = _TwitchWidget(
+          durationMs: durationMs ?? 200,
+          child: childWidget,
+        );
         break;
       case 'rainbow':
-        animated = _RainbowWidget(speed: speed, child: childWidget);
+        animated = _RainbowWidget(
+          durationMs: durationMs ?? 3000,
+          child: childWidget,
+        );
         break;
       case 'sparkle':
         animated = _SparkleWidget(child: childWidget);
@@ -944,14 +984,18 @@ class MfmContent extends StatelessWidget {
 
 // ---- MFM アニメーションウィジェット ----
 
+enum _SpinAxis { x, y, z }
+
 class _SpinWidget extends StatefulWidget {
   final Widget child;
   final bool alternate;
-  final double speed;
+  final _SpinAxis axis;
+  final int durationMs;
   const _SpinWidget({
     required this.child,
     this.alternate = false,
-    this.speed = 1.0,
+    this.axis = _SpinAxis.z,
+    this.durationMs = 1500,
   });
 
   @override
@@ -967,7 +1011,7 @@ class _SpinWidgetState extends State<_SpinWidget>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: (1500 / widget.speed).round()),
+      duration: Duration(milliseconds: widget.durationMs),
     )..repeat(reverse: widget.alternate);
   }
 
@@ -979,24 +1023,63 @@ class _SpinWidgetState extends State<_SpinWidget>
 
   @override
   Widget build(BuildContext context) {
-    if (widget.alternate) {
-      return AnimatedBuilder(
-        animation: _ctrl,
-        builder: (_, child) => Transform.rotate(
-          angle: (_ctrl.value - 0.5) * math.pi,
-          child: child,
-        ),
-        child: widget.child,
-      );
+    switch (widget.axis) {
+      case _SpinAxis.x:
+        return AnimatedBuilder(
+          animation: _ctrl,
+          builder: (_, child) {
+            final angle = widget.alternate
+                ? (_ctrl.value - 0.5) * math.pi
+                : _ctrl.value * 2 * math.pi;
+            final matrix = Matrix4.identity()
+              ..setEntry(3, 2, 0.001)
+              ..rotateX(angle);
+            return Transform(
+              transform: matrix,
+              alignment: Alignment.center,
+              child: child,
+            );
+          },
+          child: widget.child,
+        );
+      case _SpinAxis.y:
+        return AnimatedBuilder(
+          animation: _ctrl,
+          builder: (_, child) {
+            final angle = widget.alternate
+                ? (_ctrl.value - 0.5) * math.pi
+                : _ctrl.value * 2 * math.pi;
+            final matrix = Matrix4.identity()
+              ..setEntry(3, 2, 0.001)
+              ..rotateY(angle);
+            return Transform(
+              transform: matrix,
+              alignment: Alignment.center,
+              child: child,
+            );
+          },
+          child: widget.child,
+        );
+      case _SpinAxis.z:
+        if (widget.alternate) {
+          return AnimatedBuilder(
+            animation: _ctrl,
+            builder: (_, child) => Transform.rotate(
+              angle: (_ctrl.value - 0.5) * math.pi,
+              child: child,
+            ),
+            child: widget.child,
+          );
+        }
+        return RotationTransition(turns: _ctrl, child: widget.child);
     }
-    return RotationTransition(turns: _ctrl, child: widget.child);
   }
 }
 
 class _ShakeWidget extends StatefulWidget {
   final Widget child;
-  final double speed;
-  const _ShakeWidget({required this.child, this.speed = 1.0});
+  final int durationMs;
+  const _ShakeWidget({required this.child, this.durationMs = 500});
 
   @override
   State<_ShakeWidget> createState() => _ShakeWidgetState();
@@ -1011,7 +1094,7 @@ class _ShakeWidgetState extends State<_ShakeWidget>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: (500 / widget.speed).round()),
+      duration: Duration(milliseconds: widget.durationMs),
     )..repeat();
   }
 
@@ -1036,8 +1119,8 @@ class _ShakeWidgetState extends State<_ShakeWidget>
 
 class _JumpWidget extends StatefulWidget {
   final Widget child;
-  final double speed;
-  const _JumpWidget({required this.child, this.speed = 1.0});
+  final int durationMs;
+  const _JumpWidget({required this.child, this.durationMs = 750});
 
   @override
   State<_JumpWidget> createState() => _JumpWidgetState();
@@ -1052,7 +1135,7 @@ class _JumpWidgetState extends State<_JumpWidget>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: (750 / widget.speed).round()),
+      duration: Duration(milliseconds: widget.durationMs),
     )..repeat();
   }
 
@@ -1078,10 +1161,59 @@ class _JumpWidgetState extends State<_JumpWidget>
   }
 }
 
+/// $[fall ...] — 子ウィジェットを下方向へ落下させるアニメーション。
+class _FallWidget extends StatefulWidget {
+  final Widget child;
+  final int durationMs;
+  const _FallWidget({required this.child, this.durationMs = 2000});
+
+  @override
+  State<_FallWidget> createState() => _FallWidgetState();
+}
+
+class _FallWidgetState extends State<_FallWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: widget.durationMs),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, child) {
+        // 0→1 の Curved で加速しながら落下
+        final t = Curves.easeIn.transform(_ctrl.value);
+        return Transform.translate(
+          offset: Offset(0, 60 * t),
+          child: Opacity(
+            opacity: (1.0 - _ctrl.value).clamp(0.0, 1.0),
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
 class _BounceWidget extends StatefulWidget {
   final Widget child;
-  final double speed;
-  const _BounceWidget({required this.child, this.speed = 1.0});
+  final int durationMs;
+  const _BounceWidget({required this.child, this.durationMs = 500});
 
   @override
   State<_BounceWidget> createState() => _BounceWidgetState();
@@ -1096,7 +1228,7 @@ class _BounceWidgetState extends State<_BounceWidget>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: (500 / widget.speed).round()),
+      duration: Duration(milliseconds: widget.durationMs),
     )..repeat();
   }
 
@@ -1121,8 +1253,8 @@ class _BounceWidgetState extends State<_BounceWidget>
 
 class _JellyWidget extends StatefulWidget {
   final Widget child;
-  final double speed;
-  const _JellyWidget({required this.child, this.speed = 1.0});
+  final int durationMs;
+  const _JellyWidget({required this.child, this.durationMs = 1000});
 
   @override
   State<_JellyWidget> createState() => _JellyWidgetState();
@@ -1137,7 +1269,7 @@ class _JellyWidgetState extends State<_JellyWidget>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: (1000 / widget.speed).round()),
+      duration: Duration(milliseconds: widget.durationMs),
     )..repeat();
   }
 
@@ -1162,8 +1294,8 @@ class _JellyWidgetState extends State<_JellyWidget>
 
 class _TwitchWidget extends StatefulWidget {
   final Widget child;
-  final double speed;
-  const _TwitchWidget({required this.child, this.speed = 1.0});
+  final int durationMs;
+  const _TwitchWidget({required this.child, this.durationMs = 200});
 
   @override
   State<_TwitchWidget> createState() => _TwitchWidgetState();
@@ -1178,7 +1310,7 @@ class _TwitchWidgetState extends State<_TwitchWidget>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: (200 / widget.speed).round()),
+      duration: Duration(milliseconds: widget.durationMs),
     )..repeat();
   }
 
@@ -1205,8 +1337,8 @@ class _TwitchWidgetState extends State<_TwitchWidget>
 
 class _RainbowWidget extends StatefulWidget {
   final Widget child;
-  final double speed;
-  const _RainbowWidget({required this.child, this.speed = 1.0});
+  final int durationMs;
+  const _RainbowWidget({required this.child, this.durationMs = 3000});
 
   @override
   State<_RainbowWidget> createState() => _RainbowWidgetState();
@@ -1219,10 +1351,9 @@ class _RainbowWidgetState extends State<_RainbowWidget>
   @override
   void initState() {
     super.initState();
-    final s = widget.speed <= 0 ? 1.0 : widget.speed;
     _ctrl = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: (3000 / s).round()),
+      duration: Duration(milliseconds: widget.durationMs),
     )..repeat();
   }
 
