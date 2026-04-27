@@ -25,10 +25,8 @@ class ImageCompressionService {
         : CompressFormat.jpeg;
 
     final tmpDir = await getTemporaryDirectory();
-    final outPath = p.join(
-      tmpDir.path,
-      'compressed_${DateTime.now().millisecondsSinceEpoch}$ext',
-    );
+    final basename = p.basenameWithoutExtension(file.path);
+    final outPath = p.join(tmpDir.path, '$basename$ext');
 
     // PNG の quality パラメーターは iOS では無視される
     final quality = level.quality ?? 80;
