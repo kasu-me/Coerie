@@ -15,9 +15,9 @@ enum ImageCompressionLevel {
   String get label {
     return switch (this) {
       ImageCompressionLevel.none => '無圧縮',
-      ImageCompressionLevel.low => '低',
-      ImageCompressionLevel.medium => '中',
-      ImageCompressionLevel.high => '高',
+      ImageCompressionLevel.low => '高品質',
+      ImageCompressionLevel.medium => '中品質',
+      ImageCompressionLevel.high => '低品質',
     };
   }
 
