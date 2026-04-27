@@ -31,7 +31,7 @@ class ImagePostingSettingsScreen extends ConsumerWidget {
                 const Padding(
                   padding: EdgeInsets.only(top: 8, bottom: 8),
                   child: Text(
-                    'jpeg ・ png のみ圧縮の対象です。Compose画面から個別に変更することもできます。',
+                    'jpeg・png のみ圧縮の対象です。投稿画面から個別に変更することもできます。',
                     style: TextStyle(fontSize: 12),
                   ),
                 ),
