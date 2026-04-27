@@ -21,6 +21,10 @@ import '../../features/home/home_screen.dart';
 import '../../features/compose/compose_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../features/draft/draft_screen.dart';
+import '../../features/settings/appearance_settings_screen.dart';
+import '../../features/settings/timeline_settings_screen.dart';
+import '../../features/settings/image_posting_settings_screen.dart';
+import '../../features/settings/notification_settings_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/settings/tabs_settings_screen.dart';
 import '../../features/settings/mute_block_screen.dart';
@@ -167,6 +171,22 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'tabs',
             builder: (context, state) => const TabsSettingsScreen(),
+          ),
+          GoRoute(
+            path: 'appearance',
+            builder: (context, state) => const AppearanceSettingsScreen(),
+          ),
+          GoRoute(
+            path: 'timeline',
+            builder: (context, state) => const TimelineSettingsScreen(),
+          ),
+          GoRoute(
+            path: 'image-posting',
+            builder: (context, state) => const ImagePostingSettingsScreen(),
+          ),
+          GoRoute(
+            path: 'notifications',
+            builder: (context, state) => const NotificationSettingsScreen(),
           ),
         ],
       ),

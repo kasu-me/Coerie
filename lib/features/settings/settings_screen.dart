@@ -11,7 +11,6 @@ import '../../shared/providers/account_visibility_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/app_settings_model.dart';
-import '../../core/constants/image_compression_level.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -24,209 +23,74 @@ class SettingsScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('設定')),
       body: ListView(
         children: [
-          // --- テーマ設定 ---
-          _SectionHeader('テーマ'),
-          RadioGroup<String>(
-            groupValue: settings.theme,
-            onChanged: (v) => ref.read(settingsProvider.notifier).setTheme(v!),
-            child: Column(
-              children: const [
-                RadioListTile<String>(
-                  title: Text('システム設定に合わせる'),
-                  value: 'system',
-                ),
-                RadioListTile<String>(title: Text('ライト'), value: 'light'),
-                RadioListTile<String>(title: Text('ダーク'), value: 'dark'),
-              ],
-            ),
+          // --- 外観 ---
+          ListTile(
+            leading: const Icon(Icons.palette_outlined),
+            title: const Text('外観'),
+            subtitle: const Text('テーマ・フォントサイズ・アイコンサイズ'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/appearance'),
           ),
+          const Divider(indent: 16, endIndent: 16),
 
-          // --- タイムライン（大カテゴリ）---
-          _SectionHeader('タイムライン'),
-
-          // --- フォントサイズ ---
-          _SubSectionHeader('フォントサイズ'),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 16, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('${settings.fontSize.toStringAsFixed(0)}pt'),
-                Slider(
-                  min: 10,
-                  max: 22,
-                  divisions: 12,
-                  value: settings.fontSize,
-                  label: settings.fontSize.toStringAsFixed(0),
-                  onChanged: (v) =>
-                      ref.read(settingsProvider.notifier).setFontSize(v),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [Text('小'), Text('大')],
-                ),
-              ],
-            ),
+          // --- タイムライン表示 ---
+          ListTile(
+            leading: const Icon(Icons.view_list_outlined),
+            title: const Text('タイムライン表示'),
+            subtitle: const Text('リアルタイム更新・投稿日時・アニメーションなど'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/timeline'),
           ),
-
-          // --- アイコンサイズ ---
-          _SubSectionHeader('アイコンサイズ'),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 16, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('${(settings.avatarRadius * 2).toStringAsFixed(0)}px'),
-                Slider(
-                  min: 12,
-                  max: 40,
-                  divisions: 28,
-                  value: settings.avatarRadius,
-                  label: '${(settings.avatarRadius * 2).toStringAsFixed(0)}px',
-                  onChanged: (v) =>
-                      ref.read(settingsProvider.notifier).setAvatarRadius(v),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [Text('小'), Text('大')],
-                ),
-              ],
-            ),
-          ),
-
-          // --- ノート ---
-          _SubSectionHeader('ノート'),
-          SwitchListTile(
-            contentPadding: const EdgeInsets.only(left: 24, right: 16),
-            title: const Text('リアルタイム更新'),
-            subtitle: const Text('WebSocketでタイムラインを自動更新する'),
-            value: settings.realtimeUpdate,
-            onChanged: (v) =>
-                ref.read(settingsProvider.notifier).setRealtimeUpdate(v),
-          ),
-          SwitchListTile(
-            contentPadding: const EdgeInsets.only(left: 24, right: 16),
-            title: const Text('投稿日時を相対表示'),
-            subtitle: Text(
-              settings.dateTimeRelative ? '例: 3分前、2時間前' : '例: 2026/03/30 12:34',
-            ),
-            value: settings.dateTimeRelative,
-            onChanged: (v) =>
-                ref.read(settingsProvider.notifier).setDateTimeRelative(v),
-          ),
-          if (!settings.dateTimeRelative)
-            ListTile(
-              contentPadding: const EdgeInsets.only(left: 24, right: 16),
-              leading: const Icon(Icons.schedule),
-              title: const Text('絶対時刻のタイムゾーン'),
-              subtitle: Text(_timezoneLabel(settings.timezoneOffsetHours)),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () =>
-                  _pickTimezone(context, ref, settings.timezoneOffsetHours),
-            ),
-          SwitchListTile(
-            contentPadding: const EdgeInsets.only(left: 24, right: 16),
-            title: const Text('MFMアニメーション'),
-            subtitle: const Text('スピン・レインボーなどのアニメーション効果を有効にする'),
-            value: settings.mfmAnimation,
-            onChanged: (v) =>
-                ref.read(settingsProvider.notifier).setMfmAnimation(v),
-          ),
-          SwitchListTile(
-            contentPadding: const EdgeInsets.only(left: 24, right: 16),
-            title: const Text('長い投稿を省略表示'),
-            subtitle: const Text('一定の高さを超えた投稿を折りたたみ「続きを読む」ボタンを表示する'),
-            value: settings.collapseNote,
-            onChanged: (v) =>
-                ref.read(settingsProvider.notifier).setCollapseNote(v),
-          ),
+          const Divider(indent: 16, endIndent: 16),
 
           // --- 画像投稿 ---
-          _SectionHeader('画像投稿'),
-          _SubSectionHeader('デフォルトの画像圧縮率'),
-          Padding(
-            padding: const EdgeInsets.only(left: 24, right: 16, bottom: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'jpeg ・ png のみ圧縮の対象です。Compose画面から個別に変更することもできます。',
-                  style: TextStyle(fontSize: 12),
-                ),
-                const SizedBox(height: 8),
-                ...ImageCompressionLevel.values.map(
-                  (level) => RadioListTile<ImageCompressionLevel>(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(level.label),
-                    subtitle: level == ImageCompressionLevel.none
-                        ? const Text('そのままアップロード')
-                        : Text(
-                            '最大 ${level.maxDimension}px / JPEG品質 ${level.quality}%',
-                          ),
-                    value: level,
-                    groupValue: settings.defaultImageCompressionLevel,
-                    onChanged: (v) => ref
-                        .read(settingsProvider.notifier)
-                        .setDefaultImageCompressionLevel(v!),
-                  ),
-                ),
-              ],
-            ),
+          ListTile(
+            leading: const Icon(Icons.image_outlined),
+            title: const Text('画像投稿'),
+            subtitle: const Text('デフォルト圧縮率'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/image-posting'),
           ),
-          _SectionHeader('タブ'),
+          const Divider(indent: 16, endIndent: 16),
+
+          // --- タブ ---
           Consumer(
             builder: (context, ref, _) {
               final accountId = ref.watch(activeAccountProvider)?.id ?? '';
               final tabs = ref.watch(accountTabsProvider(accountId));
               return ListTile(
-                leading: const Icon(Icons.tab),
-                title: const Text('タブの管理'),
+                leading: const Icon(Icons.tab_outlined),
+                title: const Text('タブ管理'),
                 subtitle: Text('${tabs.length}個のタブ'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.push('/settings/tabs'),
               );
             },
           ),
+          const Divider(indent: 16, endIndent: 16),
 
-          // --- 操作設定 ---
+          // --- 通知 ---
+          ListTile(
+            leading: const Icon(Icons.notifications_outlined),
+            title: const Text('通知'),
+            subtitle: Text(
+              settings.notificationsEnabled ? 'プッシュ通知: オン' : 'プッシュ通知: オフ',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/notifications'),
+          ),
+          const Divider(indent: 16, endIndent: 16),
+
+          // --- 操作 ---
           _SectionHeader('操作'),
           SwitchListTile(
+            secondary: const Icon(Icons.warning_amber_outlined),
             title: const Text('破壊的操作の前に確認する'),
             subtitle: const Text('ノート削除・リノート解除などで確認ダイアログを表示する'),
             value: settings.confirmDestructive,
             onChanged: (v) =>
                 ref.read(settingsProvider.notifier).setConfirmDestructive(v),
           ),
-
-          // --- 通知設定 ---
-          _SectionHeader('通知'),
-          SwitchListTile(
-            title: const Text('プッシュ通知'),
-            value: settings.notificationsEnabled,
-            onChanged: (v) =>
-                ref.read(settingsProvider.notifier).setNotificationsEnabled(v),
-          ),
-          if (settings.notificationsEnabled) ...[
-            SwitchListTile(
-              title: const Text('返信'),
-              value: settings.notifyReply,
-              onChanged: (v) =>
-                  ref.read(settingsProvider.notifier).setNotifyReply(v),
-            ),
-            SwitchListTile(
-              title: const Text('フォロー'),
-              value: settings.notifyFollow,
-              onChanged: (v) =>
-                  ref.read(settingsProvider.notifier).setNotifyFollow(v),
-            ),
-            SwitchListTile(
-              title: const Text('リアクション'),
-              value: settings.notifyReaction,
-              onChanged: (v) =>
-                  ref.read(settingsProvider.notifier).setNotifyReaction(v),
-            ),
-          ],
 
           // --- データ管理 ---
           _SectionHeader('データ管理'),
@@ -251,71 +115,6 @@ class SettingsScreen extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  static const _tzOptions = [
-    (label: 'デバイスの設定に従う', offset: null),
-    (label: 'UTC-12 (IDLW)', offset: -12),
-    (label: 'UTC-11 (SST)', offset: -11),
-    (label: 'UTC-10 (HST)', offset: -10),
-    (label: 'UTC-9 (AKST)', offset: -9),
-    (label: 'UTC-8 (PST)', offset: -8),
-    (label: 'UTC-7 (MST)', offset: -7),
-    (label: 'UTC-6 (CST)', offset: -6),
-    (label: 'UTC-5 (EST)', offset: -5),
-    (label: 'UTC-4 (AST)', offset: -4),
-    (label: 'UTC-3 (BRT)', offset: -3),
-    (label: 'UTC+0 (UTC/GMT)', offset: 0),
-    (label: 'UTC+1 (CET)', offset: 1),
-    (label: 'UTC+2 (EET)', offset: 2),
-    (label: 'UTC+3 (MSK)', offset: 3),
-    (label: 'UTC+4 (GST)', offset: 4),
-    (label: 'UTC+5 (PKT)', offset: 5),
-    (label: 'UTC+6 (BST)', offset: 6),
-    (label: 'UTC+7 (WIB)', offset: 7),
-    (label: 'UTC+8 (CST/HKT)', offset: 8),
-    (label: 'UTC+9 (JST/KST)', offset: 9),
-    (label: 'UTC+10 (AEST)', offset: 10),
-    (label: 'UTC+11 (AEDT)', offset: 11),
-    (label: 'UTC+12 (NZST)', offset: 12),
-  ];
-
-  static String _timezoneLabel(int? offset) {
-    if (offset == null) return 'デバイスの設定に従う';
-    final match = _tzOptions.where((o) => o.offset == offset).firstOrNull;
-    if (match != null) return match.label;
-    return offset >= 0 ? 'UTC+$offset' : 'UTC$offset';
-  }
-
-  Future<void> _pickTimezone(
-    BuildContext context,
-    WidgetRef ref,
-    int? current,
-  ) async {
-    final selected = await showDialog<({String label, int? offset})>(
-      context: context,
-      builder: (_) => SimpleDialog(
-        title: const Text('タイムゾーンを選択'),
-        children: _tzOptions.map((opt) {
-          return SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, opt),
-            child: Text(
-              opt.label,
-              style: TextStyle(
-                fontWeight: opt.offset == current
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-    if (selected != null) {
-      ref
-          .read(settingsProvider.notifier)
-          .setTimezoneOffsetHours(selected.offset);
-    }
   }
 
   Future<void> _exportSettingsWithToken(
@@ -603,26 +402,6 @@ class _SectionHeader extends StatelessWidget {
           fontSize: 16,
           fontWeight: FontWeight.bold,
           color: Theme.of(context).colorScheme.primary,
-        ),
-      ),
-    );
-  }
-}
-
-class _SubSectionHeader extends StatelessWidget {
-  final String title;
-  const _SubSectionHeader(this.title);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.bold,
-          color: Theme.of(context).colorScheme.secondary,
         ),
       ),
     );
