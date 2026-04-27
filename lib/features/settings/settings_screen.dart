@@ -11,6 +11,7 @@ import '../../shared/providers/account_visibility_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/app_settings_model.dart';
+import '../../core/constants/image_compression_level.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -140,7 +141,39 @@ class SettingsScreen extends ConsumerWidget {
                 ref.read(settingsProvider.notifier).setCollapseNote(v),
           ),
 
-          // --- タブ設定 ---
+          // --- 画像投稿 ---
+          _SectionHeader('画像投稿'),
+          _SubSectionHeader('デフォルトの画像圧縮率'),
+          Padding(
+            padding: const EdgeInsets.only(left: 24, right: 16, bottom: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'jpeg ・ png のみ圧縮の対象です。Compose画面から個別に変更することもできます。',
+                  style: TextStyle(fontSize: 12),
+                ),
+                const SizedBox(height: 8),
+                ...ImageCompressionLevel.values.map(
+                  (level) => RadioListTile<ImageCompressionLevel>(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(level.label),
+                    subtitle: level == ImageCompressionLevel.none
+                        ? const Text('そのままアップロード')
+                        : Text(
+                            '最大 ${level.maxDimension}px / JPEG品質 ${level.quality}%',
+                          ),
+                    value: level,
+                    groupValue: settings.defaultImageCompressionLevel,
+                    onChanged: (v) => ref
+                        .read(settingsProvider.notifier)
+                        .setDefaultImageCompressionLevel(v!),
+                  ),
+                ),
+              ],
+            ),
+          ),
           _SectionHeader('タブ'),
           Consumer(
             builder: (context, ref, _) {

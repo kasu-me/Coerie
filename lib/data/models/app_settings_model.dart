@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../../core/constants/image_compression_level.dart';
 
 class TabConfigModel {
   final String id;
@@ -56,6 +57,8 @@ class AppSettingsModel {
   final bool mfmAnimation; // MFMアニメーションを有効にする（デフォルト: false=静的表示）
   final bool collapseNote; // 長い投稿を省略表示する（デフォルト: true）
   final double avatarRadius; // タイムラインのユーザーアイコンの半径（デフォルト: 20.0）
+  final ImageCompressionLevel
+  defaultImageCompressionLevel; // 画像アップロード時のデフォルト圧縮レベル
 
   const AppSettingsModel({
     this.theme = 'system',
@@ -73,6 +76,7 @@ class AppSettingsModel {
     this.mfmAnimation = false,
     this.collapseNote = true,
     this.avatarRadius = 20.0,
+    this.defaultImageCompressionLevel = ImageCompressionLevel.none,
   });
 
   AppSettingsModel copyWith({
@@ -91,6 +95,7 @@ class AppSettingsModel {
     bool? mfmAnimation,
     bool? collapseNote,
     double? avatarRadius,
+    ImageCompressionLevel? defaultImageCompressionLevel,
   }) => AppSettingsModel(
     theme: theme ?? this.theme,
     fontSize: fontSize ?? this.fontSize,
@@ -109,6 +114,8 @@ class AppSettingsModel {
     mfmAnimation: mfmAnimation ?? this.mfmAnimation,
     collapseNote: collapseNote ?? this.collapseNote,
     avatarRadius: avatarRadius ?? this.avatarRadius,
+    defaultImageCompressionLevel:
+        defaultImageCompressionLevel ?? this.defaultImageCompressionLevel,
   );
 
   static const Object _sentinel = Object();
@@ -129,6 +136,7 @@ class AppSettingsModel {
     'mfmAnimation': mfmAnimation,
     'collapseNote': collapseNote,
     'avatarRadius': avatarRadius,
+    'defaultImageCompressionLevel': defaultImageCompressionLevel.index,
   };
 
   factory AppSettingsModel.fromJson(Map<String, dynamic> json) =>
@@ -150,6 +158,8 @@ class AppSettingsModel {
         mfmAnimation: json['mfmAnimation'] as bool? ?? false,
         collapseNote: json['collapseNote'] as bool? ?? true,
         avatarRadius: (json['avatarRadius'] as num?)?.toDouble() ?? 20.0,
+        defaultImageCompressionLevel: ImageCompressionLevel
+            .values[(json['defaultImageCompressionLevel'] as int?) ?? 0],
       );
 
   factory AppSettingsModel.fromJsonString(String jsonString) =>

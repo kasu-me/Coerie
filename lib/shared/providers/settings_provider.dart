@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/models/app_settings_model.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/constants/image_compression_level.dart';
 import 'shared_preferences_provider.dart';
 
 final settingsProvider =
@@ -103,6 +104,13 @@ class SettingsNotifier extends StateNotifier<AppSettingsModel> {
 
   Future<void> setCollapseNote(bool value) async {
     state = state.copyWith(collapseNote: value);
+    await _save();
+  }
+
+  Future<void> setDefaultImageCompressionLevel(
+    ImageCompressionLevel level,
+  ) async {
+    state = state.copyWith(defaultImageCompressionLevel: level);
     await _save();
   }
 

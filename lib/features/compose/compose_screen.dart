@@ -7,11 +7,14 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/constants/image_compression_level.dart';
+import '../../core/services/image_compression_service.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/note_model.dart';
 import '../../data/remote/misskey_api.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_visibility_provider.dart';
+import '../../shared/providers/settings_provider.dart';
 import '../draft/draft_provider.dart';
 import 'emoji_picker_sheet.dart';
 
@@ -20,8 +23,19 @@ sealed class _AttachedMedia {}
 final class _LocalMedia extends _AttachedMedia {
   final XFile file;
   final AssetEntity? _asset;
-  _LocalMedia(this.file) : _asset = null;
-  _LocalMedia.fromAsset(this.file, this._asset);
+  ImageCompressionLevel compressionLevel;
+
+  /// 圧縮中の Future。null の場合は圧縮しない（無圧縮）か非対象ファイル。
+  Future<File>? compressFuture;
+
+  _LocalMedia(this.file)
+    : _asset = null,
+      compressionLevel = ImageCompressionLevel.none,
+      compressFuture = null;
+
+  _LocalMedia.fromAsset(this.file, this._asset)
+    : compressionLevel = ImageCompressionLevel.none,
+      compressFuture = null;
 }
 
 final class _DriveMedia extends _AttachedMedia {
@@ -29,7 +43,7 @@ final class _DriveMedia extends _AttachedMedia {
   _DriveMedia(this.driveFile);
 }
 
-enum _MediaSource { gallery, camera, drive, videoGallery, videoCamera, audio }
+enum _MediaSource { gallery, camera, drive, videoCamera, audio }
 
 class ComposeScreen extends ConsumerStatefulWidget {
   final String? draftId;
@@ -157,8 +171,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         final api = MisskeyApi(host: account.host, token: account.token);
         try {
           final ch = await api.getChannel(_selectedChannelId!);
-          if (mounted)
+          if (mounted) {
             setState(() => _selectedChannelName = ch['name'] as String?);
+          }
         } catch (_) {}
       });
     }
@@ -291,7 +306,12 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         );
         final validFiles = files.whereType<_LocalMedia>().toList();
         if (validFiles.isNotEmpty) {
-          setState(() => _attachedMedia.addAll(validFiles));
+          setState(() {
+            for (final m in validFiles) {
+              _applyDefaultCompression(m);
+            }
+            _attachedMedia.addAll(validFiles);
+          });
         }
       }
       return;
@@ -306,23 +326,37 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         final selected = result.files
             .where((pf) => pf.path != null)
             .take(remaining)
-            .map((pf) => XFile(pf.path!))
+            .map((pf) => _LocalMedia(XFile(pf.path!)))
             .toList();
-        if (selected.isNotEmpty)
-          setState(() => _attachedMedia.addAll(selected.map(_LocalMedia.new)));
+        if (selected.isNotEmpty) {
+          setState(() {
+            for (final m in selected) {
+              _applyDefaultCompression(m);
+            }
+            _attachedMedia.addAll(selected);
+          });
+        }
       }
       return;
     }
 
     if (source == _MediaSource.videoCamera) {
       final file = await picker.pickVideo(source: ImageSource.camera);
-      if (file != null) setState(() => _attachedMedia.add(_LocalMedia(file)));
+      if (file != null) {
+        final media = _LocalMedia(file);
+        _applyDefaultCompression(media);
+        setState(() => _attachedMedia.add(media));
+      }
       return;
     }
 
     if (source == _MediaSource.camera) {
       final file = await picker.pickImage(source: ImageSource.camera);
-      if (file != null) setState(() => _attachedMedia.add(_LocalMedia(file)));
+      if (file != null) {
+        final media = _LocalMedia(file);
+        _applyDefaultCompression(media);
+        setState(() => _attachedMedia.add(media));
+      }
     }
   }
 
@@ -347,18 +381,96 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         s.endsWith('.avi');
   }
 
-  bool _isAudioPath(String p) {
-    final s = p.toLowerCase();
-    return s.endsWith('.mp3') ||
-        s.endsWith('.wav') ||
-        s.endsWith('.m4a') ||
-        s.endsWith('.aac') ||
-        s.endsWith('.ogg') ||
-        s.endsWith('.flac');
-  }
-
   void _removeMedia(int index) {
     setState(() => _attachedMedia.removeAt(index));
+  }
+
+  /// ローカル画像メディアにデフォルト圧縮レベルを適用して圧縮を開始する
+  void _applyDefaultCompression(_LocalMedia media) {
+    final defaultLevel = ref
+        .read(settingsProvider)
+        .defaultImageCompressionLevel;
+    if (!ImageCompressionService.isCompressible(media.file.path)) {
+      media.compressionLevel = ImageCompressionLevel.none;
+      media.compressFuture = null;
+      return;
+    }
+    media.compressionLevel = defaultLevel;
+    if (defaultLevel == ImageCompressionLevel.none) {
+      media.compressFuture = null;
+    } else {
+      media.compressFuture = ImageCompressionService.compress(
+        file: File(media.file.path),
+        level: defaultLevel,
+      );
+    }
+  }
+
+  /// 圧縮レベルを変更して圧縮を再開する
+  void _changeCompression(_LocalMedia media, ImageCompressionLevel level) {
+    setState(() {
+      media.compressionLevel = level;
+      if (level == ImageCompressionLevel.none ||
+          !ImageCompressionService.isCompressible(media.file.path)) {
+        media.compressFuture = null;
+      } else {
+        media.compressFuture = ImageCompressionService.compress(
+          file: File(media.file.path),
+          level: level,
+        );
+      }
+    });
+  }
+
+  /// 圧縮率選択シートを表示する
+  Future<void> _showCompressionPicker(_LocalMedia media) async {
+    if (!ImageCompressionService.isCompressible(media.file.path)) return;
+    final selected = await showModalBottomSheet<ImageCompressionLevel>(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(ctx).bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                '画像の圧縮',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ),
+            ...ImageCompressionLevel.values.map(
+              (level) => ListTile(
+                leading: Icon(_compressionIcon(level)),
+                title: Text(level.label),
+                subtitle: level == ImageCompressionLevel.none
+                    ? const Text('そのままアップロード')
+                    : Text(
+                        '最大 ${level.maxDimension}px / JPEG品質 ${level.quality}%',
+                      ),
+                trailing: media.compressionLevel == level
+                    ? const Icon(Icons.check, color: Colors.green)
+                    : null,
+                onTap: () => Navigator.pop(ctx, level),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected != null) {
+      _changeCompression(media, selected);
+    }
+  }
+
+  IconData _compressionIcon(ImageCompressionLevel level) {
+    return switch (level) {
+      ImageCompressionLevel.none => Icons.image_outlined,
+      ImageCompressionLevel.low => Icons.compress,
+      ImageCompressionLevel.medium => Icons.compress,
+      ImageCompressionLevel.high => Icons.compress,
+    };
   }
 
   /// テキスト変更時に絵文字サジェストを更新する
@@ -435,8 +547,15 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         try {
           for (final media in _attachedMedia) {
             if (media is _LocalMedia) {
+              // 圧縮が進行中の場合は完了を待つ
+              File uploadFile;
+              if (media.compressFuture != null) {
+                uploadFile = await media.compressFuture!;
+              } else {
+                uploadFile = File(media.file.path);
+              }
               final id = await api.uploadFile(
-                File(media.file.path),
+                uploadFile,
                 isSensitive: _isSensitive,
               );
               fileIds.add(id);
@@ -1182,96 +1301,167 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                       return Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: switch (media) {
-                              _LocalMedia m =>
-                                _isImagePath(m.file.path)
-                                    ? Image.file(
-                                        File(m.file.path),
-                                        width: 100,
-                                        height: 100,
-                                        fit: BoxFit.cover,
-                                      )
-                                    : Container(
-                                        width: 100,
-                                        height: 100,
-                                        color: theme
-                                            .colorScheme
-                                            .surfaceContainerHighest,
-                                        child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              _isVideoPath(m.file.path)
-                                                  ? Icons.play_arrow
-                                                  : Icons.audiotrack,
-                                              color: theme.colorScheme.primary,
-                                            ),
-                                            const SizedBox(height: 6),
-                                            Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 4,
-                                                  ),
-                                              child: Text(
-                                                File(
-                                                  m.file.path,
-                                                ).uri.pathSegments.last,
-                                                style:
-                                                    theme.textTheme.labelSmall,
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                                textAlign: TextAlign.center,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                              _DriveMedia m =>
-                                m.driveFile.isImage
-                                    ? CachedNetworkImage(
-                                        imageUrl:
-                                            m.driveFile.thumbnailUrl ??
-                                            m.driveFile.url,
-                                        width: 100,
-                                        height: 100,
-                                        fit: BoxFit.cover,
-                                      )
-                                    : Container(
-                                        width: 100,
-                                        height: 100,
-                                        color: theme
-                                            .colorScheme
-                                            .surfaceContainerHighest,
-                                        child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              Icons.insert_drive_file_outlined,
-                                              color: theme.colorScheme.primary,
-                                            ),
-                                            Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 4,
-                                                  ),
-                                              child: Text(
-                                                m.driveFile.name,
-                                                style:
-                                                    theme.textTheme.labelSmall,
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                                textAlign: TextAlign.center,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
+                          GestureDetector(
+                            onTap: () {
+                              if (media is _LocalMedia) {
+                                _showCompressionPicker(media);
+                              }
                             },
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: switch (media) {
+                                _LocalMedia m =>
+                                  _isImagePath(m.file.path)
+                                      ? Image.file(
+                                          File(m.file.path),
+                                          width: 100,
+                                          height: 100,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : Container(
+                                          width: 100,
+                                          height: 100,
+                                          color: theme
+                                              .colorScheme
+                                              .surfaceContainerHighest,
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                _isVideoPath(m.file.path)
+                                                    ? Icons.play_arrow
+                                                    : Icons.audiotrack,
+                                                color:
+                                                    theme.colorScheme.primary,
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 4,
+                                                    ),
+                                                child: Text(
+                                                  File(
+                                                    m.file.path,
+                                                  ).uri.pathSegments.last,
+                                                  style: theme
+                                                      .textTheme
+                                                      .labelSmall,
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                _DriveMedia m =>
+                                  m.driveFile.isImage
+                                      ? CachedNetworkImage(
+                                          imageUrl:
+                                              m.driveFile.thumbnailUrl ??
+                                              m.driveFile.url,
+                                          width: 100,
+                                          height: 100,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : Container(
+                                          width: 100,
+                                          height: 100,
+                                          color: theme
+                                              .colorScheme
+                                              .surfaceContainerHighest,
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons
+                                                    .insert_drive_file_outlined,
+                                                color:
+                                                    theme.colorScheme.primary,
+                                              ),
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 4,
+                                                    ),
+                                                child: Text(
+                                                  m.driveFile.name,
+                                                  style: theme
+                                                      .textTheme
+                                                      .labelSmall,
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                              },
+                            ),
                           ),
+                          // 圧縮アイコン（ローカル画像かつ圧縮対象の場合）
+                          if (media is _LocalMedia &&
+                              ImageCompressionService.isCompressible(
+                                media.file.path,
+                              ))
+                            Positioned(
+                              bottom: 4,
+                              left: 4,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color:
+                                      media.compressionLevel ==
+                                          ImageCompressionLevel.none
+                                      ? theme.colorScheme.surface.withValues(
+                                          alpha: 0.75,
+                                        )
+                                      : theme.colorScheme.primary.withValues(
+                                          alpha: 0.85,
+                                        ),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 2,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      media.compressionLevel ==
+                                              ImageCompressionLevel.none
+                                          ? Icons.image_outlined
+                                          : Icons.compress,
+                                      size: 12,
+                                      color:
+                                          media.compressionLevel ==
+                                              ImageCompressionLevel.none
+                                          ? theme.colorScheme.onSurface
+                                          : theme.colorScheme.onPrimary,
+                                    ),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      media.compressionLevel.label,
+                                      style: theme.textTheme.labelSmall
+                                          ?.copyWith(
+                                            fontSize: 9,
+                                            color:
+                                                media.compressionLevel ==
+                                                    ImageCompressionLevel.none
+                                                ? theme.colorScheme.onSurface
+                                                : theme.colorScheme.onPrimary,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           Positioned(
                             top: -6,
                             right: -6,
@@ -1380,7 +1570,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                                 _selectedChannelId = null;
                                 _selectedChannelName = null;
                               }),
-                              backgroundColor: theme.colorScheme.surfaceVariant,
+                              backgroundColor:
+                                  theme.colorScheme.surfaceContainerHighest,
                               shape: StadiumBorder(
                                 side: BorderSide(
                                   color: theme.colorScheme.outlineVariant,

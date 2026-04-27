@@ -63,6 +63,8 @@ dependencies:
   chewie: ^1.10.0
   # ファイルパス取得
   path_provider: ^2.1.5
+  # ファイルパス操作
+  path: ^1.9.1
   # ファイル選択
   file_picker: ^8.1.7
   # MFM (Markup language For Misskey) パーサー
@@ -70,6 +72,8 @@ dependencies:
   # ギャラリーピッカー
   wechat_assets_picker: ^9.3.1
   photo_manager: ^3.6.4
+  # 画像圧縮
+  flutter_image_compress: ^2.3.0
 
 dev_dependencies:
   flutter_test:
