@@ -542,7 +542,7 @@ class MisskeyApi {
   // ---- カスタム絵文字 ----
 
   Future<List<Map<String, dynamic>>> getEmojis() async {
-    final res = await _dio.get('emojis');
+    final res = await _dio.post('emojis', data: _body({}));
     final data = res.data as Map<String, dynamic>;
     return List<Map<String, dynamic>>.from(
       data['emojis'] as List<dynamic>? ?? [],

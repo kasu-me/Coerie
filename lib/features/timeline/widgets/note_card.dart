@@ -38,6 +38,7 @@ final _emojiUrlMapProvider = Provider<Map<String, String>>((ref) {
               e['name'] as String: e['url'] as String,
         },
         loading: () => {},
+        // エラー時は空マップを返す（既存ノートの emojis/reactionEmojis フィールドで補完される）
         error: (e, s) => {},
       );
 });

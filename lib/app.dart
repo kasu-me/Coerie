@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/compose/emoji_picker_sheet.dart';
 import 'shared/providers/settings_provider.dart';
 
 /// fontSize が null のスタイルをスキップしてスケールを適用する。
@@ -41,12 +42,14 @@ class App extends ConsumerStatefulWidget {
   ConsumerState<App> createState() => _AppState();
 }
 
-class _AppState extends ConsumerState<App> {
+class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   static const _channel = MethodChannel('coerie/share');
+  AppLifecycleState? _previousLifecycleState;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     // 初期起動時の共有データをAndroidネイティブから取得
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -90,6 +93,25 @@ class _AppState extends ConsumerState<App> {
         }
       } catch (_) {}
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // バックグラウンドからの復帰時のみカスタム絵文字キャッシュを無効化する。
+    // 初回起動時にも resumed が発火するため、直前の状態が paused/hidden の
+    // 場合（= 本当のバックグラウンド復帰）に限定して invalidate する。
+    if (state == AppLifecycleState.resumed &&
+        (_previousLifecycleState == AppLifecycleState.paused ||
+            _previousLifecycleState == AppLifecycleState.hidden)) {
+      ref.invalidate(customEmojisProvider);
+    }
+    _previousLifecycleState = state;
   }
 
   @override
