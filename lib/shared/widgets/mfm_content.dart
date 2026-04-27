@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:coerie/core/services/cache_service.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -448,6 +449,7 @@ class MfmContent extends StatelessWidget {
             child: Transform.translate(
               offset: Offset(0, emojiSize * 0.13),
               child: CachedNetworkImage(
+                cacheManager: AppCacheManager(),
                 imageUrl: url,
                 height: emojiSize,
                 fit: BoxFit.fitHeight,
@@ -472,6 +474,7 @@ class MfmContent extends StatelessWidget {
           child: Transform.translate(
             offset: Offset(0, emojiSize * 0.13),
             child: CachedNetworkImage(
+              cacheManager: AppCacheManager(),
               imageUrl: _twemojiUrl(node.emoji),
               height: emojiSize,
               fit: BoxFit.fitHeight,

@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:coerie/core/services/cache_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../shared/widgets/mfm_content.dart';
@@ -759,6 +760,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                       children: [
                         if (user.bannerUrl != null)
                           CachedNetworkImage(
+                            cacheManager: AppCacheManager(),
                             imageUrl: user.bannerUrl!,
                             fit: BoxFit.cover,
                             errorWidget: (context, error, stack) => Container(
@@ -792,7 +794,10 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                             CircleAvatar(
                               radius: 36,
                               backgroundImage: user.avatarUrl != null
-                                  ? CachedNetworkImageProvider(user.avatarUrl!)
+                                  ? CachedNetworkImageProvider(
+                                      user.avatarUrl!,
+                                      cacheManager: AppCacheManager(),
+                                    )
                                   : null,
                               child: user.avatarUrl == null
                                   ? const Icon(Icons.person, size: 36)
@@ -1244,7 +1249,10 @@ class _FollowUserTileState extends ConsumerState<_FollowUserTile> {
       onTap: () => Navigator.pop(context, widget.user.id),
       leading: CircleAvatar(
         backgroundImage: widget.user.avatarUrl != null
-            ? CachedNetworkImageProvider(widget.user.avatarUrl!)
+            ? CachedNetworkImageProvider(
+                widget.user.avatarUrl!,
+                cacheManager: AppCacheManager(),
+              )
             : null,
         child: widget.user.avatarUrl == null ? const Icon(Icons.person) : null,
       ),

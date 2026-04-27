@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:coerie/core/services/cache_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -127,6 +128,7 @@ class _OgpCardContent extends StatelessWidget {
                 SizedBox(
                   width: 80,
                   child: CachedNetworkImage(
+                    cacheManager: AppCacheManager(),
                     imageUrl: ogp.imageUrl!,
                     fit: BoxFit.cover,
                     errorWidget: (_, __, ___) => Container(

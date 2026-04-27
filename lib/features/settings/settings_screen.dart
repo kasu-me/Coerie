@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/services/cache_service.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/account_visibility_provider.dart';
@@ -112,6 +113,10 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: const Text('JSONファイルから設定を復元'),
             onTap: () => _importSettings(context, ref),
           ),
+
+          // --- キャッシュ管理 ---
+          _SectionHeader('キャッシュ管理'),
+          const _CacheManagementTile(),
         ],
       ),
     );
@@ -385,6 +390,87 @@ class SettingsScreen extends ConsumerWidget {
         ).showSnackBar(SnackBar(content: Text('インポートに失敗しました: $e')));
       }
     }
+  }
+}
+
+class _CacheManagementTile extends StatefulWidget {
+  const _CacheManagementTile();
+
+  @override
+  State<_CacheManagementTile> createState() => _CacheManagementTileState();
+}
+
+class _CacheManagementTileState extends State<_CacheManagementTile> {
+  int? _cacheBytes;
+  bool _isLoading = false;
+  bool _isClearing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCacheSize();
+  }
+
+  Future<void> _loadCacheSize() async {
+    setState(() => _isLoading = true);
+    final size = await AppCacheManager.getCacheSize();
+    if (mounted) {
+      setState(() {
+        _cacheBytes = size;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _clearCache() async {
+    setState(() => _isClearing = true);
+    await AppCacheManager.clearAllCache();
+    final size = await AppCacheManager.getCacheSize();
+    if (!mounted) return;
+    setState(() {
+      _cacheBytes = size;
+      _isClearing = false;
+    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('キャッシュを削除しました')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sizeText = _isLoading
+        ? '計算中...'
+        : _cacheBytes != null
+        ? formatCacheSize(_cacheBytes!)
+        : '不明';
+
+    return ListTile(
+      leading: const Icon(Icons.storage_outlined),
+      title: const Text('画像キャッシュ'),
+      subtitle: Text('現在のサイズ: $sizeText'),
+      trailing: _isClearing
+          ? const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : FilledButton.icon(
+              onPressed: _cacheBytes == null || _cacheBytes! == 0
+                  ? null
+                  : _clearCache,
+              icon: const Icon(Icons.delete_sweep_outlined, size: 18),
+              label: const Text('削除'),
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError,
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+              ),
+            ),
+    );
   }
 }
 

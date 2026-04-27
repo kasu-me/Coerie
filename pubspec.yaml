@@ -43,6 +43,7 @@ dependencies:
   flutter_riverpod: ^2.6.1
   # 画像キャッシュ
   cached_network_image: ^3.4.1
+  flutter_cache_manager: ^3.4.1
   # ローカルキャッシュ（軽量DB）
   hive_flutter: ^1.1.0
   # ナビゲーション

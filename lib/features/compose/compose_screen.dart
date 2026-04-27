@@ -1,5 +1,6 @@
 ﻿import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:coerie/core/services/cache_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -883,6 +884,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                     ? CircleAvatar(
                         backgroundImage: CachedNetworkImageProvider(
                           a.avatarUrl!,
+                          cacheManager: AppCacheManager(),
                         ),
                       )
                     : const CircleAvatar(child: Icon(Icons.person)),
@@ -1140,6 +1142,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                                 borderRadius: BorderRadius.circular(8),
                                 child: f.isImage
                                     ? CachedNetworkImage(
+                                        cacheManager: AppCacheManager(),
                                         imageUrl: f.thumbnailUrl ?? f.url,
                                         width: 140,
                                         height: 80,
@@ -1360,6 +1363,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                                 _DriveMedia m =>
                                   m.driveFile.isImage
                                       ? CachedNetworkImage(
+                                          cacheManager: AppCacheManager(),
                                           imageUrl:
                                               m.driveFile.thumbnailUrl ??
                                               m.driveFile.url,
@@ -1513,6 +1517,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                             radius: 16,
                             backgroundImage: CachedNetworkImageProvider(
                               account!.avatarUrl!,
+                              cacheManager: AppCacheManager(),
                             ),
                           )
                         : const CircleAvatar(
@@ -1782,6 +1787,7 @@ class _EmojiSuggestBar extends ConsumerWidget {
                 children: [
                   if (url != null)
                     CachedNetworkImage(
+                      cacheManager: AppCacheManager(),
                       imageUrl: url,
                       width: 24,
                       height: 24,

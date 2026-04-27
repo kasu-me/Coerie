@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:coerie/core/services/cache_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -445,7 +446,10 @@ class _UserTile extends StatelessWidget {
     return ListTile(
       leading: CircleAvatar(
         backgroundImage: user.avatarUrl != null
-            ? CachedNetworkImageProvider(user.avatarUrl!)
+            ? CachedNetworkImageProvider(
+                user.avatarUrl!,
+                cacheManager: AppCacheManager(),
+              )
             : null,
         child: user.avatarUrl == null ? const Icon(Icons.person) : null,
       ),

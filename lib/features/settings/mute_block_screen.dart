@@ -1,4 +1,5 @@
 ﻿import 'package:cached_network_image/cached_network_image.dart';
+import 'package:coerie/core/services/cache_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -250,6 +251,7 @@ class _UserMuteTab extends ConsumerWidget {
                         ? CircleAvatar(
                             backgroundImage: CachedNetworkImageProvider(
                               avatarUrl,
+                              cacheManager: AppCacheManager(),
                             ),
                           )
                         : const CircleAvatar(child: Icon(Icons.person)),
@@ -340,6 +342,7 @@ class _UserBlockTab extends ConsumerWidget {
                         ? CircleAvatar(
                             backgroundImage: CachedNetworkImageProvider(
                               avatarUrl,
+                              cacheManager: AppCacheManager(),
                             ),
                           )
                         : const CircleAvatar(child: Icon(Icons.person)),

@@ -1,6 +1,7 @@
 ﻿import 'dart:async';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:coerie/core/services/cache_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -282,6 +283,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                           Widget iconWidget;
                           if (imageUrl != null) {
                             iconWidget = CachedNetworkImage(
+                              cacheManager: AppCacheManager(),
                               imageUrl: imageUrl,
                               height: 22,
                               width: 22,
@@ -296,6 +298,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                               reactionKey,
                             );
                             iconWidget = CachedNetworkImage(
+                              cacheManager: AppCacheManager(),
                               imageUrl: twUrl,
                               height: 22,
                               width: 22,
@@ -358,6 +361,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                               ? CircleAvatar(
                                   backgroundImage: CachedNetworkImageProvider(
                                     u.avatarUrl!,
+                                    cacheManager: AppCacheManager(),
                                   ),
                                 )
                               : const CircleAvatar(
@@ -520,6 +524,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                           radius: settings.avatarRadius,
                           backgroundImage: CachedNetworkImageProvider(
                             note.user.avatarUrl!,
+                            cacheManager: AppCacheManager(),
                           ),
                         )
                       : CircleAvatar(
@@ -870,6 +875,7 @@ class _QuotedNote extends StatelessWidget {
                         radius: 12,
                         backgroundImage: CachedNetworkImageProvider(
                           displayNote.user.avatarUrl!,
+                          cacheManager: AppCacheManager(),
                         ),
                       )
                     : const CircleAvatar(
@@ -1001,6 +1007,7 @@ class _ReactionChip extends StatelessWidget {
             Opacity(
               opacity: isRemote ? 0.5 : 1.0,
               child: CachedNetworkImage(
+                cacheManager: AppCacheManager(),
                 imageUrl: imageUrl,
                 height: 18,
                 width: 18,
@@ -1013,6 +1020,7 @@ class _ReactionChip extends StatelessWidget {
             Opacity(
               opacity: isRemote ? 0.5 : 1.0,
               child: CachedNetworkImage(
+                cacheManager: AppCacheManager(),
                 imageUrl: _twemojiUrl(reactionKey),
                 height: 18,
                 width: 18,
@@ -1704,6 +1712,7 @@ class _MediaGridState extends State<_MediaGrid> {
                 final imageWidget = ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: CachedNetworkImage(
+                    cacheManager: AppCacheManager(),
                     imageUrl: file.thumbnailUrl ?? file.url,
                     fit: BoxFit.cover,
                   ),
@@ -1761,6 +1770,7 @@ class _MediaGridState extends State<_MediaGrid> {
                       children: [
                         if (f.thumbnailUrl != null)
                           CachedNetworkImage(
+                            cacheManager: AppCacheManager(),
                             imageUrl: f.thumbnailUrl!,
                             fit: BoxFit.cover,
                             errorWidget: (_, _, _) =>
@@ -2010,6 +2020,7 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer>
               maxScale: 5.0,
               child: Center(
                 child: CachedNetworkImage(
+                  cacheManager: AppCacheManager(),
                   imageUrl: widget.urls[i],
                   fit: BoxFit.contain,
                   placeholder: (_, _) =>

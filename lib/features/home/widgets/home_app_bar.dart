@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:coerie/core/services/cache_service.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/providers/account_provider.dart';
 import '../../../shared/providers/notifications_badge_provider.dart';
@@ -31,6 +32,7 @@ class HomeAppBar extends ConsumerWidget implements PreferredSizeWidget {
               ? CircleAvatar(
                   backgroundImage: CachedNetworkImageProvider(
                     account!.avatarUrl!,
+                    cacheManager: AppCacheManager(),
                   ),
                 )
               : const CircleAvatar(child: Icon(Icons.person, size: 20)),

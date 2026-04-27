@@ -1,5 +1,6 @@
 ﻿import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:coerie/core/services/cache_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -348,6 +349,7 @@ class _NotificationTile extends StatelessWidget {
                           radius: 22,
                           backgroundImage: CachedNetworkImageProvider(
                             n.user!.avatarUrl!,
+                            cacheManager: AppCacheManager(),
                           ),
                         )
                       : const CircleAvatar(
@@ -425,6 +427,7 @@ class _NotificationTile extends StatelessWidget {
                               child: Padding(
                                 padding: const EdgeInsets.only(left: 6),
                                 child: CachedNetworkImage(
+                                  cacheManager: AppCacheManager(),
                                   imageUrl: imageUrl,
                                   height: 16,
                                   width: 16,
@@ -450,6 +453,7 @@ class _NotificationTile extends StatelessWidget {
                               child: Padding(
                                 padding: const EdgeInsets.only(left: 6),
                                 child: CachedNetworkImage(
+                                  cacheManager: AppCacheManager(),
                                   imageUrl: url,
                                   height: 16,
                                   width: 16,

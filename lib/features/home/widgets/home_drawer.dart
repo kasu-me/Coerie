@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:coerie/core/services/cache_service.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/providers/account_provider.dart';
 import '../../../data/models/account_model.dart';
@@ -221,6 +222,7 @@ class _ProfileHeader extends StatelessWidget {
                         radius: 28,
                         backgroundImage: CachedNetworkImageProvider(
                           account!.avatarUrl!,
+                          cacheManager: AppCacheManager(),
                         ),
                       )
                     : const CircleAvatar(
@@ -286,6 +288,7 @@ class _ProfileHeader extends StatelessWidget {
                     ? CircleAvatar(
                         backgroundImage: CachedNetworkImageProvider(
                           a.avatarUrl!,
+                          cacheManager: AppCacheManager(),
                         ),
                       )
                     : const CircleAvatar(child: Icon(Icons.person)),

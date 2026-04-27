@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:coerie/core/services/cache_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -903,6 +904,7 @@ class _DriveFileTile extends StatelessWidget {
     Widget content;
     if (file.isImage) {
       content = CachedNetworkImage(
+        cacheManager: AppCacheManager(),
         imageUrl: file.thumbnailUrl ?? file.url,
         fit: BoxFit.cover,
         placeholder: (_, _) =>
@@ -914,6 +916,7 @@ class _DriveFileTile extends StatelessWidget {
       // 動画はサムネイルがあれば表示、なければ黒背景にする
       content = file.thumbnailUrl != null
           ? CachedNetworkImage(
+              cacheManager: AppCacheManager(),
               imageUrl: file.thumbnailUrl!,
               fit: BoxFit.cover,
               placeholder: (_, __) => Container(color: Colors.black),
@@ -1406,6 +1409,7 @@ class _DriveImagePreviewScreenState extends State<_DriveImagePreviewScreen>
               boundaryMargin: const EdgeInsets.all(48),
               child: Center(
                 child: CachedNetworkImage(
+                  cacheManager: AppCacheManager(),
                   imageUrl: widget.file.url,
                   fit: BoxFit.contain,
                   placeholder: (_, __) =>

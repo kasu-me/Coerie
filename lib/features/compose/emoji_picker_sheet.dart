@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:coerie/core/services/cache_service.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 
 /// Twemoji CDN の URL を返す。
@@ -2039,6 +2040,7 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
               padding: const EdgeInsets.all(4),
               child: url != null
                   ? CachedNetworkImage(
+                      cacheManager: AppCacheManager(),
                       imageUrl: url,
                       fit: BoxFit.contain,
                       errorWidget: (_, _, _) =>
@@ -2075,6 +2077,7 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
           borderRadius: BorderRadius.circular(8),
           child: Center(
             child: CachedNetworkImage(
+              cacheManager: AppCacheManager(),
               imageUrl: _twemojiUrl(ch),
               width: 28,
               height: 28,

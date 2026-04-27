@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:coerie/core/services/cache_service.dart';
 import '../../data/models/user_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/settings_provider.dart';
@@ -159,7 +160,10 @@ class _FollowRequestsSheetState extends ConsumerState<FollowRequestsSheet> {
                         return ListTile(
                           leading: CircleAvatar(
                             backgroundImage: u.avatarUrl != null
-                                ? CachedNetworkImageProvider(u.avatarUrl!)
+                                ? CachedNetworkImageProvider(
+                                    u.avatarUrl!,
+                                    cacheManager: AppCacheManager(),
+                                  )
                                 : null,
                             child: u.avatarUrl == null
                                 ? const Icon(Icons.person)
