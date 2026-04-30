@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'misskey_api_provider.dart';
+import 'shared_preferences_provider.dart';
 import '../../data/remote/misskey_api.dart';
 
 class _AnnouncementsBadgeNotifier extends StateNotifier<int> {
@@ -22,31 +22,7 @@ class _AnnouncementsBadgeNotifier extends StateNotifier<int> {
   }
 
   Future<void> _init() async {
-    final prefs = await SharedPreferences.getInstance();
-    final lastSeenKey = 'announcements_last_seen_$_accountId';
-    final lastSeenStr = prefs.getString(lastSeenKey);
-    DateTime? lastSeen;
-    if (lastSeenStr != null) {
-      try {
-        lastSeen = DateTime.parse(lastSeenStr);
-      } catch (_) {}
-    }
-
-    final api = _ref.read(misskeyApiProvider);
-    if (api == null) return;
-
-    try {
-      final items = await api.getAnnouncements(limit: 50);
-      // Count unread: prefer server-provided `isRead` when available,
-      // otherwise fall back to last-seen timestamp.
-      final unread = items.where((a) {
-        final serverRead = a.isRead;
-        final afterLastSeen = lastSeen == null || a.createdAt.isAfter(lastSeen);
-        final locallyRead = _locallyReadIds.contains(a.id);
-        return !serverRead && !locallyRead && afterLastSeen;
-      }).length;
-      state = unread;
-    } catch (_) {}
+    await refreshFromApi();
   }
 
   Future<void> refreshFromApi() async {
@@ -54,7 +30,7 @@ class _AnnouncementsBadgeNotifier extends StateNotifier<int> {
     if (api == null) return;
 
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = _ref.read(sharedPreferencesProvider);
       final lastSeenKey = 'announcements_last_seen_$_accountId';
       final lastSeenStr = prefs.getString(lastSeenKey);
       DateTime? lastSeen;
@@ -77,7 +53,7 @@ class _AnnouncementsBadgeNotifier extends StateNotifier<int> {
 
   /// Clear badge: persist last-seen timestamp and mark announcements read on server.
   Future<void> clear() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = _ref.read(sharedPreferencesProvider);
     final lastSeenKey = 'announcements_last_seen_$_accountId';
     await prefs.setString(lastSeenKey, DateTime.now().toIso8601String());
     final api = _ref.read(misskeyApiProvider);

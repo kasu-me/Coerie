@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/streaming/streaming_service.dart';
 import 'misskey_api_provider.dart';
+import 'shared_preferences_provider.dart';
 import '../../data/models/notification_model.dart';
 
 class _NotificationsBadgeNotifier extends StateNotifier<int> {
@@ -22,34 +22,7 @@ class _NotificationsBadgeNotifier extends StateNotifier<int> {
   }
 
   Future<void> _init() async {
-    final prefs = await SharedPreferences.getInstance();
-    final lastSeenKey = 'notifications_last_seen_$_accountId';
-    final lastSeenStr = prefs.getString(lastSeenKey);
-    DateTime? lastSeen;
-    if (lastSeenStr != null) {
-      try {
-        lastSeen = DateTime.parse(lastSeenStr);
-      } catch (_) {}
-    }
-
-    final api = _ref.read(misskeyApiProvider);
-    if (api == null) {
-      _subscribeStream();
-      return;
-    }
-
-    try {
-      final items = await api.getNotifications(limit: 50);
-      // unread when server reports !isRead AND createdAt is after lastSeen (if set)
-      final unread = items.where((n) {
-        final serverUnread = !(n.isRead);
-        final afterLastSeen = lastSeen == null || n.createdAt.isAfter(lastSeen);
-        return serverUnread && afterLastSeen;
-      }).length;
-      state = unread;
-    } catch (_) {
-      // ignore errors
-    }
+    await refreshFromApi();
     _subscribeStream();
   }
 
@@ -60,7 +33,7 @@ class _NotificationsBadgeNotifier extends StateNotifier<int> {
     if (api == null) return;
 
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = _ref.read(sharedPreferencesProvider);
       final lastSeenKey = 'notifications_last_seen_$_accountId';
       final lastSeenStr = prefs.getString(lastSeenKey);
       DateTime? lastSeen;
@@ -85,11 +58,11 @@ class _NotificationsBadgeNotifier extends StateNotifier<int> {
   void _subscribeStream() {
     final streaming = _ref.read(streamingServiceProvider);
     if (streaming == null) return;
-    _streamSub = streaming.notificationStream.listen((notification) async {
+    _streamSub = streaming.notificationStream.listen((notification) {
       // if notification is already marked read on server, ignore
       if (notification.isRead) return;
       // if lastSeen exists and notification.createdAt <= lastSeen, ignore
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = _ref.read(sharedPreferencesProvider);
       final lastSeenKey = 'notifications_last_seen_$_accountId';
       final lastSeenStr = prefs.getString(lastSeenKey);
       if (lastSeenStr != null) {
@@ -104,7 +77,7 @@ class _NotificationsBadgeNotifier extends StateNotifier<int> {
 
   /// Clear badge: persist last-seen timestamp and call server endpoint.
   Future<void> clear() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = _ref.read(sharedPreferencesProvider);
     final lastSeenKey = 'notifications_last_seen_$_accountId';
     await prefs.setString(lastSeenKey, DateTime.now().toIso8601String());
 
