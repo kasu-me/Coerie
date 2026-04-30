@@ -79,6 +79,9 @@ class _NoteCardState extends ConsumerState<NoteCard> {
   StreamSubscription<NoteUpdateEvent>? _noteUpdateSub;
   PollModel? _localPoll;
   bool _isVoting = false;
+  // このデバイスから送信したリアクション操作に対する WebSocket エコーの待ち数。
+  // 0 のときに届いたイベントは別端末からの操作として反映する。
+  int _pendingLocalEvents = 0;
 
   @override
   void initState() {
@@ -101,17 +104,31 @@ class _NoteCardState extends ConsumerState<NoteCard> {
 
   void _onNoteUpdate(NoteUpdateEvent event) {
     if (!mounted) return;
-    final activeUserId = ref.read(activeAccountProvider)?.userId;
-    // 自分の操作は _handleReaction で既に反映済みなのでスキップ
-    if (event.userId == activeUserId) return;
     // 投票イベントはここでは処理しない（ローカル更新は投票操作時に行う）
     if (event.type == 'pollVoted') return;
+
+    final activeUserId = ref.read(activeAccountProvider)?.userId;
+    final isSelf = event.userId == activeUserId;
+
+    if (isSelf) {
+      // このデバイスから送信した操作のエコーバックはスキップする。
+      // _pendingLocalEvents > 0 の場合はこのデバイスからの操作に対応するエコー。
+      // 0 の場合は同一アカウントの別端末からの操作なので通常通り反映する。
+      if (_pendingLocalEvents > 0) {
+        _pendingLocalEvents--;
+        return;
+      }
+    }
 
     setState(() {
       if (event.type == 'reacted' && event.reaction != null) {
         _incrementReaction(event.reaction!);
+        // 同一アカウントが別端末でリアクションした場合は myReaction も更新
+        if (isSelf) _myReaction = event.reaction;
       } else if (event.type == 'unreacted' && event.reaction != null) {
         _decrementReaction(event.reaction!);
+        // 同一アカウントが別端末でリアクション解除した場合は myReaction をクリア
+        if (isSelf) _myReaction = null;
       }
     });
   }
@@ -181,7 +198,13 @@ class _NoteCardState extends ConsumerState<NoteCard> {
         // すでにリアクション済み
         if (_myReaction == reaction) {
           // 同じリアクション → 削除
-          await api.deleteReaction(widget.note.id);
+          _pendingLocalEvents++;
+          try {
+            await api.deleteReaction(widget.note.id);
+          } catch (e) {
+            _pendingLocalEvents--;
+            rethrow;
+          }
           setState(() {
             _decrementReaction(_myReaction!);
             _myReaction = null;
@@ -189,12 +212,24 @@ class _NoteCardState extends ConsumerState<NoteCard> {
         } else {
           // 別のリアクション → 削除してから追加
           final old = _myReaction!;
-          await api.deleteReaction(widget.note.id);
+          _pendingLocalEvents++;
+          try {
+            await api.deleteReaction(widget.note.id);
+          } catch (e) {
+            _pendingLocalEvents--;
+            rethrow;
+          }
           setState(() {
             _decrementReaction(old);
             _myReaction = null;
           });
-          await api.createReaction(widget.note.id, reaction);
+          _pendingLocalEvents++;
+          try {
+            await api.createReaction(widget.note.id, reaction);
+          } catch (e) {
+            _pendingLocalEvents--;
+            rethrow;
+          }
           setState(() {
             _incrementReaction(reaction);
             _myReaction = reaction;
@@ -202,7 +237,13 @@ class _NoteCardState extends ConsumerState<NoteCard> {
         }
       } else {
         // 未リアクション → 追加
-        await api.createReaction(widget.note.id, reaction);
+        _pendingLocalEvents++;
+        try {
+          await api.createReaction(widget.note.id, reaction);
+        } catch (e) {
+          _pendingLocalEvents--;
+          rethrow;
+        }
         setState(() {
           _incrementReaction(reaction);
           _myReaction = reaction;
