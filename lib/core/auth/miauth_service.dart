@@ -50,7 +50,7 @@ class MiAuthService {
     );
     final nameEncoded = Uri.encodeComponent('Coerie');
     final iconEncoded = Uri.encodeComponent(
-      'https://raw.githubusercontent.com/placeholder/coerie/main/assets/icon.png',
+      'https://raw.githubusercontent.com/kasu-me/Coerie/refs/heads/main/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png',
     );
     final authUrlStr =
         'https://$host/miauth/$sessionId'
