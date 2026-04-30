@@ -25,6 +25,7 @@ import '../../../shared/widgets/mfm_content.dart';
 import '../../../shared/widgets/report_abuse_sheet.dart';
 import '../../../core/router/app_router.dart';
 import '../../compose/emoji_picker_sheet.dart';
+import '../../../shared/utils/emoji_utils.dart';
 import '../ogp_provider.dart';
 import '../timeline_provider.dart';
 
@@ -294,9 +295,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                               ),
                             );
                           } else {
-                            final twUrl = _ReactionChip._twemojiUrl(
-                              reactionKey,
-                            );
+                            final twUrl = twemojiUrl(reactionKey);
                             iconWidget = CachedNetworkImage(
                               cacheManager: AppCacheManager(),
                               imageUrl: twUrl,
@@ -965,13 +964,6 @@ class _ReactionChip extends StatelessWidget {
     return host != '.';
   }
 
-  /// Unicode絵文字をtwemoji CDN PNG URLに変換する
-  /// 例: ❤️ → https://cdn.../2764-fe0f.png
-  static String _twemojiUrl(String emoji) {
-    final hex = emoji.runes.map((r) => r.toRadixString(16)).join('-');
-    return 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/$hex.png';
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1021,7 +1013,7 @@ class _ReactionChip extends StatelessWidget {
               opacity: isRemote ? 0.5 : 1.0,
               child: CachedNetworkImage(
                 cacheManager: AppCacheManager(),
-                imageUrl: _twemojiUrl(reactionKey),
+                imageUrl: twemojiUrl(reactionKey),
                 height: 18,
                 width: 18,
                 fit: BoxFit.contain,

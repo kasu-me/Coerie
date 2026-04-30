@@ -9,6 +9,7 @@ import 'package:flutter/rendering.dart';
 import 'package:mfm_parser/mfm_parser.dart' as mfm;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:go_router/go_router.dart';
+import '../utils/emoji_utils.dart';
 
 /// MFM (Markup language For Misskey) テキストをレンダリングするウィジェット。
 ///
@@ -52,24 +53,6 @@ class MfmContent extends StatelessWidget {
       }
     }
     return null;
-  }
-
-  static String _twemojiUrl(String emoji) {
-    final runes = emoji.runes.toList();
-    final filtered = <int>[];
-    for (int i = 0; i < runes.length; i++) {
-      if (runes[i] == 0xFE0F) {
-        // キーキャップシーケンス（FE0F の直後が U+20E3）の場合のみ FE0F を保持
-        if (i + 1 < runes.length && runes[i + 1] == 0x20E3) {
-          filtered.add(runes[i]);
-        }
-        // それ以外のバリエーションセレクタ-16 は Twemoji ファイル名に含まれないため除外
-      } else {
-        filtered.add(runes[i]);
-      }
-    }
-    final parts = filtered.map((r) => r.toRadixString(16)).join('-');
-    return 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/$parts.png';
   }
 
   // ---- インスタンスヘルパー ----
@@ -475,7 +458,7 @@ class MfmContent extends StatelessWidget {
             offset: Offset(0, emojiSize * 0.13),
             child: CachedNetworkImage(
               cacheManager: AppCacheManager(),
-              imageUrl: _twemojiUrl(node.emoji),
+              imageUrl: twemojiUrl(node.emoji),
               height: emojiSize,
               fit: BoxFit.fitHeight,
               alignment: Alignment.centerLeft,
