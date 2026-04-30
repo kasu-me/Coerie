@@ -18,6 +18,7 @@ import '../../shared/providers/account_visibility_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../draft/draft_provider.dart';
 import 'emoji_picker_sheet.dart';
+import '../../data/models/app_settings_model.dart';
 
 sealed class _AttachedMedia {}
 
@@ -190,6 +191,37 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   int get _charCount => _textController.text.length;
   int get _charLimit => AppConstants.defaultNoteLimit;
   bool get _isOverLimit => _charCount > _charLimit;
+
+  Future<void> _handleCancel() async {
+    final settings = ref.read(settingsProvider);
+    if (_textController.text.trim().isEmpty || !settings.confirmDestructive) {
+      context.pop();
+      return;
+    }
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('内容が変更されています。下書き保存しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('保存しない'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.save_outlined, size: 18),
+            label: const Text('保存する'),
+          ),
+        ],
+      ),
+    );
+    if (result == null) return;
+    if (!result) {
+      if (mounted) context.pop();
+      return;
+    }
+    await _saveDraft();
+  }
 
   Future<void> _saveDraft() async {
     if (_textController.text.trim().isEmpty) {
@@ -1043,7 +1075,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         appBar: AppBar(
           automaticallyImplyLeading: false,
           leading: TextButton(
-            onPressed: () => context.pop(),
+            onPressed: _handleCancel,
             child: const Text('キャンセル', softWrap: false),
           ),
           leadingWidth: 110,
