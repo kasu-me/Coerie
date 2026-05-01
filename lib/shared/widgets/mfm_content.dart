@@ -21,6 +21,7 @@ class MfmContent extends StatelessWidget {
   final TextStyle? style;
   final bool enableAnimations;
   final void Function(String username, String? host)? onMentionTap;
+  final double emojiOffsetSizeY = 0.05;
 
   const MfmContent({
     super.key,
@@ -430,7 +431,7 @@ class MfmContent extends StatelessWidget {
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
             child: Transform.translate(
-              offset: Offset(0, emojiSize * 0.13),
+              offset: Offset(0, emojiSize * emojiOffsetSizeY),
               child: CachedNetworkImage(
                 cacheManager: AppCacheManager(),
                 imageUrl: url,
@@ -455,7 +456,7 @@ class MfmContent extends StatelessWidget {
         WidgetSpan(
           alignment: PlaceholderAlignment.middle,
           child: Transform.translate(
-            offset: Offset(0, emojiSize * 0.13),
+            offset: Offset(0, emojiSize * emojiOffsetSizeY),
             child: CachedNetworkImage(
               cacheManager: AppCacheManager(),
               imageUrl: twemojiUrl(node.emoji),
