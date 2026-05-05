@@ -194,7 +194,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
   Future<void> _handleCancel() async {
     final settings = ref.read(settingsProvider);
-    if (_textController.text.trim().isEmpty || !settings.confirmDestructive) {
+    if ((_textController.text.trim().isEmpty && _attachedMedia.isEmpty) ||
+        !settings.confirmDestructive) {
       context.pop();
       return;
     }
@@ -1069,684 +1070,706 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     final account = _selectedAccount ?? ref.read(activeAccountProvider);
     final theme = Theme.of(context);
 
-    return TooltipTheme(
-      data: const TooltipThemeData(preferBelow: false),
-      child: Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          leading: TextButton(
-            onPressed: _handleCancel,
-            child: const Text('キャンセル', softWrap: false),
-          ),
-          leadingWidth: 110,
-          actions: [
-            TextButton.icon(
-              onPressed: _saveDraft,
-              icon: const Icon(Icons.save_outlined, size: 18),
-              label: const Text('下書き'),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handleCancel();
+      },
+      child: TooltipTheme(
+        data: const TooltipThemeData(preferBelow: false),
+        child: Scaffold(
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            leading: TextButton(
+              onPressed: _handleCancel,
+              child: const Text('キャンセル', softWrap: false),
             ),
-          ],
-        ),
-        body: Column(
-          children: [
-            // リプライ先プレビュー（テキストエリアの外に固定表示）
-            if (widget.replyToNote != null)
-              Container(
-                margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  border: Border.all(color: theme.colorScheme.outlineVariant),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.replyToNote!.user.acct,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    if (widget.replyToNote!.text != null)
-                      Text(
-                        widget.replyToNote!.text!,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.outline,
-                        ),
-                      ),
-                  ],
-                ),
+            leadingWidth: 110,
+            actions: [
+              TextButton.icon(
+                onPressed: _saveDraft,
+                icon: const Icon(Icons.save_outlined, size: 18),
+                label: const Text('下書き'),
               ),
-
-            // 引用プレビュー（引用して投稿する場合）
-            if (widget.renoteToNote != null)
-              Container(
-                margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  border: Border.all(color: theme.colorScheme.outlineVariant),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.format_quote, size: 16),
-                        const SizedBox(width: 6),
-                        Text(
-                          widget.renoteToNote!.user.acct,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.bold,
-                          ),
+            ],
+          ),
+          body: Column(
+            children: [
+              // リプライ先プレビュー（テキストエリアの外に固定表示）
+              if (widget.replyToNote != null)
+                Container(
+                  margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.replyToNote!.user.acct,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.bold,
                         ),
-                      ],
-                    ),
-                    if (widget.renoteToNote!.text != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          widget.renoteToNote!.text!,
+                      ),
+                      if (widget.replyToNote!.text != null)
+                        Text(
+                          widget.replyToNote!.text!,
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.outline,
                           ),
                         ),
-                      ),
-                    if (widget.renoteToNote!.files.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: SizedBox(
-                          height: 80,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: widget.renoteToNote!.files.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(width: 8),
-                            itemBuilder: (ctx, i) {
-                              final f = widget.renoteToNote!.files[i];
-                              return ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: f.isImage
-                                    ? CachedNetworkImage(
-                                        cacheManager: AppCacheManager(),
-                                        imageUrl: f.thumbnailUrl ?? f.url,
-                                        width: 140,
-                                        height: 80,
-                                        fit: BoxFit.cover,
-                                      )
-                                    : Container(
-                                        width: 140,
-                                        height: 80,
-                                        color: theme
-                                            .colorScheme
-                                            .surfaceContainerHighest,
-                                        padding: const EdgeInsets.all(8),
-                                        child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              f.isVideo
-                                                  ? Icons.play_arrow
-                                                  : Icons
-                                                        .insert_drive_file_outlined,
-                                              size: 28,
-                                              color: theme.colorScheme.primary,
-                                            ),
-                                            const SizedBox(height: 6),
-                                            Text(
-                                              f.name,
-                                              style: theme.textTheme.labelSmall,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-
-            // CW入力エリア
-            if (_cwEnabled)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: TextField(
-                  controller: _cwController,
-                  maxLines: 1,
-                  decoration: InputDecoration(
-                    hintText: '警告文言（CW）...',
-                    prefixIcon: const Icon(
-                      Icons.warning_amber_outlined,
-                      size: 18,
-                    ),
-                    isDense: true,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                  ),
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-
-            // テキスト入力エリア（expands:true でExpandedを埋め、内部スクロール）
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: TextField(
-                  controller: _textController,
-                  maxLines: null,
-                  expands: true,
-                  textAlignVertical: TextAlignVertical.top,
-                  autofocus: true,
-                  scrollPadding: EdgeInsets.zero,
-                  decoration: InputDecoration(
-                    hintText: widget.replyToNote != null
-                        ? '${widget.replyToNote!.user.name} に返信...'
-                        : '何かつぶやく...',
-                    border: InputBorder.none,
-                  ),
-                  onChanged: (_) {
-                    setState(() {});
-                    _updateEmojiSuggestions(_textController.text);
-                  },
-                ),
-              ),
-            ),
-
-            // 絵文字サジェストバー
-            if (_emojiSuggestions.isNotEmpty)
-              _EmojiSuggestBar(
-                suggestions: _emojiSuggestions,
-                onSelect: _insertEmojiSuggestion,
-              ),
-
-            // 投票プレビュー
-            if (_poll != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: theme.colorScheme.outlineVariant),
-                    color: theme.colorScheme.surfaceContainerHighest,
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.poll, size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          (_poll?['choices'] as List<dynamic>)
-                              .take(3)
-                              .join(' / '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if ((_poll?['multiple'] as bool? ?? false))
-                        Padding(
-                          padding: const EdgeInsets.only(left: 8),
-                          child: Text('複数可', style: theme.textTheme.labelSmall),
-                        ),
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        tooltip: '投票を削除',
-                        onPressed: () => setState(() => _poll = null),
-                      ),
                     ],
                   ),
                 ),
-              ),
 
-            // 添付画像プレビュー（テキストエリアとフッターの間）
-            if (_attachedMedia.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                child: SizedBox(
-                  height: 100,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _attachedMedia.length,
-                    separatorBuilder: (context, i) => const SizedBox(width: 8),
-                    itemBuilder: (_, i) {
-                      final media = _attachedMedia[i];
-                      return Stack(
-                        clipBehavior: Clip.none,
+              // 引用プレビュー（引用して投稿する場合）
+              if (widget.renoteToNote != null)
+                Container(
+                  margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          GestureDetector(
-                            onTap: () {
-                              if (media is _LocalMedia) {
-                                _showCompressionPicker(media);
-                              }
-                            },
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: switch (media) {
-                                _LocalMedia m =>
-                                  _isImagePath(m.file.path)
-                                      ? Image.file(
-                                          File(m.file.path),
-                                          width: 100,
-                                          height: 100,
+                          const Icon(Icons.format_quote, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            widget.renoteToNote!.user.acct,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (widget.renoteToNote!.text != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            widget.renoteToNote!.text!,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.outline,
+                            ),
+                          ),
+                        ),
+                      if (widget.renoteToNote!.files.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: SizedBox(
+                            height: 80,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: widget.renoteToNote!.files.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(width: 8),
+                              itemBuilder: (ctx, i) {
+                                final f = widget.renoteToNote!.files[i];
+                                return ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: f.isImage
+                                      ? CachedNetworkImage(
+                                          cacheManager: AppCacheManager(),
+                                          imageUrl: f.thumbnailUrl ?? f.url,
+                                          width: 140,
+                                          height: 80,
                                           fit: BoxFit.cover,
                                         )
                                       : Container(
-                                          width: 100,
-                                          height: 100,
+                                          width: 140,
+                                          height: 80,
                                           color: theme
                                               .colorScheme
                                               .surfaceContainerHighest,
+                                          padding: const EdgeInsets.all(8),
                                           child: Column(
                                             mainAxisAlignment:
                                                 MainAxisAlignment.center,
                                             children: [
                                               Icon(
-                                                _isVideoPath(m.file.path)
+                                                f.isVideo
                                                     ? Icons.play_arrow
-                                                    : Icons.audiotrack,
+                                                    : Icons
+                                                          .insert_drive_file_outlined,
+                                                size: 28,
                                                 color:
                                                     theme.colorScheme.primary,
                                               ),
                                               const SizedBox(height: 6),
-                                              Padding(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 4,
-                                                    ),
-                                                child: Text(
-                                                  File(
-                                                    m.file.path,
-                                                  ).uri.pathSegments.last,
-                                                  style: theme
-                                                      .textTheme
-                                                      .labelSmall,
-                                                  maxLines: 2,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  textAlign: TextAlign.center,
-                                                ),
+                                              Text(
+                                                f.name,
+                                                style:
+                                                    theme.textTheme.labelSmall,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
                                               ),
                                             ],
                                           ),
                                         ),
-                                _DriveMedia m =>
-                                  m.driveFile.isImage
-                                      ? CachedNetworkImage(
-                                          cacheManager: AppCacheManager(),
-                                          imageUrl:
-                                              m.driveFile.thumbnailUrl ??
-                                              m.driveFile.url,
-                                          width: 100,
-                                          height: 100,
-                                          fit: BoxFit.cover,
-                                        )
-                                      : Container(
-                                          width: 100,
-                                          height: 100,
-                                          color: theme
-                                              .colorScheme
-                                              .surfaceContainerHighest,
-                                          child: Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Icon(
-                                                Icons
-                                                    .insert_drive_file_outlined,
-                                                color:
-                                                    theme.colorScheme.primary,
-                                              ),
-                                              Padding(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 4,
-                                                    ),
-                                                child: Text(
-                                                  m.driveFile.name,
-                                                  style: theme
-                                                      .textTheme
-                                                      .labelSmall,
-                                                  maxLines: 2,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  textAlign: TextAlign.center,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
+                                );
                               },
                             ),
                           ),
-                          // 圧縮アイコン（ローカル画像かつ圧縮対象の場合）
-                          if (media is _LocalMedia &&
-                              ImageCompressionService.isCompressible(
-                                media.file.path,
-                              ))
-                            Positioned(
-                              bottom: 4,
-                              left: 4,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color:
-                                      media.compressionLevel ==
-                                          ImageCompressionLevel.none
-                                      ? theme.colorScheme.surface.withValues(
-                                          alpha: 0.75,
-                                        )
-                                      : theme.colorScheme.primary.withValues(
-                                          alpha: 0.85,
-                                        ),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                  vertical: 2,
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      media.compressionLevel ==
-                                              ImageCompressionLevel.none
-                                          ? Icons.image_outlined
-                                          : Icons.compress,
-                                      size: 12,
-                                      color:
-                                          media.compressionLevel ==
-                                              ImageCompressionLevel.none
-                                          ? theme.colorScheme.onSurface
-                                          : theme.colorScheme.onPrimary,
-                                    ),
-                                    const SizedBox(width: 2),
-                                    Text(
-                                      media.compressionLevel.label,
-                                      style: theme.textTheme.labelSmall
-                                          ?.copyWith(
-                                            fontSize: 9,
-                                            color:
-                                                media.compressionLevel ==
-                                                    ImageCompressionLevel.none
-                                                ? theme.colorScheme.onSurface
-                                                : theme.colorScheme.onPrimary,
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          Positioned(
-                            top: -6,
-                            right: -6,
-                            child: GestureDetector(
-                              onTap: () => _removeMedia(i),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.error,
-                                  shape: BoxShape.circle,
-                                ),
-                                padding: const EdgeInsets.all(2),
-                                child: Icon(
-                                  Icons.close,
-                                  size: 20,
-                                  color: theme.colorScheme.onError,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
+                        ),
+                    ],
+                  ),
+                ),
+
+              // CW入力エリア
+              if (_cwEnabled)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: TextField(
+                    controller: _cwController,
+                    maxLines: 1,
+                    decoration: InputDecoration(
+                      hintText: '警告文言（CW）...',
+                      prefixIcon: const Icon(
+                        Icons.warning_amber_outlined,
+                        size: 18,
+                      ),
+                      isDense: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+
+              // テキスト入力エリア（expands:true でExpandedを埋め、内部スクロール）
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: TextField(
+                    controller: _textController,
+                    maxLines: null,
+                    expands: true,
+                    textAlignVertical: TextAlignVertical.top,
+                    autofocus: true,
+                    scrollPadding: EdgeInsets.zero,
+                    decoration: InputDecoration(
+                      hintText: widget.replyToNote != null
+                          ? '${widget.replyToNote!.user.name} に返信...'
+                          : '何かつぶやく...',
+                      border: InputBorder.none,
+                    ),
+                    onChanged: (_) {
+                      setState(() {});
+                      _updateEmojiSuggestions(_textController.text);
                     },
                   ),
                 ),
               ),
 
-            // アップロード中インジケーター
-            if (_isUploadingMedia)
-              LinearProgressIndicator(
-                backgroundColor: theme.colorScheme.surfaceContainerHighest,
-              ),
-
-            // フッター上段
-            Container(
-              // 下段で SafeArea を使っているためここではナビゲーションバー分の余白は付けない
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: theme.colorScheme.outlineVariant),
+              // 絵文字サジェストバー
+              if (_emojiSuggestions.isNotEmpty)
+                _EmojiSuggestBar(
+                  suggestions: _emojiSuggestions,
+                  onSelect: _insertEmojiSuggestion,
                 ),
-              ),
-              child: Row(
-                children: [
-                  // アカウントアイコン（タップで切り替え）
-                  GestureDetector(
-                    onTap: () => _showAccountSwitcher(context, ref),
-                    child: account?.avatarUrl != null
-                        ? CircleAvatar(
-                            radius: 16,
-                            backgroundImage: CachedNetworkImageProvider(
-                              account!.avatarUrl!,
-                              cacheManager: AppCacheManager(),
-                            ),
-                          )
-                        : const CircleAvatar(
-                            radius: 16,
-                            child: Icon(Icons.person, size: 16),
+
+              // 投票プレビュー
+              if (_poll != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant,
+                      ),
+                      color: theme.colorScheme.surfaceContainerHighest,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.poll, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            (_poll?['choices'] as List<dynamic>)
+                                .take(3)
+                                .join(' / '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                  ),
-                  const SizedBox(width: 8),
-
-                  // 文字数カウンター
-                  Text(
-                    '$_charCount / $_charLimit',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _isOverLimit
-                          ? theme.colorScheme.error
-                          : theme.colorScheme.outline,
-                      fontWeight: _isOverLimit ? FontWeight.bold : null,
+                        ),
+                        if ((_poll?['multiple'] as bool? ?? false))
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Text(
+                              '複数可',
+                              style: theme.textTheme.labelSmall,
+                            ),
+                          ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          tooltip: '投票を削除',
+                          onPressed: () => setState(() => _poll = null),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
+                ),
 
-                  // チャンネル選択ボタン
-                  IconButton(
-                    icon: Icon(
-                      Icons.tag,
-                      size: 20,
-                      color: _selectedChannelId != null
-                          ? theme.colorScheme.primary
-                          : null,
+              // 添付画像プレビュー（テキストエリアとフッターの間）
+              if (_attachedMedia.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                  child: SizedBox(
+                    height: 100,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _attachedMedia.length,
+                      separatorBuilder: (context, i) =>
+                          const SizedBox(width: 8),
+                      itemBuilder: (_, i) {
+                        final media = _attachedMedia[i];
+                        return Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            GestureDetector(
+                              onTap: () {
+                                if (media is _LocalMedia) {
+                                  _showCompressionPicker(media);
+                                }
+                              },
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: switch (media) {
+                                  _LocalMedia m =>
+                                    _isImagePath(m.file.path)
+                                        ? Image.file(
+                                            File(m.file.path),
+                                            width: 100,
+                                            height: 100,
+                                            fit: BoxFit.cover,
+                                          )
+                                        : Container(
+                                            width: 100,
+                                            height: 100,
+                                            color: theme
+                                                .colorScheme
+                                                .surfaceContainerHighest,
+                                            child: Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  _isVideoPath(m.file.path)
+                                                      ? Icons.play_arrow
+                                                      : Icons.audiotrack,
+                                                  color:
+                                                      theme.colorScheme.primary,
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 4,
+                                                      ),
+                                                  child: Text(
+                                                    File(
+                                                      m.file.path,
+                                                    ).uri.pathSegments.last,
+                                                    style: theme
+                                                        .textTheme
+                                                        .labelSmall,
+                                                    maxLines: 2,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    textAlign: TextAlign.center,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                  _DriveMedia m =>
+                                    m.driveFile.isImage
+                                        ? CachedNetworkImage(
+                                            cacheManager: AppCacheManager(),
+                                            imageUrl:
+                                                m.driveFile.thumbnailUrl ??
+                                                m.driveFile.url,
+                                            width: 100,
+                                            height: 100,
+                                            fit: BoxFit.cover,
+                                          )
+                                        : Container(
+                                            width: 100,
+                                            height: 100,
+                                            color: theme
+                                                .colorScheme
+                                                .surfaceContainerHighest,
+                                            child: Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  Icons
+                                                      .insert_drive_file_outlined,
+                                                  color:
+                                                      theme.colorScheme.primary,
+                                                ),
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 4,
+                                                      ),
+                                                  child: Text(
+                                                    m.driveFile.name,
+                                                    style: theme
+                                                        .textTheme
+                                                        .labelSmall,
+                                                    maxLines: 2,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    textAlign: TextAlign.center,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                },
+                              ),
+                            ),
+                            // 圧縮アイコン（ローカル画像かつ圧縮対象の場合）
+                            if (media is _LocalMedia &&
+                                ImageCompressionService.isCompressible(
+                                  media.file.path,
+                                ))
+                              Positioned(
+                                bottom: 4,
+                                left: 4,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color:
+                                        media.compressionLevel ==
+                                            ImageCompressionLevel.none
+                                        ? theme.colorScheme.surface.withValues(
+                                            alpha: 0.75,
+                                          )
+                                        : theme.colorScheme.primary.withValues(
+                                            alpha: 0.85,
+                                          ),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 2,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        media.compressionLevel ==
+                                                ImageCompressionLevel.none
+                                            ? Icons.image_outlined
+                                            : Icons.compress,
+                                        size: 12,
+                                        color:
+                                            media.compressionLevel ==
+                                                ImageCompressionLevel.none
+                                            ? theme.colorScheme.onSurface
+                                            : theme.colorScheme.onPrimary,
+                                      ),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        media.compressionLevel.label,
+                                        style: theme.textTheme.labelSmall
+                                            ?.copyWith(
+                                              fontSize: 9,
+                                              color:
+                                                  media.compressionLevel ==
+                                                      ImageCompressionLevel.none
+                                                  ? theme.colorScheme.onSurface
+                                                  : theme.colorScheme.onPrimary,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            Positioned(
+                              top: -6,
+                              right: -6,
+                              child: GestureDetector(
+                                onTap: () => _removeMedia(i),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.error,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  padding: const EdgeInsets.all(2),
+                                  child: Icon(
+                                    Icons.close,
+                                    size: 20,
+                                    color: theme.colorScheme.onError,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
-                    tooltip: _selectedChannelName != null
-                        ? 'チャンネル: ${_selectedChannelName!}'
-                        : 'チャンネルを選択',
-                    onPressed: _showChannelPicker,
                   ),
+                ),
 
-                  // チャンネル名を Expanded で中央エリアに収める（右側ボタンを押し出さない）
-                  Expanded(
-                    child: _selectedChannelName != null
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: InputChip(
-                              label: Text(
-                                _selectedChannelName!.isEmpty
-                                    ? 'チャンネル'
-                                    : _selectedChannelName!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurface,
-                                ),
+              // アップロード中インジケーター
+              if (_isUploadingMedia)
+                LinearProgressIndicator(
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                ),
+
+              // フッター上段
+              Container(
+                // 下段で SafeArea を使っているためここではナビゲーションバー分の余白は付けない
+                padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(color: theme.colorScheme.outlineVariant),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    // アカウントアイコン（タップで切り替え）
+                    GestureDetector(
+                      onTap: () => _showAccountSwitcher(context, ref),
+                      child: account?.avatarUrl != null
+                          ? CircleAvatar(
+                              radius: 16,
+                              backgroundImage: CachedNetworkImageProvider(
+                                account!.avatarUrl!,
+                                cacheManager: AppCacheManager(),
                               ),
-                              onDeleted: () => setState(() {
-                                _selectedChannelId = null;
-                                _selectedChannelName = null;
-                              }),
-                              backgroundColor:
-                                  theme.colorScheme.surfaceContainerHighest,
-                              shape: StadiumBorder(
-                                side: BorderSide(
-                                  color: theme.colorScheme.outlineVariant,
-                                ),
-                              ),
+                            )
+                          : const CircleAvatar(
+                              radius: 16,
+                              child: Icon(Icons.person, size: 16),
+                            ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // 文字数カウンター
+                    Text(
+                      '$_charCount / $_charLimit',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _isOverLimit
+                            ? theme.colorScheme.error
+                            : theme.colorScheme.outline,
+                        fontWeight: _isOverLimit ? FontWeight.bold : null,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // チャンネル選択ボタン
+                    IconButton(
+                      icon: Icon(
+                        Icons.tag,
+                        size: 20,
+                        color: _selectedChannelId != null
+                            ? theme.colorScheme.primary
+                            : null,
+                      ),
+                      tooltip: _selectedChannelName != null
+                          ? 'チャンネル: ${_selectedChannelName!}'
+                          : 'チャンネルを選択',
+                      onPressed: _showChannelPicker,
+                    ),
+
+                    // チャンネル名を Expanded で中央エリアに収める（右側ボタンを押し出さない）
+                    Expanded(
+                      child: _selectedChannelName != null
+                          ? Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 4,
                               ),
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                            ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-
-                  // 公開範囲ボタン
-                  IconButton(
-                    icon: Icon(_visibilityIcon(_visibility), size: 20),
-                    tooltip: AppConstants.visibilityLabels[_visibility],
-                    onPressed: _showVisibilityPicker,
-                  ),
-
-                  // 投稿ボタン
-                  FilledButton(
-                    onPressed:
-                        ((_textController.text.trim().isEmpty &&
-                                _attachedMedia.isEmpty) ||
-                            _isOverLimit ||
-                            _isPosting)
-                        ? null
-                        : _post,
-                    child: _isPosting
-                        ? const SizedBox(
-                            height: 14,
-                            width: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('投稿'),
-                  ),
-                ],
-              ),
-            ),
-
-            // フッター下段
-            SafeArea(
-              top: false,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                child: Row(
-                  children: [
-                    // メディア添付（最大4件）
-                    IconButton(
-                      icon: _attachedMedia.isNotEmpty
-                          ? Badge(
-                              label: Text('${_attachedMedia.length}'),
-                              child: const Icon(Icons.image_outlined),
+                              child: InputChip(
+                                label: Text(
+                                  _selectedChannelName!.isEmpty
+                                      ? 'チャンネル'
+                                      : _selectedChannelName!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurface,
+                                  ),
+                                ),
+                                onDeleted: () => setState(() {
+                                  _selectedChannelId = null;
+                                  _selectedChannelName = null;
+                                }),
+                                backgroundColor:
+                                    theme.colorScheme.surfaceContainerHighest,
+                                shape: StadiumBorder(
+                                  side: BorderSide(
+                                    color: theme.colorScheme.outlineVariant,
+                                  ),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                              ),
                             )
-                          : const Icon(Icons.image_outlined),
-                      tooltip: 'メディアを添付（最大4件）',
-                      onPressed: _isPosting ? null : _pickMedia,
+                          : const SizedBox.shrink(),
                     ),
 
-                    // 下書き一覧
+                    // 公開範囲ボタン
                     IconButton(
-                      icon: const Icon(Icons.edit_note),
-                      tooltip: '下書き一覧',
-                      onPressed: () => context.push('/drafts'),
+                      icon: Icon(_visibilityIcon(_visibility), size: 20),
+                      tooltip: AppConstants.visibilityLabels[_visibility],
+                      onPressed: _showVisibilityPicker,
                     ),
 
-                    // CWトグル
-                    IconButton(
-                      icon: Icon(
-                        Icons.warning_amber_outlined,
-                        color: _cwEnabled ? theme.colorScheme.primary : null,
-                      ),
-                      tooltip: 'CW（警告文言）',
-                      onPressed: () => setState(() {
-                        _cwEnabled = !_cwEnabled;
-                        if (!_cwEnabled) _cwController.clear();
-                      }),
-                    ),
-
-                    // isSensitiveトグル
-                    IconButton(
-                      icon: Icon(
-                        Icons.visibility_off_outlined,
-                        color: _isSensitive ? theme.colorScheme.error : null,
-                      ),
-                      tooltip: 'センシティブコンテンツ',
-                      onPressed: () =>
-                          setState(() => _isSensitive = !_isSensitive),
-                    ),
-
-                    // 投票作成
-                    IconButton(
-                      icon: Icon(
-                        Icons.poll,
-                        color: _poll != null ? theme.colorScheme.primary : null,
-                      ),
-                      tooltip: '投票を追加',
-                      onPressed: _isPosting ? null : _showPollEditor,
-                    ),
-
-                    // 絵文字ピッカー
-                    IconButton(
-                      icon: const Icon(Icons.emoji_emotions_outlined),
-                      tooltip: '絵文字',
-                      onPressed: () async {
-                        final name = await showModalBottomSheet<String>(
-                          context: context,
-                          isScrollControlled: true,
-                          builder: (_) => const EmojiPickerSheet(),
-                        );
-                        if (name != null && mounted) {
-                          final pos = _textController.selection.baseOffset;
-                          final text = _textController.text;
-                          final insert = name;
-                          final newText = pos < 0
-                              ? text + insert
-                              : text.substring(0, pos) +
-                                    insert +
-                                    text.substring(pos);
-                          _textController.value = TextEditingValue(
-                            text: newText,
-                            selection: TextSelection.collapsed(
-                              offset:
-                                  (pos < 0 ? text.length : pos) + insert.length,
-                            ),
-                          );
-                          setState(() {});
-                        }
-                      },
+                    // 投稿ボタン
+                    FilledButton(
+                      onPressed:
+                          ((_textController.text.trim().isEmpty &&
+                                  _attachedMedia.isEmpty) ||
+                              _isOverLimit ||
+                              _isPosting)
+                          ? null
+                          : _post,
+                      child: _isPosting
+                          ? const SizedBox(
+                              height: 14,
+                              width: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('投稿'),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+
+              // フッター下段
+              SafeArea(
+                top: false,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
+                  child: Row(
+                    children: [
+                      // メディア添付（最大4件）
+                      IconButton(
+                        icon: _attachedMedia.isNotEmpty
+                            ? Badge(
+                                label: Text('${_attachedMedia.length}'),
+                                child: const Icon(Icons.image_outlined),
+                              )
+                            : const Icon(Icons.image_outlined),
+                        tooltip: 'メディアを添付（最大4件）',
+                        onPressed: _isPosting ? null : _pickMedia,
+                      ),
+
+                      // 下書き一覧
+                      IconButton(
+                        icon: const Icon(Icons.edit_note),
+                        tooltip: '下書き一覧',
+                        onPressed: () => context.push('/drafts'),
+                      ),
+
+                      // CWトグル
+                      IconButton(
+                        icon: Icon(
+                          Icons.warning_amber_outlined,
+                          color: _cwEnabled ? theme.colorScheme.primary : null,
+                        ),
+                        tooltip: 'CW（警告文言）',
+                        onPressed: () => setState(() {
+                          _cwEnabled = !_cwEnabled;
+                          if (!_cwEnabled) _cwController.clear();
+                        }),
+                      ),
+
+                      // isSensitiveトグル
+                      IconButton(
+                        icon: Icon(
+                          Icons.visibility_off_outlined,
+                          color: _isSensitive ? theme.colorScheme.error : null,
+                        ),
+                        tooltip: 'センシティブコンテンツ',
+                        onPressed: () =>
+                            setState(() => _isSensitive = !_isSensitive),
+                      ),
+
+                      // 投票作成
+                      IconButton(
+                        icon: Icon(
+                          Icons.poll,
+                          color: _poll != null
+                              ? theme.colorScheme.primary
+                              : null,
+                        ),
+                        tooltip: '投票を追加',
+                        onPressed: _isPosting ? null : _showPollEditor,
+                      ),
+
+                      // 絵文字ピッカー
+                      IconButton(
+                        icon: const Icon(Icons.emoji_emotions_outlined),
+                        tooltip: '絵文字',
+                        onPressed: () async {
+                          final name = await showModalBottomSheet<String>(
+                            context: context,
+                            isScrollControlled: true,
+                            builder: (_) => const EmojiPickerSheet(),
+                          );
+                          if (name != null && mounted) {
+                            final pos = _textController.selection.baseOffset;
+                            final text = _textController.text;
+                            final insert = name;
+                            final newText = pos < 0
+                                ? text + insert
+                                : text.substring(0, pos) +
+                                      insert +
+                                      text.substring(pos);
+                            _textController.value = TextEditingValue(
+                              text: newText,
+                              selection: TextSelection.collapsed(
+                                offset:
+                                    (pos < 0 ? text.length : pos) +
+                                    insert.length,
+                              ),
+                            );
+                            setState(() {});
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
