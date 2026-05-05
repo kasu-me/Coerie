@@ -458,7 +458,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       setState(() => _isUploading = true);
       final file = File(path);
       final name = result.files.single.name;
-      await api.uploadFile(file, name: name);
+      await api.uploadFile(file, name: name, folderId: _currentFolderId);
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,

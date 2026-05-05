@@ -491,6 +491,7 @@ class MisskeyApi {
     File file, {
     String? name,
     bool isSensitive = false,
+    String? folderId,
   }) async {
     // アップロード前にサーバーのファイルサイズ制限を確認
     final maxSize = await fetchMaxFileSize();
@@ -511,6 +512,7 @@ class MisskeyApi {
       'file': await MultipartFile.fromFile(file.path, filename: fileName),
       if (name != null) 'name': name,
       if (isSensitive) 'isSensitive': 'true',
+      if (folderId != null) 'folderId': folderId,
     });
 
     // Drive upload は multipart/form-data を使用
