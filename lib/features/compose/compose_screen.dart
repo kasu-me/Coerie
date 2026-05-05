@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:provider/provider.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/constants/image_compression_level.dart';
@@ -249,10 +250,10 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   }
 
   Future<void> _pickMedia() async {
-    if (_attachedMedia.length >= 4) {
+    if (_attachedMedia.length >= 16) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('添付できるファイルは最大4件です')));
+      ).showSnackBar(const SnackBar(content: Text('添付できるファイルは最大16件です')));
       return;
     }
     final source = await showModalBottomSheet<_MediaSource>(
@@ -294,7 +295,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     );
     if (source == null) return;
 
-    final remaining = 4 - _attachedMedia.length;
+    final remaining = 16 - _attachedMedia.length;
 
     if (source == _MediaSource.drive) {
       if (!mounted) return;
@@ -316,19 +317,38 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
     if (source == _MediaSource.gallery) {
       if (!mounted) return;
-      final assets = await AssetPicker.pickAssets(
-        context,
-        pickerConfig: AssetPickerConfig(
-          maxAssets: remaining,
-          requestType: RequestType.common,
-          selectedAssets: _attachedMedia
-              .whereType<_LocalMedia>()
-              .map((m) => m._asset)
-              .whereType<AssetEntity>()
-              .toList(),
-          textDelegate: const _JaConfirmAssetPickerTextDelegate(),
+      final permOpt = PermissionRequestOption(
+        androidPermission: AndroidPermission(
+          type: RequestType.common,
+          mediaLocation: false,
         ),
       );
+      final ps = await AssetPicker.permissionCheck(requestOption: permOpt);
+      if (!mounted) return;
+      final selectedEntities = _attachedMedia
+          .whereType<_LocalMedia>()
+          .map((m) => m._asset)
+          .whereType<AssetEntity>()
+          .toList();
+      final pickerProvider = DefaultAssetPickerProvider(
+        maxAssets: remaining,
+        requestType: RequestType.common,
+        selectedAssets: selectedEntities,
+      );
+      final assets =
+          await AssetPicker.pickAssetsWithDelegate<
+            AssetEntity,
+            AssetPathEntity,
+            DefaultAssetPickerProvider
+          >(
+            context,
+            delegate: _WideSelectPickerDelegate(
+              provider: pickerProvider,
+              initialPermission: ps,
+              textDelegate: const _JaConfirmAssetPickerTextDelegate(),
+            ),
+            permissionRequestOption: permOpt,
+          );
       if (assets != null && assets.isNotEmpty) {
         final files = await Future.wait(
           assets.map((a) async {
@@ -1678,7 +1698,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                   ),
                   child: Row(
                     children: [
-                      // メディア添付（最大4件）
+                      // メディア添付（最大16件）
                       IconButton(
                         icon: _attachedMedia.isNotEmpty
                             ? Badge(
@@ -1686,7 +1706,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                                 child: const Icon(Icons.image_outlined),
                               )
                             : const Icon(Icons.image_outlined),
-                        tooltip: 'メディアを添付（最大4件）',
+                        tooltip: 'メディアを添付（最大16件）',
                         onPressed: _isPosting ? null : _pickMedia,
                       ),
 
@@ -1870,4 +1890,135 @@ class _JaConfirmAssetPickerTextDelegate
 
   @override
   String get confirm => '確定';
+}
+
+/// ビューアーで「選択」テキスト部分もタップ可能にするカスタムデリゲート
+class _WideSelectViewerDelegate
+    extends DefaultAssetPickerViewerBuilderDelegate {
+  _WideSelectViewerDelegate({
+    required super.currentIndex,
+    required super.previewAssets,
+    required super.themeData,
+    super.selectorProvider,
+    super.provider,
+    super.selectedAssets,
+    super.previewThumbnailSize,
+    super.maxAssets,
+    super.shouldReversePreview,
+    super.selectPredicate,
+    super.shouldAutoplayPreview,
+  });
+
+  @override
+  Widget selectButton(BuildContext context) {
+    return StreamBuilder<int>(
+      initialData: currentIndex,
+      stream: pageStreamController.stream,
+      builder: (ctx, snapshot) {
+        final index = snapshot.requireData;
+        final assetIndex = shouldReversePreview
+            ? previewAssets.length - index - 1
+            : index;
+        if (assetIndex < 0 || assetIndex >= previewAssets.length) {
+          return const SizedBox.shrink();
+        }
+        final asset = previewAssets.elementAt(assetIndex);
+        final p = provider;
+        if (p == null) return const SizedBox.shrink();
+        return AnimatedBuilder(
+          animation: p,
+          builder: (context, _) {
+            final bool isSelected = p.currentlySelectedAssets.contains(asset);
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onChangingSelected(context, asset, isSelected),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Checkbox(
+                    value: isSelected,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999999),
+                    ),
+                    onChanged: null,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  Text(
+                    textDelegate.select,
+                    style: const TextStyle(fontSize: 17, height: 1.2),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// ギャラリーピッカー用カスタムデリゲート（_WideSelectViewerDelegate を使用）
+class _WideSelectPickerDelegate extends DefaultAssetPickerBuilderDelegate {
+  _WideSelectPickerDelegate({
+    required super.provider,
+    required super.initialPermission,
+    super.textDelegate,
+  });
+
+  @override
+  Future<void> viewAsset(
+    BuildContext context,
+    int? index,
+    AssetEntity currentAsset,
+  ) async {
+    // WeChat Momentモードは標準の実装を使用
+    if (isWeChatMoment) {
+      return super.viewAsset(context, index, currentAsset);
+    }
+    final p = context.read<DefaultAssetPickerProvider>();
+    if (!p.selectedAssets.contains(currentAsset) && p.selectedMaximumAssets) {
+      return;
+    }
+    final revert = effectiveShouldRevertGrid(context);
+    final List<AssetEntity> current;
+    final int effectiveIndex;
+    final selected = p.selectedAssets;
+    if (index == null) {
+      final list = revert
+          ? p.selectedAssets.reversed.toList(growable: false)
+          : List<AssetEntity>.from(p.selectedAssets);
+      effectiveIndex = list.indexOf(currentAsset);
+      current = list;
+    } else {
+      current = p.currentAssets;
+      effectiveIndex = revert ? current.length - index - 1 : index;
+    }
+    if (current.isEmpty) return;
+    final viewerProvider = AssetPickerViewerProvider<AssetEntity>(
+      selected,
+      maxAssets: p.maxAssets,
+    );
+    final result = await AssetPickerViewer.pushToViewerWithDelegate(
+      context,
+      delegate: _WideSelectViewerDelegate(
+        currentIndex: effectiveIndex.clamp(0, current.length - 1),
+        previewAssets: current,
+        themeData: theme,
+        previewThumbnailSize: previewThumbnailSize,
+        selectPredicate: selectPredicate,
+        selectedAssets: selected,
+        selectorProvider: p,
+        maxAssets: p.maxAssets,
+        shouldReversePreview: revert,
+        shouldAutoplayPreview: shouldAutoplayPreview,
+        provider: viewerProvider,
+      ),
+      useRootNavigator: viewerUseRootNavigator,
+      pageRouteSettings: viewerPageRouteSettings,
+      pageRouteBuilder: viewerPageRouteBuilder,
+    );
+    if (result != null && context.mounted) {
+      Navigator.maybeOf(context)?.maybePop(result);
+    }
+  }
 }
