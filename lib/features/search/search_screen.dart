@@ -34,9 +34,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       vsync: this,
       initialIndex: widget.initialTab.clamp(0, 3),
     );
-    // 初期クエリがある場合はタブに応じて自動検索
-    if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // 画面表示時に必ず状態をリセット
+      ref.read(noteSearchProvider.notifier).clear();
+      ref.read(tagNoteSearchProvider.notifier).clear();
+      ref.read(userSearchProvider.notifier).clear();
+      ref.read(hashtagSearchProvider.notifier).clear();
+
+      // 初期クエリがある場合はタブに応じて自動検索
+      if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty) {
         final q = widget.initialQuery!;
         switch (widget.initialTab) {
           case 0:
@@ -52,8 +58,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             _hashtagQueryController.text = q;
             ref.read(hashtagSearchProvider.notifier).search(q);
         }
-      });
-    }
+      }
+    });
   }
 
   @override
