@@ -350,7 +350,7 @@ class MfmContent extends StatelessWidget {
           style: style.copyWith(color: theme.colorScheme.primary),
           recognizer: TapGestureRecognizer()
             ..onTap = () {
-              ctx.push('/search', extra: {'tab': 3, 'query': node.hashTag});
+              ctx.push('/search', extra: {'tab': 1, 'query': node.hashTag});
             },
         ),
       ];
