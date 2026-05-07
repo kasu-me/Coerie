@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_constants.dart';
+import '../../shared/providers/settings_provider.dart';
 import 'draft_provider.dart';
 
 class DraftScreen extends ConsumerWidget {
@@ -42,6 +43,8 @@ class DraftScreen extends ConsumerWidget {
                     child: const Icon(Icons.delete, color: Colors.white),
                   ),
                   confirmDismiss: (_) async {
+                    final settings = ref.read(settingsProvider);
+                    if (!settings.confirmDestructive) return true;
                     return await showDialog<bool>(
                           context: context,
                           builder: (_) => AlertDialog(
@@ -95,27 +98,29 @@ class DraftScreen extends ConsumerWidget {
                     trailing: IconButton(
                       icon: const Icon(Icons.delete_outline),
                       onPressed: () async {
+                        final settings = ref.read(settingsProvider);
                         final confirmed =
+                            !settings.confirmDestructive ||
                             await showDialog<bool>(
-                              context: context,
-                              builder: (_) => AlertDialog(
-                                title: const Text('下書きを削除'),
-                                content: const Text('この下書きを削除しますか？'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, false),
-                                    child: const Text('キャンセル'),
+                                  context: context,
+                                  builder: (_) => AlertDialog(
+                                    title: const Text('下書きを削除'),
+                                    content: const Text('この下書きを削除しますか？'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, false),
+                                        child: const Text('キャンセル'),
+                                      ),
+                                      FilledButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, true),
+                                        child: const Text('削除'),
+                                      ),
+                                    ],
                                   ),
-                                  FilledButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, true),
-                                    child: const Text('削除'),
-                                  ),
-                                ],
-                              ),
-                            ) ??
-                            false;
+                                ) ==
+                                true;
                         if (confirmed) {
                           ref
                               .read(draftProvider.notifier)
