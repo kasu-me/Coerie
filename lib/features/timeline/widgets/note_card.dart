@@ -67,6 +67,7 @@ class NoteCard extends ConsumerStatefulWidget {
   final String? renoteVisibility;
   final UserModel? pinnedByUser;
   final VoidCallback? onPinnedChanged;
+  final VoidCallback? onUnfavorited;
   final Widget? trailing;
   const NoteCard({
     super.key,
@@ -78,6 +79,7 @@ class NoteCard extends ConsumerStatefulWidget {
     this.renoteVisibility,
     this.pinnedByUser,
     this.onPinnedChanged,
+    this.onUnfavorited,
     this.trailing,
   });
 
@@ -863,6 +865,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
               note: note,
               onReaction: _handleReaction,
               onPinnedChanged: widget.onPinnedChanged,
+              onUnfavorited: widget.onUnfavorited,
             ),
           ],
         ),
@@ -1121,11 +1124,13 @@ class _ActionBar extends ConsumerStatefulWidget {
   final NoteModel note;
   final Future<void> Function(String reaction) onReaction;
   final VoidCallback? onPinnedChanged;
+  final VoidCallback? onUnfavorited;
 
   const _ActionBar({
     required this.note,
     required this.onReaction,
     this.onPinnedChanged,
+    this.onUnfavorited,
   });
 
   @override
@@ -1159,6 +1164,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     try {
       if (current) {
         await api.deleteFavorite(widget.note.id);
+        widget.onUnfavorited?.call();
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

@@ -152,7 +152,15 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
             );
           }
           final note = _notes[index];
-          return NoteCard(key: ValueKey(note.id), note: note);
+          return NoteCard(
+            key: ValueKey(note.id),
+            note: note,
+            onUnfavorited: () {
+              if (mounted) {
+                setState(() => _notes.removeWhere((n) => n.id == note.id));
+              }
+            },
+          );
         },
       ),
     );
