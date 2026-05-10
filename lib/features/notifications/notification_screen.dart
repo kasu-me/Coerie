@@ -388,14 +388,20 @@ class _NotificationTile extends StatelessWidget {
                   Builder(
                     builder: (ctx) {
                       final spans = <InlineSpan>[];
-                      spans.add(const TextSpan(style: TextStyle()));
-                      spans.add(
-                        TextSpan(
-                          text: n.user?.name ?? '',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      );
-                      spans.add(TextSpan(text: ' ${_typeLabel(n.type)}'));
+                      // ユーザー名はある場合のみ表示。ない場合は
+                      if (n.user?.name != null) {
+                        spans.add(const TextSpan(style: TextStyle()));
+                        spans.add(
+                          TextSpan(
+                            text: n.user?.name ?? '',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        );
+                        spans.add(
+                          const TextSpan(text: ' ', style: TextStyle()),
+                        );
+                      }
+                      spans.add(TextSpan(text: _typeLabel(n.type)));
 
                       if (n.type == 'reaction' && n.reaction != null) {
                         final reactionKey = n.reaction!;
