@@ -520,6 +520,9 @@ class _NotificationTile extends StatelessWidget {
     'quote' => 'が引用しました',
     'reaction' => 'がリアクションしました',
     'receiveFollowRequest' => 'がフォローリクエストを送りました',
+    'login' => 'ログインがありました',
+    'createToken' => 'アクセストークンが作成されました',
+    'exportCompleted' => 'ノートのエクスポートが完了しました',
     _ => type,
   };
 
@@ -530,6 +533,9 @@ class _NotificationTile extends StatelessWidget {
     'mention' || 'reply' => Icons.reply,
     'renote' || 'quote' => Icons.repeat,
     'reaction' => Icons.add_reaction_outlined,
+    'login' => Icons.login,
+    'createToken' => Icons.vpn_key,
+    'exportCompleted' => Icons.file_download_done,
     _ => Icons.notifications_outlined,
   };
 
