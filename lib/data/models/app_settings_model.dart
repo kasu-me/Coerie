@@ -59,7 +59,7 @@ class AppSettingsModel {
   final double avatarRadius; // タイムラインのユーザーアイコンの半径（デフォルト: 20.0）
   final ImageCompressionLevel
   defaultImageCompressionLevel; // 画像アップロード時のデフォルト圧縮レベル
-  final String renoteVisibility; // リノート時の公開範囲（デフォルト: 'public'）
+  final String renoteVisibility; // リノート時の公開範囲（デフォルト: 'same_as_last_post'）
 
   const AppSettingsModel({
     this.theme = 'system',
@@ -78,7 +78,7 @@ class AppSettingsModel {
     this.collapseNote = true,
     this.avatarRadius = 20.0,
     this.defaultImageCompressionLevel = ImageCompressionLevel.none,
-    this.renoteVisibility = 'public',
+    this.renoteVisibility = 'same_as_last_post',
   });
 
   AppSettingsModel copyWith({
@@ -165,7 +165,8 @@ class AppSettingsModel {
         avatarRadius: (json['avatarRadius'] as num?)?.toDouble() ?? 20.0,
         defaultImageCompressionLevel: ImageCompressionLevel
             .values[(json['defaultImageCompressionLevel'] as int?) ?? 0],
-        renoteVisibility: json['renoteVisibility'] as String? ?? 'public',
+        renoteVisibility:
+            json['renoteVisibility'] as String? ?? 'same_as_last_post',
       );
 
   factory AppSettingsModel.fromJsonString(String jsonString) =>
