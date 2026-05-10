@@ -1182,4 +1182,33 @@ class MisskeyApi {
       data: _body({'channelId': channelId}),
     );
   }
+
+  // ---- お気に入り（ノート） ----
+
+  /// ノートをお気に入りに追加する（notes/favorites/create）
+  Future<void> createFavorite(String noteId) async {
+    await _dio.post('notes/favorites/create', data: _body({'noteId': noteId}));
+  }
+
+  /// ノートをお気に入りから削除する（notes/favorites/delete）
+  Future<void> deleteFavorite(String noteId) async {
+    await _dio.post('notes/favorites/delete', data: _body({'noteId': noteId}));
+  }
+
+  /// お気に入り一覧を取得する（i/favorites）
+  /// 戻り値: [{ id, createdAt, note: NoteObject }, ...]
+  Future<List<NoteModel>> getFavorites({
+    int limit = 20,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('i/favorites', data: _body(params));
+    final list = res.data as List<dynamic>;
+    return list.map((e) {
+      final map = e as Map<String, dynamic>;
+      final noteMap = map['note'] as Map<String, dynamic>;
+      return NoteModel.fromJson(noteMap, host: host);
+    }).toList();
+  }
 }

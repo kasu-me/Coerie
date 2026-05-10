@@ -13,6 +13,7 @@ import '../../features/auth/login_screen.dart';
 import '../../features/clips/clips_screen.dart';
 import '../../features/clips/clip_notes_screen.dart';
 import '../../data/models/clip_model.dart';
+import '../../features/favorites/favorites_screen.dart';
 import '../../features/lists/lists_screen.dart';
 import '../../features/antennas/antennas_screen.dart';
 import '../../features/timeline/timeline_screen.dart';
@@ -115,6 +116,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(path: '/clips', builder: (context, state) => const ClipsScreen()),
+      GoRoute(
+        path: '/favorites',
+        builder: (context, state) => const FavoritesScreen(),
+      ),
       GoRoute(path: '/list', builder: (context, state) => const ListsScreen()),
       GoRoute(
         path: '/list/:listId',

@@ -1134,6 +1134,60 @@ class _ActionBar extends ConsumerStatefulWidget {
 
 class _ActionBarState extends ConsumerState<_ActionBar> {
   bool _isRenoting = false;
+  // お気に入り状態（nullは未知、trueは登録済み、falseは未登録）
+  bool? _isFavorited;
+
+  @override
+  void initState() {
+    super.initState();
+    _isFavorited = widget.note.isFavorited;
+  }
+
+  @override
+  void didUpdateWidget(_ActionBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.note.id != widget.note.id) {
+      _isFavorited = widget.note.isFavorited;
+    }
+  }
+
+  Future<void> _toggleFavorite(BuildContext context) async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+    final current = _isFavorited ?? false;
+    setState(() => _isFavorited = !current);
+    try {
+      if (current) {
+        await api.deleteFavorite(widget.note.id);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('お気に入りから削除しました'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+      } else {
+        await api.createFavorite(widget.note.id);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('お気に入りに追加しました'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // 失敗したら元に戻す
+      if (mounted) setState(() => _isFavorited = current);
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('操作に失敗しました: $e')));
+      }
+    }
+  }
 
   Future<void> _showNoteMenu(BuildContext context) async {
     final activeAccount = ref.read(activeAccountProvider);
@@ -1235,6 +1289,23 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
               onTap: () async {
                 Navigator.pop(sheetCtx);
                 await _addNoteToClip(context);
+              },
+            ),
+            // お気に入り追加/削除（全員）
+            StatefulBuilder(
+              builder: (ctx, setMenuState) {
+                final isFav = _isFavorited ?? false;
+                return ListTile(
+                  leading: Icon(
+                    isFav ? Icons.star : Icons.star_outline,
+                    color: isFav ? Theme.of(context).colorScheme.primary : null,
+                  ),
+                  title: Text(isFav ? 'お気に入りから削除' : 'お気に入りに追加'),
+                  onTap: () async {
+                    Navigator.pop(sheetCtx);
+                    await _toggleFavorite(context);
+                  },
+                );
               },
             ),
             // 削除 / ピン留め（自分の投稿のみ）

@@ -151,6 +151,14 @@ class HomeDrawer extends ConsumerWidget {
                     },
                   ),
                   ListTile(
+                    leading: const Icon(Icons.star_outline),
+                    title: const Text('お気に入り'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.push('/favorites');
+                    },
+                  ),
+                  ListTile(
                     leading: const Icon(Icons.tv),
                     title: const Text('チャンネル'),
                     onTap: () {

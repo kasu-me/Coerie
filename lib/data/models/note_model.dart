@@ -75,6 +75,9 @@ class NoteModel {
   final String? uri;
   final PollModel? poll;
 
+  /// このノートが現在のユーザーにとってお気に入り登録済みかどうか
+  final bool? isFavorited;
+
   const NoteModel({
     required this.id,
     required this.createdAt,
@@ -94,6 +97,7 @@ class NoteModel {
     this.url,
     this.uri,
     this.poll,
+    this.isFavorited,
   });
 
   static const _sentinel = Object();
@@ -104,6 +108,7 @@ class NoteModel {
     int? repliesCount,
     int? renoteCount,
     PollModel? poll,
+    Object? isFavorited = _sentinel,
   }) => NoteModel(
     id: id,
     createdAt: createdAt,
@@ -125,6 +130,9 @@ class NoteModel {
     url: url,
     uri: uri,
     poll: poll ?? this.poll,
+    isFavorited: identical(isFavorited, _sentinel)
+        ? this.isFavorited
+        : isFavorited as bool?,
   );
 
   factory NoteModel.fromJson(Map<String, dynamic> json, {String host = ''}) {
@@ -182,6 +190,7 @@ class NoteModel {
       poll: json['poll'] != null && json['poll'] is Map<String, dynamic>
           ? PollModel.fromJson(json['poll'] as Map<String, dynamic>)
           : null,
+      isFavorited: json['isFavorited'] as bool?,
     );
   }
 }
