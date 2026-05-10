@@ -1692,6 +1692,92 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     await widget.onReaction(name);
   }
 
+  Future<void> _showRenoteUsers() async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetCtx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 8),
+                    const Icon(Icons.repeat, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'リノートしたユーザー',
+                        style: Theme.of(sheetCtx).textTheme.titleMedium,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(sheetCtx),
+                      child: const Text('閉じる'),
+                    ),
+                  ],
+                ),
+              ),
+              FutureBuilder<List<UserModel>>(
+                future: api.getNoteRenotes(widget.note.id),
+                builder: (ctx, snap) {
+                  if (snap.connectionState != ConnectionState.done) {
+                    return const SizedBox(
+                      height: 120,
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  final users = snap.data ?? [];
+                  if (users.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Text('リノートしたユーザーはいません'),
+                    );
+                  }
+                  return SizedBox(
+                    height: 320,
+                    child: ListView.separated(
+                      itemCount: users.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (c, i) {
+                        final u = users[i];
+                        return ListTile(
+                          leading: u.avatarUrl != null
+                              ? CircleAvatar(
+                                  backgroundImage: CachedNetworkImageProvider(
+                                    u.avatarUrl!,
+                                    cacheManager: AppCacheManager(),
+                                  ),
+                                )
+                              : const CircleAvatar(
+                                  child: Icon(Icons.person, size: 20),
+                                ),
+                          title: Text(u.name),
+                          subtitle: Text(u.acct),
+                          onTap: () {
+                            Navigator.pop(sheetCtx);
+                            context.push('/profile/${u.id}');
+                          },
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1714,6 +1800,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
           icon: _isRenoting ? Icons.hourglass_empty : Icons.repeat,
           count: widget.note.renoteCount,
           onTap: canRenote ? _renote : null,
+          onLongPress: widget.note.renoteCount > 0 ? _showRenoteUsers : null,
           color: canRenote
               ? theme.colorScheme.tertiary
               : theme.colorScheme.onSurface.withValues(alpha: 0.3),
@@ -1737,12 +1824,14 @@ class _ActionButton extends StatelessWidget {
   final IconData icon;
   final int count;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final Color? color;
 
   const _ActionButton({
     required this.icon,
     required this.count,
     this.onTap,
+    this.onLongPress,
     this.color,
   });
 
@@ -1752,6 +1841,7 @@ class _ActionButton extends StatelessWidget {
     final c = color ?? theme.colorScheme.outline;
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.all(8),

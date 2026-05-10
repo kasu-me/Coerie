@@ -199,6 +199,23 @@ class MisskeyApi {
     await _dio.post('notes/unrenote', data: _body({'noteId': noteId}));
   }
 
+  /// 指定ノートをリノートしたユーザー一覧を取得する（notes/renotes）。
+  Future<List<UserModel>> getNoteRenotes(
+    String noteId, {
+    int limit = 100,
+  }) async {
+    final params = <String, dynamic>{'noteId': noteId, 'limit': limit};
+    final res = await _dio.post('notes/renotes', data: _body(params));
+    final list = res.data as List<dynamic>;
+    return list.map((n) {
+      final map = n as Map<String, dynamic>;
+      return UserModel.fromJson(
+        map['user'] as Map<String, dynamic>,
+        host: host,
+      );
+    }).toList();
+  }
+
   // ---- ユーザー ----
 
   Future<UserModel> getUser(String userId) async {
