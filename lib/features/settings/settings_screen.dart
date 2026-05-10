@@ -25,6 +25,16 @@ class SettingsScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('設定')),
       body: ListView(
         children: [
+          // --- アカウント設定 ---
+          ListTile(
+            leading: const Icon(Icons.manage_accounts_outlined),
+            title: const Text('アカウント設定'),
+            subtitle: const Text('アカウント情報の管理'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/account-settings'),
+          ),
+          const Divider(indent: 16, endIndent: 16),
+
           // --- 外観 ---
           ListTile(
             leading: const Icon(Icons.palette_outlined),
