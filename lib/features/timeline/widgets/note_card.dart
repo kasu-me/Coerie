@@ -47,6 +47,17 @@ final _emojiUrlMapProvider = Provider<Map<String, String>>((ref) {
 });
 
 // ---- NoteCard ----
+
+IconData _renoteVisibilityIcon(String visibility) {
+  return switch (visibility) {
+    AppConstants.visibilityPublic => Icons.public,
+    AppConstants.visibilityHome => Icons.home_outlined,
+    AppConstants.visibilityFollowers => Icons.lock_outline,
+    AppConstants.visibilitySpecified => Icons.mail_outline,
+    _ => Icons.public,
+  };
+}
+
 class NoteCard extends ConsumerStatefulWidget {
   final NoteModel note;
   final bool navigatable;
@@ -528,7 +539,9 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                     ),
                     if (widget.renoteVisibility != null)
                       Tooltip(
-                        message: AppConstants.visibilityLabels[widget.renoteVisibility] ??
+                        message:
+                            AppConstants.visibilityLabels[widget
+                                .renoteVisibility] ??
                             widget.renoteVisibility!,
                         child: Icon(
                           _renoteVisibilityIcon(widget.renoteVisibility!),
@@ -1575,16 +1588,6 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     } finally {
       if (mounted) setState(() => _isRenoting = false);
     }
-  }
-
-  IconData _renoteVisibilityIcon(String visibility) {
-    return switch (visibility) {
-      AppConstants.visibilityPublic => Icons.public,
-      AppConstants.visibilityHome => Icons.home_outlined,
-      AppConstants.visibilityFollowers => Icons.lock_outline,
-      AppConstants.visibilitySpecified => Icons.mail_outline,
-      _ => Icons.public,
-    };
   }
 
   Future<void> _pickReaction() async {
