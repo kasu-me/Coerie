@@ -59,6 +59,7 @@ class AppSettingsModel {
   final double avatarRadius; // タイムラインのユーザーアイコンの半径（デフォルト: 20.0）
   final ImageCompressionLevel
   defaultImageCompressionLevel; // 画像アップロード時のデフォルト圧縮レベル
+  final String renoteVisibility; // リノート時の公開範囲（デフォルト: 'public'）
 
   const AppSettingsModel({
     this.theme = 'system',
@@ -77,6 +78,7 @@ class AppSettingsModel {
     this.collapseNote = true,
     this.avatarRadius = 20.0,
     this.defaultImageCompressionLevel = ImageCompressionLevel.none,
+    this.renoteVisibility = 'public',
   });
 
   AppSettingsModel copyWith({
@@ -96,6 +98,7 @@ class AppSettingsModel {
     bool? collapseNote,
     double? avatarRadius,
     ImageCompressionLevel? defaultImageCompressionLevel,
+    String? renoteVisibility,
   }) => AppSettingsModel(
     theme: theme ?? this.theme,
     fontSize: fontSize ?? this.fontSize,
@@ -116,6 +119,7 @@ class AppSettingsModel {
     avatarRadius: avatarRadius ?? this.avatarRadius,
     defaultImageCompressionLevel:
         defaultImageCompressionLevel ?? this.defaultImageCompressionLevel,
+    renoteVisibility: renoteVisibility ?? this.renoteVisibility,
   );
 
   static const Object _sentinel = Object();
@@ -137,6 +141,7 @@ class AppSettingsModel {
     'collapseNote': collapseNote,
     'avatarRadius': avatarRadius,
     'defaultImageCompressionLevel': defaultImageCompressionLevel.index,
+    'renoteVisibility': renoteVisibility,
   };
 
   factory AppSettingsModel.fromJson(Map<String, dynamic> json) =>
@@ -160,6 +165,7 @@ class AppSettingsModel {
         avatarRadius: (json['avatarRadius'] as num?)?.toDouble() ?? 20.0,
         defaultImageCompressionLevel: ImageCompressionLevel
             .values[(json['defaultImageCompressionLevel'] as int?) ?? 0],
+        renoteVisibility: json['renoteVisibility'] as String? ?? 'public',
       );
 
   factory AppSettingsModel.fromJsonString(String jsonString) =>

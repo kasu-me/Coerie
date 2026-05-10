@@ -181,10 +181,13 @@ class MisskeyApi {
 
   // ---- リノート ----
 
-  Future<NoteModel> renote(String noteId) async {
+  Future<NoteModel> renote(
+    String noteId, {
+    String visibility = 'public',
+  }) async {
     final res = await _dio.post(
       'notes/create',
-      data: _body({'renoteId': noteId}),
+      data: _body({'renoteId': noteId, 'visibility': visibility}),
     );
     return NoteModel.fromJson(
       (res.data as Map<String, dynamic>)['createdNote'] as Map<String, dynamic>,

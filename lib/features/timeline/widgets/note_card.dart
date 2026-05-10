@@ -17,6 +17,7 @@ import '../../../data/models/user_model.dart';
 import '../../../shared/widgets/media_player_screen.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/providers/account_provider.dart';
+import '../../../shared/providers/account_visibility_provider.dart';
 import '../../../shared/providers/misskey_api_provider.dart';
 import '../../../shared/providers/settings_provider.dart';
 import 'package:coerie/features/profile/pinned_notes_provider.dart';
@@ -52,6 +53,7 @@ class NoteCard extends ConsumerStatefulWidget {
   final UserModel? renoteUser;
   final bool isMyRenote;
   final String? renoteWrapperNoteId;
+  final String? renoteVisibility;
   final UserModel? pinnedByUser;
   final VoidCallback? onPinnedChanged;
   final Widget? trailing;
@@ -62,6 +64,7 @@ class NoteCard extends ConsumerStatefulWidget {
     this.renoteUser,
     this.isMyRenote = false,
     this.renoteWrapperNoteId,
+    this.renoteVisibility,
     this.pinnedByUser,
     this.onPinnedChanged,
     this.trailing,
@@ -462,6 +465,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
         renoteUser: note.user,
         isMyRenote: isMyRenote,
         renoteWrapperNoteId: note.id,
+        renoteVisibility: note.visibility,
       );
     }
 
@@ -522,6 +526,18 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                         ),
                       ),
                     ),
+                    if (widget.renoteVisibility != null)
+                      Tooltip(
+                        message: AppConstants.visibilityLabels[widget.renoteVisibility] ??
+                            widget.renoteVisibility!,
+                        child: Icon(
+                          _renoteVisibilityIcon(widget.renoteVisibility!),
+                          size: 14,
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
+                    if (widget.renoteVisibility != null && widget.isMyRenote)
+                      const SizedBox(width: 4),
                     if (widget.isMyRenote)
                       _UnrenoteButton(
                         originalNoteId: note.id,
@@ -1533,7 +1549,18 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
 
     setState(() => _isRenoting = true);
     try {
-      await api.renote(widget.note.id);
+      // 設定からリノートの公開範囲を決定する
+      final renoteVisibilitySetting = settings.renoteVisibility;
+      final String renoteVisibility;
+      if (renoteVisibilitySetting ==
+          AppConstants.renoteVisibilitySameAsLastPost) {
+        final activeAccount = ref.read(activeAccountProvider);
+        final accountId = activeAccount?.id ?? '';
+        renoteVisibility = ref.read(accountVisibilityProvider(accountId));
+      } else {
+        renoteVisibility = renoteVisibilitySetting;
+      }
+      await api.renote(widget.note.id, visibility: renoteVisibility);
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -1548,6 +1575,16 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     } finally {
       if (mounted) setState(() => _isRenoting = false);
     }
+  }
+
+  IconData _renoteVisibilityIcon(String visibility) {
+    return switch (visibility) {
+      AppConstants.visibilityPublic => Icons.public,
+      AppConstants.visibilityHome => Icons.home_outlined,
+      AppConstants.visibilityFollowers => Icons.lock_outline,
+      AppConstants.visibilitySpecified => Icons.mail_outline,
+      _ => Icons.public,
+    };
   }
 
   Future<void> _pickReaction() async {

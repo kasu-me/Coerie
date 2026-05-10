@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/services/cache_service.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
@@ -92,6 +93,16 @@ class SettingsScreen extends ConsumerWidget {
             onChanged: (v) =>
                 ref.read(settingsProvider.notifier).setConfirmDestructive(v),
           ),
+          ListTile(
+            leading: const Icon(Icons.repeat),
+            title: const Text('リノートの公開範囲'),
+            subtitle: Text(
+              AppConstants.renoteVisibilityLabels[settings.renoteVisibility] ??
+                  settings.renoteVisibility,
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _showRenoteVisibilityPicker(context, ref, settings),
+          ),
 
           // --- データ管理 ---
           _SectionHeader('データ管理'),
@@ -120,6 +131,57 @@ class SettingsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  void _showRenoteVisibilityPicker(
+    BuildContext context,
+    WidgetRef ref,
+    AppSettingsModel settings,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(ctx).bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'リノートの公開範囲',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ),
+            ...AppConstants.renoteVisibilityLabels.entries.map(
+              (e) => ListTile(
+                leading: Icon(_renoteVisibilityIcon(e.key)),
+                title: Text(e.value),
+                trailing: settings.renoteVisibility == e.key
+                    ? const Icon(Icons.check, color: Colors.green)
+                    : null,
+                onTap: () {
+                  ref
+                      .read(settingsProvider.notifier)
+                      .setRenoteVisibility(e.key);
+                  Navigator.pop(ctx);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _renoteVisibilityIcon(String visibility) {
+    return switch (visibility) {
+      AppConstants.visibilityPublic => Icons.public,
+      AppConstants.visibilityHome => Icons.home_outlined,
+      AppConstants.visibilityFollowers => Icons.lock_outline,
+      AppConstants.renoteVisibilitySameAsLastPost => Icons.history,
+      _ => Icons.public,
+    };
   }
 
   Future<void> _exportSettingsWithToken(

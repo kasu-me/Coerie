@@ -17,6 +17,16 @@ class AppConstants {
   static const String visibilityFollowers = 'followers';
   static const String visibilitySpecified = 'specified';
 
+  // リノートの公開範囲設定
+  static const String renoteVisibilitySameAsLastPost = 'same_as_last_post';
+
+  static const Map<String, String> renoteVisibilityLabels = {
+    visibilityPublic: '全体公開',
+    visibilityHome: 'ホームのみ',
+    visibilityFollowers: 'フォロワーのみ',
+    renoteVisibilitySameAsLastPost: '直前の投稿と同じ公開範囲',
+  };
+
   // Tab types
   static const String tabTypeHome = 'home';
   static const String tabTypeLocal = 'local';
