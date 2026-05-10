@@ -1185,6 +1185,13 @@ class MisskeyApi {
 
   // ---- お気に入り（ノート） ----
 
+  /// ノートの状態を取得する（notes/state）
+  /// 戻り値: { isFavorited: bool, isMutedThread: bool }
+  Future<Map<String, dynamic>> getNoteState(String noteId) async {
+    final res = await _dio.post('notes/state', data: _body({'noteId': noteId}));
+    return res.data as Map<String, dynamic>;
+  }
+
   /// ノートをお気に入りに追加する（notes/favorites/create）
   Future<void> createFavorite(String noteId) async {
     await _dio.post('notes/favorites/create', data: _body({'noteId': noteId}));

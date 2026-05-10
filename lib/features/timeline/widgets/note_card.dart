@@ -1194,6 +1194,19 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     final isOwn = activeAccount?.userId == widget.note.user.id;
     final api = ref.read(misskeyApiProvider);
 
+    // お気に入り状態が未知の場合は notes/state で確認してからメニューを表示する
+    if (_isFavorited == null && api != null) {
+      try {
+        final state = await api.getNoteState(widget.note.id);
+        if (mounted) {
+          setState(() => _isFavorited = state['isFavorited'] as bool? ?? false);
+        }
+      } catch (_) {
+        if (mounted) setState(() => _isFavorited = false);
+      }
+      if (!mounted) return;
+    }
+
     // ノートURLの構築
     final host = activeAccount?.host ?? '';
     final localNoteUrl = host.isNotEmpty
@@ -1216,6 +1229,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
       return buf.toString();
     }
 
+    if (!context.mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       builder: (sheetCtx) => SafeArea(
