@@ -465,6 +465,15 @@ class MisskeyApi {
     await _dio.post('drive/files/update', data: _body(params));
   }
 
+  /// ドライブフォルダを指定フォルダに移動する（nullでルートに移動）。
+  Future<void> moveFolder(String folderId, {String? parentId}) async {
+    final params = <String, dynamic>{
+      'folderId': folderId,
+      'parentId': parentId,
+    };
+    await _dio.post('drive/folders/update', data: _body(params));
+  }
+
   /// ドライブのフォルダを作成する。parent は null でルート。
   Future<Map<String, dynamic>> createDriveFolder({
     required String name,

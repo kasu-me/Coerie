@@ -54,7 +54,8 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
   bool _hasMore = true;
   String? _error;
   final _scrollController = ScrollController();
-  final Set<String> _selectedIds = {};
+  final Set<String> _selectedFileIds = {};
+  final Set<String> _selectedFolderIds = {};
   bool _managingMode = false;
   String? _managingModeSourceFolderId;
   bool _isUploading = false;
@@ -140,7 +141,8 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     setState(() {
       _breadcrumbs.add((id: folder.id, name: folder.name));
       if (!_managingMode) {
-        _selectedIds.clear();
+        _selectedFileIds.clear();
+        _selectedFolderIds.clear();
       }
     });
     _load();
@@ -151,7 +153,8 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     setState(() {
       _breadcrumbs.removeRange(index + 1, _breadcrumbs.length);
       if (!_managingMode) {
-        _selectedIds.clear();
+        _selectedFileIds.clear();
+        _selectedFolderIds.clear();
       }
     });
     _load();
@@ -160,10 +163,10 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
   void _onFileTap(DriveFileModel file) {
     if (widget.selectionMode) {
       setState(() {
-        if (_selectedIds.contains(file.id)) {
-          _selectedIds.remove(file.id);
+        if (_selectedFileIds.contains(file.id)) {
+          _selectedFileIds.remove(file.id);
         } else {
-          if (_selectedIds.length >= widget.maxSelection) {
+          if (_selectedFileIds.length >= widget.maxSelection) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('最大${widget.maxSelection}件まで選択できます'),
@@ -172,18 +175,20 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
             );
             return;
           }
-          _selectedIds.add(file.id);
+          _selectedFileIds.add(file.id);
         }
       });
     } else if (_managingMode) {
       // 管理モード開始フォルダにいる場合のみ選択可能
       if (_currentFolderId == _managingModeSourceFolderId) {
         setState(() {
-          if (_selectedIds.contains(file.id)) {
-            _selectedIds.remove(file.id);
-            if (_selectedIds.isEmpty) _exitManagingMode();
+          if (_selectedFileIds.contains(file.id)) {
+            _selectedFileIds.remove(file.id);
+            if (_selectedFileIds.isEmpty && _selectedFolderIds.isEmpty) {
+              _exitManagingMode();
+            }
           } else {
-            _selectedIds.add(file.id);
+            _selectedFileIds.add(file.id);
           }
         });
       }
@@ -192,18 +197,37 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     }
   }
 
-  void _enterManagingMode(DriveFileModel file) {
+  void _enterManagingMode({DriveFileModel? file, _DriveFolder? folder}) {
     setState(() {
       _managingMode = true;
       _managingModeSourceFolderId = _currentFolderId;
-      _selectedIds.add(file.id);
+      if (file != null) _selectedFileIds.add(file.id);
+      if (folder != null) _selectedFolderIds.add(folder.id);
+    });
+  }
+
+  void _onFolderTap(_DriveFolder folder) {
+    _openFolder(folder);
+  }
+
+  void _toggleFolderSelection(_DriveFolder folder) {
+    setState(() {
+      if (_selectedFolderIds.contains(folder.id)) {
+        _selectedFolderIds.remove(folder.id);
+        if (_selectedFileIds.isEmpty && _selectedFolderIds.isEmpty) {
+          _exitManagingMode();
+        }
+      } else {
+        _selectedFolderIds.add(folder.id);
+      }
     });
   }
 
   void _exitManagingMode() {
     setState(() {
       _managingMode = false;
-      _selectedIds.clear();
+      _selectedFileIds.clear();
+      _selectedFolderIds.clear();
       _managingModeSourceFolderId = null;
     });
   }
@@ -375,19 +399,23 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
   }
 
   void _confirmSelection() {
-    final selected = _files.where((f) => _selectedIds.contains(f.id)).toList();
+    final selected = _files
+        .where((f) => _selectedFileIds.contains(f.id))
+        .toList();
     context.pop(selected);
   }
 
   Future<void> _moveToCurrentFolder() async {
-    final ids = Set<String>.from(_selectedIds);
+    final fileIds = Set<String>.from(_selectedFileIds);
+    final folderIds = Set<String>.from(_selectedFolderIds);
     final targetFolderId = _currentFolderId;
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
     try {
-      await Future.wait(
-        ids.map((id) => api.moveFile(id, folderId: targetFolderId)),
-      );
+      await Future.wait([
+        ...fileIds.map((id) => api.moveFile(id, folderId: targetFolderId)),
+        ...folderIds.map((id) => api.moveFolder(id, parentId: targetFolderId)),
+      ]);
       _exitManagingMode();
       _load();
     } catch (e) {
@@ -398,17 +426,27 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     }
   }
 
-  Future<void> _deleteSelectedFiles() async {
-    final ids = Set<String>.from(_selectedIds);
+  Future<void> _deleteSelected() async {
+    final fileIds = Set<String>.from(_selectedFileIds);
+    final folderIds = Set<String>.from(_selectedFolderIds);
+    final totalCount = fileIds.length + folderIds.length;
+    final String contentText;
+    if (totalCount == 1) {
+      if (fileIds.length == 1) {
+        contentText =
+            '「${_files.firstWhere((f) => f.id == fileIds.first).name}」を削除しますか？\nこの操作は取り消せません。';
+      } else {
+        contentText =
+            '「${_folders.firstWhere((f) => f.id == folderIds.first).name}」を削除しますか？\nこの操作は取り消せません。';
+      }
+    } else {
+      contentText = '選択した$totalCount件のアイテムを削除しますか？\nこの操作は取り消せません。';
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('ファイルの削除'),
-        content: ids.length == 1
-            ? Text(
-                '「${_files.firstWhere((f) => f.id == ids.first).name}」を削除しますか？\nこの操作は取り消せません。',
-              )
-            : Text('選択した${ids.length}件のファイルを削除しますか？\nこの操作は取り消せません。'),
+        title: const Text('削除'),
+        content: Text(contentText),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -428,8 +466,14 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
     try {
-      await Future.wait(ids.map((id) => api.deleteFile(id)));
-      setState(() => _files.removeWhere((f) => ids.contains(f.id)));
+      await Future.wait([
+        ...fileIds.map((id) => api.deleteFile(id)),
+        ...folderIds.map((id) => api.deleteDriveFolder(id)),
+      ]);
+      setState(() {
+        _files.removeWhere((f) => fileIds.contains(f.id));
+        _folders.removeWhere((f) => folderIds.contains(f.id));
+      });
       _exitManagingMode();
     } catch (e) {
       if (!mounted) return;
@@ -508,7 +552,9 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text('${_selectedIds.length}件選択中'),
+                    Text(
+                      '${_selectedFileIds.length + _selectedFolderIds.length}件選択中',
+                    ),
                     const SizedBox(width: 6),
                     Tooltip(
                       message: '選択を解除',
@@ -535,7 +581,8 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
                     icon: const Icon(Icons.drive_file_move),
                     tooltip: 'このフォルダに移動',
                     onPressed:
-                        _selectedIds.isNotEmpty &&
+                        (_selectedFileIds.isNotEmpty ||
+                                _selectedFolderIds.isNotEmpty) &&
                             _currentFolderId != _managingModeSourceFolderId
                         ? _moveToCurrentFolder
                         : null,
@@ -543,13 +590,17 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
                   IconButton(
                     icon: Icon(
                       Icons.delete_outline,
-                      color: _selectedIds.isNotEmpty
+                      color:
+                          (_selectedFileIds.isNotEmpty ||
+                              _selectedFolderIds.isNotEmpty)
                           ? Theme.of(context).colorScheme.error
                           : null,
                     ),
                     tooltip: '削除',
-                    onPressed: _selectedIds.isNotEmpty
-                        ? _deleteSelectedFiles
+                    onPressed:
+                        (_selectedFileIds.isNotEmpty ||
+                            _selectedFolderIds.isNotEmpty)
+                        ? _deleteSelected
                         : null,
                   ),
                 ],
@@ -572,13 +623,13 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
                     ),
                   if (widget.selectionMode)
                     TextButton(
-                      onPressed: _selectedIds.isNotEmpty
+                      onPressed: _selectedFileIds.isNotEmpty
                           ? _confirmSelection
                           : null,
                       child: Text(
-                        _selectedIds.isEmpty
+                        _selectedFileIds.isEmpty
                             ? '確定'
-                            : '確定 (${_selectedIds.length})',
+                            : '確定 (${_selectedFileIds.length})',
                       ),
                     ),
                 ],
@@ -663,10 +714,31 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       itemBuilder: (context, index) {
         // フォルダを先頭に表示
         if (index < _folders.length) {
+          final isOnSourceFolder =
+              _currentFolderId == _managingModeSourceFolderId;
+          final isFolderSelected = _selectedFolderIds.contains(
+            _folders[index].id,
+          );
           return _FolderTile(
             folder: _folders[index],
-            onTap: () => _openFolder(_folders[index]),
-            onLongPress: () => _showFolderMenu(_folders[index]),
+            selectionMode: _managingMode && isOnSourceFolder,
+            isSelected: isFolderSelected,
+            onTap: () {
+              if (_managingMode && isOnSourceFolder && isFolderSelected) {
+                _toggleFolderSelection(_folders[index]);
+              } else {
+                _onFolderTap(_folders[index]);
+              }
+            },
+            onLongPress: _managingMode
+                ? null
+                : () => _enterManagingMode(folder: _folders[index]),
+            onMenuTap: _managingMode
+                ? null
+                : () => _showFolderMenu(_folders[index]),
+            onSelectToggle: (_managingMode && isOnSourceFolder)
+                ? () => _toggleFolderSelection(_folders[index])
+                : null,
           );
         }
         final fileIndex = index - _folders.length;
@@ -680,11 +752,11 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
               widget.selectionMode ||
               (_managingMode &&
                   _currentFolderId == _managingModeSourceFolderId),
-          isSelected: _selectedIds.contains(file.id),
+          isSelected: _selectedFileIds.contains(file.id),
           onTap: () => _onFileTap(file),
           onLongPress: (widget.selectionMode || _managingMode)
               ? null
-              : () => _enterManagingMode(file),
+              : () => _enterManagingMode(file: file),
           onMenuTap: (widget.selectionMode || _managingMode)
               ? null
               : () => _showFileMenu(file),
@@ -766,6 +838,14 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.drive_file_move_outlined),
+              title: const Text('フォルダに移動'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _moveSingleFolder(folder);
+              },
+            ),
+            ListTile(
               leading: Icon(
                 Icons.delete_outline,
                 color: Theme.of(ctx).colorScheme.error,
@@ -781,6 +861,31 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _moveSingleFolder(_DriveFolder folder) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => _FolderPickerSheet(
+        currentFolderId: _currentFolderId,
+        onFolderSelected: (selectedFolderId) async {
+          Navigator.of(ctx).pop();
+          final api = ref.read(misskeyApiProvider);
+          if (api == null) return;
+          try {
+            await api.moveFolder(folder.id, parentId: selectedFolderId);
+            _load();
+          } catch (e) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('移動に失敗しました: $e')));
+          }
+        },
       ),
     );
   }
@@ -877,13 +982,21 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
 // ---- フォルダタイル ----
 class _FolderTile extends StatelessWidget {
   final _DriveFolder folder;
+  final bool selectionMode;
+  final bool isSelected;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onMenuTap;
+  final VoidCallback? onSelectToggle;
 
   const _FolderTile({
     required this.folder,
+    required this.selectionMode,
+    required this.isSelected,
     required this.onTap,
     this.onLongPress,
+    this.onMenuTap,
+    this.onSelectToggle,
   });
 
   @override
@@ -892,28 +1005,105 @@ class _FolderTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.folder, size: 36, color: theme.colorScheme.primary),
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                folder.name,
-                style: theme.textTheme.labelSmall,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.folder, size: 36, color: theme.colorScheme.primary),
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    folder.name,
+                    style: theme.textTheme.labelSmall,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (selectionMode)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: GestureDetector(
+                onTap: onSelectToggle,
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isSelected
+                        ? theme.colorScheme.primary
+                        : Colors.white.withAlpha(204),
+                    border: Border.all(
+                      color: isSelected
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.outline,
+                      width: 2,
+                    ),
+                  ),
+                  child: isSelected
+                      ? Icon(
+                          Icons.check,
+                          size: 14,
+                          color: theme.colorScheme.onPrimary,
+                        )
+                      : null,
+                ),
               ),
             ),
-          ],
-        ),
+          if (isSelected)
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: theme.colorScheme.primary, width: 2),
+              ),
+            ),
+          // 選択中は移動不可を示す半透明オーバーレイ
+          if (selectionMode && isSelected)
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  color: theme.colorScheme.primary.withAlpha(30),
+                ),
+                child: const Center(
+                  child: Icon(Icons.block, size: 18, color: Colors.white54),
+                ),
+              ),
+            ),
+          if (onMenuTap != null)
+            Positioned(
+              bottom: 2,
+              right: 2,
+              child: GestureDetector(
+                onTap: onMenuTap,
+                child: Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: const Icon(
+                    Icons.more_vert,
+                    size: 20,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
