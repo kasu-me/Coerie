@@ -56,6 +56,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
   final _scrollController = ScrollController();
   final Set<String> _selectedIds = {};
   bool _managingMode = false;
+  String? _managingModeSourceFolderId;
   bool _isUploading = false;
 
   String? get _currentFolderId => _breadcrumbs.last.id;
@@ -138,8 +139,9 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
   void _openFolder(_DriveFolder folder) {
     setState(() {
       _breadcrumbs.add((id: folder.id, name: folder.name));
-      _selectedIds.clear();
-      _managingMode = false;
+      if (!_managingMode) {
+        _selectedIds.clear();
+      }
     });
     _load();
   }
@@ -148,8 +150,9 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     if (index == _breadcrumbs.length - 1) return;
     setState(() {
       _breadcrumbs.removeRange(index + 1, _breadcrumbs.length);
-      _selectedIds.clear();
-      _managingMode = false;
+      if (!_managingMode) {
+        _selectedIds.clear();
+      }
     });
     _load();
   }
@@ -173,14 +176,17 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
         }
       });
     } else if (_managingMode) {
-      setState(() {
-        if (_selectedIds.contains(file.id)) {
-          _selectedIds.remove(file.id);
-          if (_selectedIds.isEmpty) _managingMode = false;
-        } else {
-          _selectedIds.add(file.id);
-        }
-      });
+      // 管理モード開始フォルダにいる場合のみ選択可能
+      if (_currentFolderId == _managingModeSourceFolderId) {
+        setState(() {
+          if (_selectedIds.contains(file.id)) {
+            _selectedIds.remove(file.id);
+            if (_selectedIds.isEmpty) _exitManagingMode();
+          } else {
+            _selectedIds.add(file.id);
+          }
+        });
+      }
     } else {
       _previewFile(file);
     }
@@ -189,6 +195,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
   void _enterManagingMode(DriveFileModel file) {
     setState(() {
       _managingMode = true;
+      _managingModeSourceFolderId = _currentFolderId;
       _selectedIds.add(file.id);
     });
   }
@@ -197,6 +204,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     setState(() {
       _managingMode = false;
       _selectedIds.clear();
+      _managingModeSourceFolderId = null;
     });
   }
 
@@ -371,33 +379,23 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     context.pop(selected);
   }
 
-  Future<void> _moveSelectedFiles() async {
+  Future<void> _moveToCurrentFolder() async {
     final ids = Set<String>.from(_selectedIds);
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (ctx) => _FolderPickerSheet(
-        currentFolderId: _currentFolderId,
-        onFolderSelected: (selectedFolderId) async {
-          Navigator.of(ctx).pop();
-          final api = ref.read(misskeyApiProvider);
-          if (api == null) return;
-          try {
-            await Future.wait(
-              ids.map((id) => api.moveFile(id, folderId: selectedFolderId)),
-            );
-            _exitManagingMode();
-            _load();
-          } catch (e) {
-            if (!mounted) return;
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('移動に失敗しました: $e')));
-          }
-        },
-      ),
-    );
+    final targetFolderId = _currentFolderId;
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+    try {
+      await Future.wait(
+        ids.map((id) => api.moveFile(id, folderId: targetFolderId)),
+      );
+      _exitManagingMode();
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('移動に失敗しました: $e')));
+    }
   }
 
   Future<void> _deleteSelectedFiles() async {
@@ -482,7 +480,13 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
           if (_managingMode) {
-            _exitManagingMode();
+            if (_currentFolderId != _managingModeSourceFolderId) {
+              // 移動先フォルダにいる場合は前のフォルダへ戻る
+              _navigateToBreadcrumb(_breadcrumbs.length - 2);
+            } else {
+              // 管理モード開始フォルダにいる場合は管理モードを終了
+              _exitManagingMode();
+            }
           } else {
             _navigateToBreadcrumb(_breadcrumbs.length - 2);
           }
@@ -491,17 +495,49 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       child: Scaffold(
         appBar: _managingMode
             ? AppBar(
-                leading: IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: _exitManagingMode,
+                leadingWidth: _breadcrumbs.length > 1 ? 48 : 0,
+                leading: _breadcrumbs.length > 1
+                    ? IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        tooltip: '上の階層へ',
+                        onPressed: () =>
+                            _navigateToBreadcrumb(_breadcrumbs.length - 2),
+                      )
+                    : const SizedBox.shrink(),
+                title: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text('${_selectedIds.length}件選択中'),
+                    const SizedBox(width: 6),
+                    Tooltip(
+                      message: '選択を解除',
+                      child: GestureDetector(
+                        onTap: _exitManagingMode,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.all(2),
+                          child: Icon(
+                            Icons.close,
+                            size: 18,
+                            color: Theme.of(context).colorScheme.onPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                title: Text('${_selectedIds.length}件選択中'),
                 actions: [
                   IconButton(
-                    icon: const Icon(Icons.drive_file_move_outlined),
-                    tooltip: 'フォルダに移動',
-                    onPressed: _selectedIds.isNotEmpty
-                        ? _moveSelectedFiles
+                    icon: const Icon(Icons.drive_file_move),
+                    tooltip: 'このフォルダに移動',
+                    onPressed:
+                        _selectedIds.isNotEmpty &&
+                            _currentFolderId != _managingModeSourceFolderId
+                        ? _moveToCurrentFolder
                         : null,
                   ),
                   IconButton(
@@ -640,7 +676,10 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
         final file = _files[fileIndex];
         return _DriveFileTile(
           file: file,
-          selectionMode: widget.selectionMode || _managingMode,
+          selectionMode:
+              widget.selectionMode ||
+              (_managingMode &&
+                  _currentFolderId == _managingModeSourceFolderId),
           isSelected: _selectedIds.contains(file.id),
           onTap: () => _onFileTap(file),
           onLongPress: (widget.selectionMode || _managingMode)
