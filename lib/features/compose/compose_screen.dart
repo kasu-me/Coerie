@@ -25,18 +25,12 @@ sealed class _AttachedMedia {}
 
 final class _LocalMedia extends _AttachedMedia {
   final XFile file;
-  final AssetEntity? _asset;
   ImageCompressionLevel compressionLevel;
 
   /// 圧縮中の Future。null の場合は圧縮しない（無圧縮）か非対象ファイル。
   Future<File>? compressFuture;
 
   _LocalMedia(this.file)
-    : _asset = null,
-      compressionLevel = ImageCompressionLevel.none,
-      compressFuture = null;
-
-  _LocalMedia.fromAsset(this.file, this._asset)
     : compressionLevel = ImageCompressionLevel.none,
       compressFuture = null;
 }
@@ -323,17 +317,12 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           mediaLocation: false,
         ),
       );
+      final pickerAccentColor = Theme.of(context).colorScheme.primary;
       final ps = await AssetPicker.permissionCheck(requestOption: permOpt);
       if (!mounted) return;
-      final selectedEntities = _attachedMedia
-          .whereType<_LocalMedia>()
-          .map((m) => m._asset)
-          .whereType<AssetEntity>()
-          .toList();
       final pickerProvider = DefaultAssetPickerProvider(
         maxAssets: remaining,
         requestType: RequestType.common,
-        selectedAssets: selectedEntities,
       );
       final assets =
           await AssetPicker.pickAssetsWithDelegate<
@@ -346,6 +335,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               provider: pickerProvider,
               initialPermission: ps,
               textDelegate: const _JaConfirmAssetPickerTextDelegate(),
+              confirmDestructive: ref.read(settingsProvider).confirmDestructive,
+              themeColor: pickerAccentColor,
             ),
             permissionRequestOption: permOpt,
           );
@@ -355,7 +346,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
             final file = await a.originFile;
             if (file == null) return null;
             final xfile = XFile(file.path);
-            return _LocalMedia.fromAsset(xfile, a);
+            return _LocalMedia(xfile);
           }),
         );
         final validFiles = files.whereType<_LocalMedia>().toList();
@@ -1963,7 +1954,80 @@ class _WideSelectPickerDelegate extends DefaultAssetPickerBuilderDelegate {
     required super.provider,
     required super.initialPermission,
     super.textDelegate,
+    super.themeColor,
+    required this.confirmDestructive,
   });
+
+  final bool confirmDestructive;
+
+  Future<void> _clearAllSelections(BuildContext context) async {
+    if (confirmDestructive) {
+      final errorColor = theme.colorScheme.error;
+      final onErrorColor = theme.colorScheme.onError;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('選択を全て解除しますか？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('キャンセル'),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: errorColor,
+                foregroundColor: onErrorColor,
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              icon: const Icon(Icons.deselect_outlined, size: 18),
+              label: const Text('解除'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+    provider.selectedAssets = [];
+  }
+
+  @override
+  Widget bottomActionBar(BuildContext context) {
+    return AnimatedBuilder(
+      animation: provider,
+      builder: (_, __) {
+        final bottomPadding = MediaQuery.paddingOf(context).bottom;
+        final hasSelection = provider.isSelectedNotEmpty;
+        final children = <Widget>[
+          if (isPermissionLimited) accessLimitedBottomTip(context),
+          Container(
+            height: bottomActionBarHeight + bottomPadding,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 20,
+            ).copyWith(bottom: bottomPadding),
+            color: theme.bottomAppBarTheme.color,
+            child: Row(
+              children: [
+                previewButton(context),
+                const Spacer(),
+                if (hasSelection)
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: theme.colorScheme.error,
+                      padding: const EdgeInsetsDirectional.only(end: 12),
+                    ),
+                    onPressed: () => _clearAllSelections(context),
+                    icon: const Icon(Icons.deselect_outlined, size: 18),
+                    label: const Text('全解除'),
+                  ),
+                confirmButton(context),
+              ],
+            ),
+          ),
+        ];
+        return Column(mainAxisSize: MainAxisSize.min, children: children);
+      },
+    );
+  }
 
   @override
   Future<void> viewAsset(
