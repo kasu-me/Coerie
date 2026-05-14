@@ -1,12 +1,13 @@
 ﻿import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/note_model.dart';
+import '../../data/models/app_settings_model.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/streaming/streaming_service.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
+import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/notifications_badge_provider.dart';
-import '../../shared/providers/settings_provider.dart';
 
 class TimelineState {
   final List<NoteModel> notes;
@@ -95,16 +96,69 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
   }
 
   Map<String, dynamic> getExtraParams(String type) {
-    if (type.startsWith('list:')) return {'listId': type.substring(5)};
-    if (type.startsWith('antenna:')) return {'antennaId': type.substring(8)};
-    if (type.startsWith('channel:')) return {'channelId': type.substring(8)};
-    // ローカルTL・ソーシャルTLはwithRepliesをサポート
+    final tab = _findTabConfig(type);
+    final params = <String, dynamic>{};
+
+    if (type.startsWith('list:')) {
+      params['listId'] = type.substring(5);
+    } else if (type.startsWith('antenna:')) {
+      return {'antennaId': type.substring(8)};
+    } else if (type.startsWith('channel:')) {
+      return {'channelId': type.substring(8)};
+    }
+
+    // withReplies: ローカルTL・ソーシャルTLのみ対応
     if (type == AppConstants.tabTypeLocal ||
         type == AppConstants.tabTypeSocial) {
-      final withReplies = _ref.read(settingsProvider).withReplies;
-      return {'withReplies': withReplies};
+      if (tab?.withReplies != null) {
+        params['withReplies'] = tab!.withReplies;
+      }
     }
-    return {};
+
+    // withRenotes: ホーム/ローカル/ソーシャル/グローバル/リストTLに対応
+    if (type == AppConstants.tabTypeHome ||
+        type == AppConstants.tabTypeLocal ||
+        type == AppConstants.tabTypeSocial ||
+        type == AppConstants.tabTypeGlobal ||
+        type.startsWith('list:')) {
+      if (tab?.withRenotes != null) {
+        params['withRenotes'] = tab!.withRenotes;
+      }
+    }
+
+    // withFiles: ホーム/ローカル/ソーシャル/グローバル/リストTLに対応
+    if (type == AppConstants.tabTypeHome ||
+        type == AppConstants.tabTypeLocal ||
+        type == AppConstants.tabTypeSocial ||
+        type == AppConstants.tabTypeGlobal ||
+        type.startsWith('list:')) {
+      if (tab?.withFiles != null) {
+        params['withFiles'] = tab!.withFiles;
+      }
+    }
+
+    return params;
+  }
+
+  /// timelineTypeに対応するTabConfigModelを検索する
+  TabConfigModel? _findTabConfig(String type) {
+    final accountId = _ref.read(activeAccountProvider)?.id ?? '';
+    if (accountId.isEmpty) return null;
+    final tabs = _ref.read(accountTabsProvider(accountId));
+    for (final tab in tabs) {
+      if (type.startsWith('list:') && tab.type == AppConstants.tabTypeList) {
+        if (tab.sourceId == type.substring(5)) return tab;
+      } else if (type.startsWith('antenna:') &&
+          tab.type == AppConstants.tabTypeAntenna) {
+        if (tab.sourceId == type.substring(8)) return tab;
+      } else if (type.startsWith('channel:') &&
+          tab.type == AppConstants.tabTypeChannel) {
+        if (tab.sourceId == type.substring(8)) return tab;
+      } else if (tab.type == type) {
+        return tab;
+      }
+    }
+    return null;
   }
 
   Future<void> fetchNotes({bool loadMore = false}) async {

@@ -6,12 +6,18 @@ class TabConfigModel {
   final String label;
   final String type;
   final String? sourceId; // リスト/アンテナタブ用のID
+  final bool? withReplies; // 他の人へのリプライを表示（ローカルTL・ソーシャルTLのみ）
+  final bool? withRenotes; // リノートを表示（ホーム/ローカル/ソーシャル/グローバル/リストTL）
+  final bool? withFiles; // ファイル付きのみ表示（ホーム/ローカル/ソーシャル/グローバル/リストTL）
 
   const TabConfigModel({
     required this.id,
     required this.label,
     required this.type,
     this.sourceId,
+    this.withReplies,
+    this.withRenotes,
+    this.withFiles,
   });
 
   Map<String, dynamic> toJson() => {
@@ -19,6 +25,9 @@ class TabConfigModel {
     'label': label,
     'type': type,
     if (sourceId != null) 'sourceId': sourceId,
+    if (withReplies != null) 'withReplies': withReplies,
+    if (withRenotes != null) 'withRenotes': withRenotes,
+    if (withFiles != null) 'withFiles': withFiles,
   };
 
   factory TabConfigModel.fromJson(Map<String, dynamic> json) => TabConfigModel(
@@ -26,6 +35,9 @@ class TabConfigModel {
     label: json['label'] as String,
     type: json['type'] as String,
     sourceId: json['sourceId'] as String?,
+    withReplies: json['withReplies'] as bool?,
+    withRenotes: json['withRenotes'] as bool?,
+    withFiles: json['withFiles'] as bool?,
   );
 
   TabConfigModel copyWith({
@@ -33,11 +45,17 @@ class TabConfigModel {
     String? label,
     String? type,
     String? sourceId,
+    bool? withReplies,
+    bool? withRenotes,
+    bool? withFiles,
   }) => TabConfigModel(
     id: id ?? this.id,
     label: label ?? this.label,
     type: type ?? this.type,
     sourceId: sourceId ?? this.sourceId,
+    withReplies: withReplies ?? this.withReplies,
+    withRenotes: withRenotes ?? this.withRenotes,
+    withFiles: withFiles ?? this.withFiles,
   );
 }
 
@@ -60,7 +78,6 @@ class AppSettingsModel {
   final ImageCompressionLevel
   defaultImageCompressionLevel; // 画像アップロード時のデフォルト圧縮レベル
   final String renoteVisibility; // リノート時の公開範囲（デフォルト: 'same_as_last_post'）
-  final bool withReplies; // 他の人へのリプライをタイムラインに表示する（ローカルTL・ソーシャルTL）
 
   const AppSettingsModel({
     this.theme = 'system',
@@ -80,7 +97,6 @@ class AppSettingsModel {
     this.avatarRadius = 20.0,
     this.defaultImageCompressionLevel = ImageCompressionLevel.none,
     this.renoteVisibility = 'same_as_last_post',
-    this.withReplies = false,
   });
 
   AppSettingsModel copyWith({
@@ -101,7 +117,6 @@ class AppSettingsModel {
     double? avatarRadius,
     ImageCompressionLevel? defaultImageCompressionLevel,
     String? renoteVisibility,
-    bool? withReplies,
   }) => AppSettingsModel(
     theme: theme ?? this.theme,
     fontSize: fontSize ?? this.fontSize,
@@ -123,7 +138,6 @@ class AppSettingsModel {
     defaultImageCompressionLevel:
         defaultImageCompressionLevel ?? this.defaultImageCompressionLevel,
     renoteVisibility: renoteVisibility ?? this.renoteVisibility,
-    withReplies: withReplies ?? this.withReplies,
   );
 
   static const Object _sentinel = Object();
@@ -146,7 +160,6 @@ class AppSettingsModel {
     'avatarRadius': avatarRadius,
     'defaultImageCompressionLevel': defaultImageCompressionLevel.index,
     'renoteVisibility': renoteVisibility,
-    'withReplies': withReplies,
   };
 
   factory AppSettingsModel.fromJson(Map<String, dynamic> json) =>
@@ -172,7 +185,6 @@ class AppSettingsModel {
             .values[(json['defaultImageCompressionLevel'] as int?) ?? 0],
         renoteVisibility:
             json['renoteVisibility'] as String? ?? 'same_as_last_post',
-        withReplies: json['withReplies'] as bool? ?? false,
       );
 
   factory AppSettingsModel.fromJsonString(String jsonString) =>

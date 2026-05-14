@@ -281,34 +281,16 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
 
   void _editTab(int index) {
     final tab = _tabs[index];
-    final controller = TextEditingController(text: tab.label);
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('タブ名を編集'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(border: OutlineInputBorder()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('キャンセル'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                setState(() {
-                  _tabs[index] = tab.copyWith(label: controller.text.trim());
-                });
-                _save();
-              }
-              Navigator.pop(context);
-            },
-            child: const Text('保存'),
-          ),
-        ],
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (ctx) => _TabEditSheet(
+        tab: tab,
+        onSaved: (updated) {
+          setState(() => _tabs[index] = updated);
+          _save();
+        },
       ),
     );
   }
@@ -324,4 +306,156 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
     AppConstants.tabTypeChannel => Icons.tv,
     _ => Icons.tab,
   };
+}
+
+/// タブ編集BottomSheet
+class _TabEditSheet extends StatefulWidget {
+  final TabConfigModel tab;
+  final void Function(TabConfigModel) onSaved;
+
+  const _TabEditSheet({required this.tab, required this.onSaved});
+
+  @override
+  State<_TabEditSheet> createState() => _TabEditSheetState();
+}
+
+class _TabEditSheetState extends State<_TabEditSheet> {
+  late TextEditingController _labelController;
+  late bool? _withReplies;
+  late bool? _withRenotes;
+  late bool? _withFiles;
+
+  @override
+  void initState() {
+    super.initState();
+    _labelController = TextEditingController(text: widget.tab.label);
+    _withReplies = widget.tab.withReplies;
+    _withRenotes = widget.tab.withRenotes;
+    _withFiles = widget.tab.withFiles;
+  }
+
+  @override
+  void dispose() {
+    _labelController.dispose();
+    super.dispose();
+  }
+
+  bool get _supportsWithReplies =>
+      widget.tab.type == AppConstants.tabTypeLocal ||
+      widget.tab.type == AppConstants.tabTypeSocial;
+
+  bool get _supportsWithRenotes =>
+      widget.tab.type == AppConstants.tabTypeHome ||
+      widget.tab.type == AppConstants.tabTypeLocal ||
+      widget.tab.type == AppConstants.tabTypeSocial ||
+      widget.tab.type == AppConstants.tabTypeGlobal ||
+      widget.tab.type == AppConstants.tabTypeList;
+
+  bool get _supportsWithFiles =>
+      widget.tab.type == AppConstants.tabTypeHome ||
+      widget.tab.type == AppConstants.tabTypeLocal ||
+      widget.tab.type == AppConstants.tabTypeSocial ||
+      widget.tab.type == AppConstants.tabTypeGlobal ||
+      widget.tab.type == AppConstants.tabTypeList;
+
+  bool get _hasOptions =>
+      _supportsWithReplies || _supportsWithRenotes || _supportsWithFiles;
+
+  void _save() {
+    final label = _labelController.text.trim();
+    if (label.isEmpty) return;
+    widget.onSaved(
+      widget.tab.copyWith(
+        label: label,
+        withReplies: _withReplies,
+        withRenotes: _withRenotes,
+        withFiles: _withFiles,
+      ),
+    );
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final bottomPadding = MediaQuery.viewPaddingOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset + bottomPadding),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'タブを編集',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  FilledButton.icon(
+                    onPressed: _save,
+                    icon: const Icon(Icons.save_outlined, size: 18),
+                    label: const Text('保存'),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _labelController,
+                autofocus: !_hasOptions,
+                decoration: const InputDecoration(
+                  labelText: 'タブ名',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.label_outline),
+                ),
+              ),
+            ),
+            if (_hasOptions) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: Text(
+                  '表示オプション',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+              if (_supportsWithReplies)
+                SwitchListTile(
+                  secondary: const Icon(Icons.reply_outlined),
+                  title: const Text('他の人へのリプライを表示'),
+                  subtitle: const Text('フォロー外のユーザーへのリプライを含める'),
+                  value: _withReplies ?? false,
+                  onChanged: (v) => setState(() => _withReplies = v),
+                ),
+              if (_supportsWithRenotes)
+                SwitchListTile(
+                  secondary: const Icon(Icons.repeat_outlined),
+                  title: const Text('リノートを表示'),
+                  subtitle: const Text('OFFにするとリノートを除外する'),
+                  value: _withRenotes ?? true,
+                  onChanged: (v) => setState(() => _withRenotes = v),
+                ),
+              if (_supportsWithFiles)
+                SwitchListTile(
+                  secondary: const Icon(Icons.attach_file_outlined),
+                  title: const Text('ファイル付きのみ'),
+                  subtitle: const Text('添付ファイルがある投稿だけを表示する'),
+                  value: _withFiles ?? false,
+                  onChanged: (v) => setState(() => _withFiles = v),
+                ),
+            ],
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
 }
