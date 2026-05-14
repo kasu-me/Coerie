@@ -6,6 +6,7 @@ import '../../core/streaming/streaming_service.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/notifications_badge_provider.dart';
+import '../../shared/providers/settings_provider.dart';
 
 class TimelineState {
   final List<NoteModel> notes;
@@ -97,6 +98,12 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
     if (type.startsWith('list:')) return {'listId': type.substring(5)};
     if (type.startsWith('antenna:')) return {'antennaId': type.substring(8)};
     if (type.startsWith('channel:')) return {'channelId': type.substring(8)};
+    // ローカルTL・ソーシャルTLはwithRepliesをサポート
+    if (type == AppConstants.tabTypeLocal ||
+        type == AppConstants.tabTypeSocial) {
+      final withReplies = _ref.read(settingsProvider).withReplies;
+      return {'withReplies': withReplies};
+    }
     return {};
   }
 

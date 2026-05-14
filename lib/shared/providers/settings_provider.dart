@@ -119,6 +119,11 @@ class SettingsNotifier extends StateNotifier<AppSettingsModel> {
     await _save();
   }
 
+  Future<void> setWithReplies(bool value) async {
+    state = state.copyWith(withReplies: value);
+    await _save();
+  }
+
   Future<void> importSettings(AppSettingsModel settings) async {
     state = settings;
     await _save();

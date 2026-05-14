@@ -126,6 +126,15 @@ class TimelineSettingsScreen extends ConsumerWidget {
             onChanged: (v) =>
                 ref.read(settingsProvider.notifier).setCollapseNote(v),
           ),
+          const Divider(indent: 16, endIndent: 16),
+          SwitchListTile(
+            secondary: const Icon(Icons.reply_outlined),
+            title: const Text('他の人へのリプライを表示'),
+            subtitle: const Text('ローカルTL・ソーシャルTLで、フォロー外のユーザーへのリプライを表示する'),
+            value: settings.withReplies,
+            onChanged: (v) =>
+                ref.read(settingsProvider.notifier).setWithReplies(v),
+          ),
         ],
       ),
     );

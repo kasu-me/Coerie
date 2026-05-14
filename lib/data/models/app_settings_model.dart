@@ -60,6 +60,7 @@ class AppSettingsModel {
   final ImageCompressionLevel
   defaultImageCompressionLevel; // 画像アップロード時のデフォルト圧縮レベル
   final String renoteVisibility; // リノート時の公開範囲（デフォルト: 'same_as_last_post'）
+  final bool withReplies; // 他の人へのリプライをタイムラインに表示する（ローカルTL・ソーシャルTL）
 
   const AppSettingsModel({
     this.theme = 'system',
@@ -79,6 +80,7 @@ class AppSettingsModel {
     this.avatarRadius = 20.0,
     this.defaultImageCompressionLevel = ImageCompressionLevel.none,
     this.renoteVisibility = 'same_as_last_post',
+    this.withReplies = false,
   });
 
   AppSettingsModel copyWith({
@@ -99,6 +101,7 @@ class AppSettingsModel {
     double? avatarRadius,
     ImageCompressionLevel? defaultImageCompressionLevel,
     String? renoteVisibility,
+    bool? withReplies,
   }) => AppSettingsModel(
     theme: theme ?? this.theme,
     fontSize: fontSize ?? this.fontSize,
@@ -120,6 +123,7 @@ class AppSettingsModel {
     defaultImageCompressionLevel:
         defaultImageCompressionLevel ?? this.defaultImageCompressionLevel,
     renoteVisibility: renoteVisibility ?? this.renoteVisibility,
+    withReplies: withReplies ?? this.withReplies,
   );
 
   static const Object _sentinel = Object();
@@ -142,6 +146,7 @@ class AppSettingsModel {
     'avatarRadius': avatarRadius,
     'defaultImageCompressionLevel': defaultImageCompressionLevel.index,
     'renoteVisibility': renoteVisibility,
+    'withReplies': withReplies,
   };
 
   factory AppSettingsModel.fromJson(Map<String, dynamic> json) =>
@@ -167,6 +172,7 @@ class AppSettingsModel {
             .values[(json['defaultImageCompressionLevel'] as int?) ?? 0],
         renoteVisibility:
             json['renoteVisibility'] as String? ?? 'same_as_last_post',
+        withReplies: json['withReplies'] as bool? ?? false,
       );
 
   factory AppSettingsModel.fromJsonString(String jsonString) =>
