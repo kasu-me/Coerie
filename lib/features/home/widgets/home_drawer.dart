@@ -7,6 +7,7 @@ import '../../../shared/providers/account_provider.dart';
 import '../../../data/models/account_model.dart';
 import '../../../shared/providers/follow_requests_badge_provider.dart';
 import '../../../shared/providers/announcements_badge_provider.dart';
+import '../../../shared/providers/current_user_provider.dart';
 import '../../profile/follow_requests_sheet.dart';
 
 class HomeDrawer extends ConsumerWidget {
@@ -40,33 +41,42 @@ class HomeDrawer extends ConsumerWidget {
                       context.push('/account-settings');
                     },
                   ),
-                  ListTile(
-                    leading: Consumer(
-                      builder: (ctx, ref, _) {
-                        final accountId =
-                            ref.watch(activeAccountProvider)?.id ?? '';
-                        final cnt = ref.watch(
-                          followRequestsBadgeProvider(accountId),
-                        );
-                        return cnt > 0
-                            ? Badge(
-                                label: Text('$cnt'),
-                                child: const Icon(Icons.person_add),
-                              )
-                            : const Icon(Icons.person_add);
-                      },
-                    ),
-                    title: const Text('フォローリクエスト'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      if (activeAccount == null) return;
-                      showModalBottomSheet(
-                        context: context,
-                        isScrollControlled: true,
-                        useSafeArea: true,
-                        builder: (ctx) => FollowRequestsSheet(
-                          profileOwnerId: activeAccount.userId,
+                  Consumer(
+                    builder: (ctx, ref, _) {
+                      final currentUser = ref
+                          .watch(currentUserProvider)
+                          .valueOrNull;
+                      final isLocked = currentUser?.isLocked ?? false;
+                      if (!isLocked) return const SizedBox.shrink();
+                      return ListTile(
+                        leading: Consumer(
+                          builder: (ctx, ref, _) {
+                            final accountId =
+                                ref.watch(activeAccountProvider)?.id ?? '';
+                            final cnt = ref.watch(
+                              followRequestsBadgeProvider(accountId),
+                            );
+                            return cnt > 0
+                                ? Badge(
+                                    label: Text('$cnt'),
+                                    child: const Icon(Icons.person_add),
+                                  )
+                                : const Icon(Icons.person_add);
+                          },
                         ),
+                        title: const Text('フォローリクエスト'),
+                        onTap: () {
+                          Navigator.of(ctx).pop();
+                          if (activeAccount == null) return;
+                          showModalBottomSheet(
+                            context: ctx,
+                            isScrollControlled: true,
+                            useSafeArea: true,
+                            builder: (sheetCtx) => FollowRequestsSheet(
+                              profileOwnerId: activeAccount.userId,
+                            ),
+                          );
+                        },
                       );
                     },
                   ),

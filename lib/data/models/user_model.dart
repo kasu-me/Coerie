@@ -17,6 +17,7 @@ class UserModel {
   final bool isFollowed;
   final bool isBlocking;
   final bool isMuted;
+  final bool isLocked;
 
   const UserModel({
     required this.id,
@@ -35,6 +36,7 @@ class UserModel {
     this.isFollowed = false,
     this.isBlocking = false,
     this.isMuted = false,
+    this.isLocked = false,
   });
 
   String get acct => host.isEmpty ? '@$username' : '@$username@$host';
@@ -62,6 +64,7 @@ class UserModel {
       isFollowed: json['isFollowed'] as bool? ?? false,
       isBlocking: json['isBlocking'] as bool? ?? false,
       isMuted: json['isMuted'] as bool? ?? false,
+      isLocked: json['isLocked'] as bool? ?? false,
     );
   }
 
@@ -82,6 +85,7 @@ class UserModel {
     bool? isFollowed,
     bool? isBlocking,
     bool? isMuted,
+    bool? isLocked,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -100,6 +104,7 @@ class UserModel {
       isFollowed: isFollowed ?? this.isFollowed,
       isBlocking: isBlocking ?? this.isBlocking,
       isMuted: isMuted ?? this.isMuted,
+      isLocked: isLocked ?? this.isLocked,
     );
   }
 }
