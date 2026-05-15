@@ -7,8 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:dio/dio.dart';
-import 'package:path_provider/path_provider.dart';
+import '../../shared/utils/download_helper.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
@@ -1522,47 +1521,23 @@ class _DriveImagePreviewScreenState extends State<_DriveImagePreviewScreen>
 
   Future<void> _downloadFile() async {
     final url = widget.file.url;
+    final filename = widget.file.name;
     final messenger = ScaffoldMessenger.of(context);
     messenger.showSnackBar(const SnackBar(content: Text('ダウンロードを開始します...')));
     try {
-      final dio = Dio();
-      String filename =
-          Uri.tryParse(url)?.pathSegments.last ?? widget.file.name;
-
-      Directory? dir;
-      try {
-        if (Platform.isAndroid) {
-          final dirs = await getExternalStorageDirectories(
-            type: StorageDirectory.downloads,
-          );
-          if (dirs != null && dirs.isNotEmpty) {
-            dir = dirs.first;
-          } else {
-            dir = await getExternalStorageDirectory();
-          }
-        } else if (Platform.isIOS) {
-          dir = await getApplicationDocumentsDirectory();
-        } else {
-          dir = await getDownloadsDirectory();
-          dir ??= await getApplicationDocumentsDirectory();
-        }
-      } catch (_) {
-        dir = await getApplicationDocumentsDirectory();
-      }
-
-      final saveFile = File('${dir!.path}${Platform.pathSeparator}$filename');
-      final tempFile = File('${saveFile.path}.part');
-
-      await dio.download(url, tempFile.path);
-      if (await tempFile.exists()) {
-        await tempFile.rename(saveFile.path);
-      }
-
-      messenger.showSnackBar(
-        SnackBar(content: Text('保存しました: ${saveFile.path}')),
+      await DownloadHelper.downloadToPublicDownloads(
+        url: url,
+        fileName: filename,
       );
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('「$filename」をDownloadフォルダに保存しました')),
+        );
+      }
     } catch (e) {
-      messenger.showSnackBar(const SnackBar(content: Text('ダウンロードに失敗しました')));
+      if (mounted) {
+        messenger.showSnackBar(const SnackBar(content: Text('ダウンロードに失敗しました')));
+      }
     }
   }
 

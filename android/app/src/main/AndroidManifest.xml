@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <!-- メディアアクセス権限 (Android 12以下) -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- Downloadsフォルダ書き込み権限 (Android 9以下) -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <application
         android:label="Coerie"
         android:name="${applicationName}"

@@ -1,9 +1,7 @@
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
-import 'dart:io';
-import 'package:dio/dio.dart';
-import 'package:path_provider/path_provider.dart';
+import '../utils/download_helper.dart';
 
 /// 動画・音声を再生するフルスクリーンプレーヤー。
 ///
@@ -121,46 +119,23 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen> {
 
   Future<void> _downloadMedia() async {
     final url = widget.url;
+    final filename = widget.title;
     final messenger = ScaffoldMessenger.of(context);
     messenger.showSnackBar(const SnackBar(content: Text('ダウンロードを開始します...')));
     try {
-      final dio = Dio();
-      String filename = Uri.tryParse(url)?.pathSegments.last ?? widget.title;
-
-      Directory? dir;
-      try {
-        if (Platform.isAndroid) {
-          final dirs = await getExternalStorageDirectories(
-            type: StorageDirectory.downloads,
-          );
-          if (dirs != null && dirs.isNotEmpty) {
-            dir = dirs.first;
-          } else {
-            dir = await getExternalStorageDirectory();
-          }
-        } else if (Platform.isIOS) {
-          dir = await getApplicationDocumentsDirectory();
-        } else {
-          dir = await getDownloadsDirectory();
-          dir ??= await getApplicationDocumentsDirectory();
-        }
-      } catch (_) {
-        dir = await getApplicationDocumentsDirectory();
-      }
-
-      final saveFile = File('${dir!.path}${Platform.pathSeparator}$filename');
-      final tempFile = File('${saveFile.path}.part');
-
-      await dio.download(url, tempFile.path);
-      if (await tempFile.exists()) {
-        await tempFile.rename(saveFile.path);
-      }
-
-      messenger.showSnackBar(
-        SnackBar(content: Text('保存しました: ${saveFile.path}')),
+      await DownloadHelper.downloadToPublicDownloads(
+        url: url,
+        fileName: filename,
       );
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('「$filename」をDownloadフォルダに保存しました')),
+        );
+      }
     } catch (e) {
-      messenger.showSnackBar(const SnackBar(content: Text('ダウンロードに失敗しました')));
+      if (mounted) {
+        messenger.showSnackBar(const SnackBar(content: Text('ダウンロードに失敗しました')));
+      }
     }
   }
 

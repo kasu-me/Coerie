@@ -6,10 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../shared/utils/download_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'dart:io';
-import 'package:dio/dio.dart';
-import 'package:path_provider/path_provider.dart';
 import '../../../data/models/clip_model.dart';
 import '../../../data/models/note_model.dart';
 import '../../../data/models/poll_model.dart';
@@ -1986,7 +1984,7 @@ class _MediaGridState extends State<_MediaGrid> {
                     ctx,
                     MaterialPageRoute<void>(
                       builder: (_) => _FullscreenImageViewer(
-                        urls: imageFiles.map((e) => e.value.url).toList(),
+                        files: imageFiles.map((e) => e.value).toList(),
                         initialIndex: i,
                       ),
                     ),
@@ -2147,11 +2145,11 @@ class _FileTile extends StatelessWidget {
 
 // ---- フルサイズ画像ビューア ----
 class _FullscreenImageViewer extends StatefulWidget {
-  final List<String> urls;
+  final List<DriveFileModel> files;
   final int initialIndex;
 
   const _FullscreenImageViewer({
-    required this.urls,
+    required this.files,
     required this.initialIndex,
   });
 
@@ -2175,7 +2173,7 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer>
     _current = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
     _controllers = List.generate(
-      widget.urls.length,
+      widget.files.length,
       (_) => TransformationController(),
     );
     _animationController =
@@ -2213,9 +2211,9 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer>
       appBar: AppBar(
         backgroundColor: Colors.black,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: widget.urls.length > 1
+        title: widget.files.length > 1
             ? Text(
-                '${_current + 1} / ${widget.urls.length}',
+                '${_current + 1} / ${widget.files.length}',
                 style: const TextStyle(color: Colors.white),
               )
             : null,
@@ -2230,6 +2228,11 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer>
             offset: const Offset(0, 8),
             onSelected: (v) {
               if (v == 'download') _downloadCurrent();
+              if (v == 'open')
+                launchUrl(
+                  Uri.parse(widget.files[_current].url),
+                  mode: LaunchMode.externalApplication,
+                );
             },
             itemBuilder: (_) => [
               PopupMenuItem(
@@ -2240,6 +2243,19 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer>
                     const SizedBox(width: 12),
                     Text(
                       'ダウンロード',
+                      style: TextStyle(color: popupOn, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'open',
+                child: Row(
+                  children: [
+                    Icon(Icons.open_in_browser, color: popupOn, size: 20),
+                    const SizedBox(width: 12),
+                    Text(
+                      'ブラウザで開く',
                       style: TextStyle(color: popupOn, fontSize: 16),
                     ),
                   ],
@@ -2256,7 +2272,7 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer>
           physics: _isZoomed
               ? const NeverScrollableScrollPhysics()
               : const PageScrollPhysics(),
-          itemCount: widget.urls.length,
+          itemCount: widget.files.length,
           onPageChanged: (i) {
             _controllers[_current].removeListener(_onTransformChanged);
             setState(() {
@@ -2275,7 +2291,7 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer>
               child: Center(
                 child: CachedNetworkImage(
                   cacheManager: AppCacheManager(),
-                  imageUrl: widget.urls[i],
+                  imageUrl: widget.files[i].url,
                   fit: BoxFit.contain,
                   placeholder: (_, _) =>
                       const CircularProgressIndicator(color: Colors.white),
@@ -2332,47 +2348,25 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer>
   }
 
   Future<void> _downloadCurrent() async {
-    final url = widget.urls[_current];
+    final file = widget.files[_current];
+    final url = file.url;
+    final filename = file.name;
     final messenger = ScaffoldMessenger.of(context);
     messenger.showSnackBar(const SnackBar(content: Text('ダウンロードを開始します...')));
     try {
-      final dio = Dio();
-      String filename = Uri.tryParse(url)?.pathSegments.last ?? 'file';
-
-      Directory? dir;
-      try {
-        if (Platform.isAndroid) {
-          final dirs = await getExternalStorageDirectories(
-            type: StorageDirectory.downloads,
-          );
-          if (dirs != null && dirs.isNotEmpty) {
-            dir = dirs.first;
-          } else {
-            dir = await getExternalStorageDirectory();
-          }
-        } else if (Platform.isIOS) {
-          dir = await getApplicationDocumentsDirectory();
-        } else {
-          dir = await getDownloadsDirectory();
-          dir ??= await getApplicationDocumentsDirectory();
-        }
-      } catch (_) {
-        dir = await getApplicationDocumentsDirectory();
-      }
-
-      final saveFile = File('${dir!.path}${Platform.pathSeparator}$filename');
-      final tempFile = File('${saveFile.path}.part');
-
-      await dio.download(url, tempFile.path);
-      if (await tempFile.exists()) {
-        await tempFile.rename(saveFile.path);
-      }
-
-      messenger.showSnackBar(
-        SnackBar(content: Text('保存しました: ${saveFile.path}')),
+      await DownloadHelper.downloadToPublicDownloads(
+        url: url,
+        fileName: filename,
       );
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('「$filename」をDownloadフォルダに保存しました')),
+        );
+      }
     } catch (e) {
-      messenger.showSnackBar(const SnackBar(content: Text('ダウンロードに失敗しました')));
+      if (mounted) {
+        messenger.showSnackBar(const SnackBar(content: Text('ダウンロードに失敗しました')));
+      }
     }
   }
 }

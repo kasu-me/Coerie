@@ -1,18 +1,25 @@
 package com.coerie.coerie
 
+import android.content.ContentValues
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.webkit.MimeTypeMap
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.IOException
 
 class MainActivity : FlutterActivity() {
 	private val CHANNEL = "coerie/share"
+	private val DOWNLOAD_CHANNEL = "coerie/download_helper"
 	private var latestText: String? = null
 	private var latestFiles: ArrayList<String>? = null
 	private var methodChannel: MethodChannel? = null
+	private var downloadChannel: MethodChannel? = null
 
 	override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
 		super.configureFlutterEngine(flutterEngine)
@@ -27,6 +34,27 @@ class MainActivity : FlutterActivity() {
 				result.notImplemented()
 			}
 		}
+
+		downloadChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DOWNLOAD_CHANNEL)
+		downloadChannel?.setMethodCallHandler { call, result ->
+			if (call.method == "saveToDownloads") {
+				val filePath = call.argument<String>("filePath")
+				val fileName = call.argument<String>("fileName")
+				if (filePath == null || fileName == null) {
+					result.error("INVALID_ARGS", "filePath and fileName are required", null)
+					return@setMethodCallHandler
+				}
+				try {
+					saveToDownloads(filePath, fileName)
+					result.success(null)
+				} catch (e: Exception) {
+					result.error("SAVE_FAILED", e.message, null)
+				}
+			} else {
+				result.notImplemented()
+			}
+		}
+
 		handleIntent(intent, false)
 	}
 
@@ -34,6 +62,40 @@ class MainActivity : FlutterActivity() {
 		super.onNewIntent(intent)
 		setIntent(intent)
 		handleIntent(intent, true)
+	}
+
+	/**
+	 * ファイルを公開 Downloads フォルダへ保存する。
+	 * Android 10+ (API 29+): MediaStore.Downloads を使用（権限不要）
+	 * Android 9 以下: WRITE_EXTERNAL_STORAGE 権限が必要
+	 */
+	@Suppress("DEPRECATION")
+	private fun saveToDownloads(filePath: String, fileName: String) {
+		val sourceFile = File(filePath)
+		val ext = fileName.substringAfterLast('.', "").lowercase()
+		val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)
+			?: "application/octet-stream"
+
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+			val resolver = contentResolver
+			val contentValues = ContentValues().apply {
+				put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+				put(MediaStore.Downloads.MIME_TYPE, mimeType)
+				put(MediaStore.Downloads.IS_PENDING, 1)
+			}
+			val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+				?: throw IOException("Failed to create Downloads URI for $fileName")
+			resolver.openOutputStream(uri)?.use { out ->
+				sourceFile.inputStream().use { it.copyTo(out) }
+			}
+			contentValues.clear()
+			contentValues.put(MediaStore.Downloads.IS_PENDING, 0)
+			resolver.update(uri, contentValues, null, null)
+		} else {
+			val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+			downloadDir.mkdirs()
+			sourceFile.copyTo(File(downloadDir, fileName), overwrite = true)
+		}
 	}
 
 	/**
