@@ -7,7 +7,7 @@ import '../../../shared/providers/account_provider.dart';
 import '../../../data/models/account_model.dart';
 import '../../../shared/providers/follow_requests_badge_provider.dart';
 import '../../../shared/providers/announcements_badge_provider.dart';
-import '../../../shared/providers/current_user_provider.dart';
+import '../../../shared/providers/is_locked_provider.dart';
 import '../../profile/follow_requests_sheet.dart';
 
 class HomeDrawer extends ConsumerWidget {
@@ -43,10 +43,7 @@ class HomeDrawer extends ConsumerWidget {
                   ),
                   Consumer(
                     builder: (ctx, ref, _) {
-                      final currentUser = ref
-                          .watch(currentUserProvider)
-                          .valueOrNull;
-                      final isLocked = currentUser?.isLocked ?? false;
+                      final isLocked = ref.watch(isLockedProvider);
                       if (!isLocked) return const SizedBox.shrink();
                       return ListTile(
                         leading: Consumer(

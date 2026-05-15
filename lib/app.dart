@@ -7,6 +7,7 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/compose/emoji_picker_sheet.dart';
 import 'shared/providers/settings_provider.dart';
+import 'shared/providers/is_locked_provider.dart';
 
 /// fontSize が null のスタイルをスキップしてスケールを適用する。
 /// TextTheme.apply(fontSizeFactor:) はfontSize==nullのスタイルに対して
@@ -50,6 +51,9 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // isLockedProvider を早期初期化してキャッシュ値を即座に反映させる
+    ref.read(isLockedProvider);
 
     // 初期起動時の共有データをAndroidネイティブから取得
     WidgetsBinding.instance.addPostFrameCallback((_) async {
