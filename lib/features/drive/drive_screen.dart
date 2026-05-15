@@ -872,6 +872,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       useSafeArea: true,
       builder: (ctx) => _FolderPickerSheet(
         currentFolderId: _currentFolderId,
+        excludeFolderId: folder.id,
         onFolderSelected: (selectedFolderId) async {
           Navigator.of(ctx).pop();
           final api = ref.read(misskeyApiProvider);
@@ -1283,10 +1284,12 @@ class _DriveFileTile extends StatelessWidget {
 
 class _FolderPickerSheet extends ConsumerStatefulWidget {
   final String? currentFolderId;
+  final String? excludeFolderId;
   final void Function(String? folderId) onFolderSelected;
 
   const _FolderPickerSheet({
     required this.currentFolderId,
+    this.excludeFolderId,
     required this.onFolderSelected,
   });
 
@@ -1416,19 +1419,29 @@ class _FolderPickerSheetState extends ConsumerState<_FolderPickerSheet> {
                   ? Center(child: Text('読み込みに失敗: $_error'))
                   : _folders.isEmpty
                   ? const Center(child: Text('サブフォルダがありません'))
-                  : ListView.builder(
-                      controller: scrollController,
-                      itemCount: _folders.length,
-                      itemBuilder: (_, i) {
-                        final f = _folders[i];
-                        return ListTile(
-                          leading: Icon(
-                            Icons.folder,
-                            color: theme.colorScheme.primary,
-                          ),
-                          title: Text(f.name),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => _openFolder(f),
+                  : Builder(
+                      builder: (context) {
+                        final visibleFolders = _folders
+                            .where((f) => f.id != widget.excludeFolderId)
+                            .toList();
+                        if (visibleFolders.isEmpty) {
+                          return const Center(child: Text('サブフォルダがありません'));
+                        }
+                        return ListView.builder(
+                          controller: scrollController,
+                          itemCount: visibleFolders.length,
+                          itemBuilder: (_, i) {
+                            final f = visibleFolders[i];
+                            return ListTile(
+                              leading: Icon(
+                                Icons.folder,
+                                color: theme.colorScheme.primary,
+                              ),
+                              title: Text(f.name),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () => _openFolder(f),
+                            );
+                          },
                         );
                       },
                     ),
