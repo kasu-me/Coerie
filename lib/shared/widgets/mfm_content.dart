@@ -247,6 +247,21 @@ class MfmContent extends StatelessWidget {
 
   static const _maxUrlDisplayLength = 40;
 
+  /// mfm_parser 1.0.6 の tweemoji regex でカバーされていない Unicode 17.0 の絵文字。
+  /// ZWJ シーケンス（🧑‍🩰）は個別文字より先にマッチさせるため先頭に置く。
+  /// ※ Dart の RegExp は非 Unicode モードのため文字クラス [...] 内では
+  ///   サロゲートペアが分解されてしまう。| による個別のオルタネーションで記述する。
+  static final _unicode17EmojiRegex = RegExp(
+    '\u{1F9D1}\u200D\u{1FA70}' // 🧑‍🩰
+    '|\u{1FA8A}' // 🪊
+    '|\u{1FA8E}' // 🪎
+    '|\u{1FAC8}' // 🫈
+    '|\u{1FACD}' // 🫍
+    '|\u{1FAEA}' // 🫪
+    '|\u{1FAEF}' // 🫯
+    '|\u{1F6D8}', // 🛘
+  );
+
   List<InlineSpan> _nodeToSpans(
     mfm.MfmNode node,
     TextStyle style,
@@ -255,9 +270,7 @@ class MfmContent extends StatelessWidget {
     final theme = Theme.of(ctx);
 
     if (node is mfm.MfmText) {
-      return [
-        TextSpan(text: _stripVariationSelectors(node.text), style: style),
-      ];
+      return _buildTextWithUnicode17(node.text, style);
     }
 
     if (node is mfm.MfmBold) {
@@ -930,6 +943,53 @@ class MfmContent extends StatelessWidget {
   }
 
   // ---- テキスト正規化 ----
+
+  /// mfm_parser が認識しない Unicode 17.0 絵文字を含むテキストを、
+  /// テキスト部分の [TextSpan] と絵文字部分の [WidgetSpan] に分割して返す。
+  List<InlineSpan> _buildTextWithUnicode17(String text, TextStyle style) {
+    final stripped = _stripVariationSelectors(text);
+    if (!_unicode17EmojiRegex.hasMatch(stripped)) {
+      return [TextSpan(text: stripped, style: style)];
+    }
+    final spans = <InlineSpan>[];
+    int lastEnd = 0;
+    for (final match in _unicode17EmojiRegex.allMatches(stripped)) {
+      if (match.start > lastEnd) {
+        spans.add(
+          TextSpan(
+            text: stripped.substring(lastEnd, match.start),
+            style: style,
+          ),
+        );
+      }
+      final emoji = match.group(0)!;
+      final emojiSize = style.fontSize ?? 20.0;
+      spans.add(
+        WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: Transform.translate(
+            offset: Offset(0, emojiSize * emojiOffsetSizeY),
+            child: CachedNetworkImage(
+              cacheManager: AppCacheManager(),
+              imageUrl: twemojiUrl(emoji),
+              height: emojiSize,
+              fit: BoxFit.fitHeight,
+              alignment: Alignment.centerLeft,
+              fadeInDuration: Duration.zero,
+              placeholder: (_, __) =>
+                  SizedBox(height: emojiSize, width: emojiSize * 0.9),
+              errorWidget: (_, _, _) => Text(emoji, style: style),
+            ),
+          ),
+        ),
+      );
+      lastEnd = match.end;
+    }
+    if (lastEnd < stripped.length) {
+      spans.add(TextSpan(text: stripped.substring(lastEnd), style: style));
+    }
+    return spans;
+  }
 
   /// U+FE0F（絵文字表示セレクタ）・U+FE0E（テキスト表示セレクタ）を除去する。
   ///
