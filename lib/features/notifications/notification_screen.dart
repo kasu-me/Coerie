@@ -12,6 +12,7 @@ import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/notifications_badge_provider.dart';
 import '../../shared/providers/notifications_tab_visibility_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/utils/emoji_utils.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
 
 // ---- Provider ----
@@ -448,11 +449,7 @@ class _NotificationTile extends StatelessWidget {
                           );
                         } else if (inner == null) {
                           // Unicode絵文字は Twemoji CDN を使って画像化
-                          final hex = reactionKey.runes
-                              .map((r) => r.toRadixString(16))
-                              .join('-');
-                          final url =
-                              'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/$hex.png';
+                          final url = twemojiUrl(reactionKey);
                           spans.add(
                             WidgetSpan(
                               alignment: PlaceholderAlignment.middle,

@@ -16,5 +16,5 @@ String twemojiUrl(String emoji) {
     }
   }
   final parts = filtered.map((r) => r.toRadixString(16)).join('-');
-  return 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/$parts.png';
+  return 'https://cdn.jsdelivr.net/gh/jdecked/twemoji@17.0.2/assets/72x72/$parts.png';
 }

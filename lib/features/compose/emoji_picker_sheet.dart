@@ -14,7 +14,7 @@ final customEmojisProvider = FutureProvider<List<Map<String, dynamic>>>((
   return api.getEmojis();
 });
 
-// Unicode 絵文字データ（カテゴリ名: [絵文字文字列, ...] — Unicode 15.1 全件）
+// Unicode 絵文字データ（カテゴリ名: [絵文字文字列, ...] — Unicode 17.0 全件）
 const _unicodeEmojiCategories = <String, List<String>>{
   '😀 顔・感情': [
     '😀',
@@ -185,6 +185,9 @@ const _unicodeEmojiCategories = <String, List<String>>{
     '🗯️',
     '💭',
     '💤',
+    '🫩',
+    '🫪',
+    '🫯',
   ],
   '🙋 人・ジェスチャー': [
     '👋',
@@ -572,6 +575,9 @@ const _unicodeEmojiCategories = <String, List<String>>{
     '🧑‍🧒',
     '🧑‍🧒‍🧒',
     '👣',
+    '�ac86',
+    '�ac88',
+    '🧑‍🩰',
   ],
   '🐶 動物・自然': [
     '🐵',
@@ -727,6 +733,8 @@ const _unicodeEmojiCategories = <String, List<String>>{
     '🪹',
     '🪺',
     '🍄',
+    '🪾',
+    '🫍',
   ],
   '🍎 食べ物・飲み物': [
     '🍇',
@@ -766,6 +774,7 @@ const _unicodeEmojiCategories = <String, List<String>>{
     '🌰',
     '🫚',
     '🫛',
+    '🫜',
     '🍄‍🟫',
     '🍞',
     '🥐',
@@ -1084,6 +1093,7 @@ const _unicodeEmojiCategories = <String, List<String>>{
     '🔥',
     '💧',
     '🌊',
+    '🗘',
   ],
   '⚽ スポーツ・活動': [
     '🎃',
@@ -1435,6 +1445,10 @@ const _unicodeEmojiCategories = <String, List<String>>{
     '🗿',
     '🪧',
     '🪪',
+    '🪉',
+    '🪏',
+    '🪊',
+    '🪎',
   ],
   '❤️ 記号・マーク': [
     '🏧',
@@ -1660,6 +1674,7 @@ const _unicodeEmojiCategories = <String, List<String>>{
     '🔘',
     '🔳',
     '🔲',
+    '🫟',
   ],
   '🏳️ 旗': [
     '🏁',
@@ -1721,7 +1736,8 @@ const _unicodeEmojiCategories = <String, List<String>>{
     '🇨🇳',
     '🇨🇴',
     '🇨🇵',
-    '🇨🇷',
+    '🇨�',
+    '🇨�🇷',
     '🇨🇺',
     '🇨🇻',
     '🇨🇼',
