@@ -19,6 +19,16 @@ class _NotificationsBadgeNotifier extends StateNotifier<int> {
       _streamSub = null;
       _subscribeStream();
     });
+    // 自動再接続成功時に切断中の未読通知を取得する
+    _ref.listen<AsyncValue<StreamingStatus>>(streamingStatusProvider, (
+      prev,
+      next,
+    ) {
+      if (prev?.valueOrNull == StreamingStatus.reconnecting &&
+          next.valueOrNull == StreamingStatus.connected) {
+        refreshFromApi();
+      }
+    });
   }
 
   Future<void> _init() async {
