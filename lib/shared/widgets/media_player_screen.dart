@@ -104,14 +104,11 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen> {
       body: _chewieController != null
           ? widget.isAudio
                 ? _buildAudioPlayer()
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      AspectRatio(
-                        aspectRatio: _vpc.value.aspectRatio,
-                        child: Chewie(controller: _chewieController!),
-                      ),
-                    ],
+                : Center(
+                    child: AspectRatio(
+                      aspectRatio: _vpc.value.aspectRatio,
+                      child: Chewie(controller: _chewieController!),
+                    ),
                   )
           : const Center(child: CircularProgressIndicator(color: Colors.white)),
     );
