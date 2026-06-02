@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/auth/miauth_service.dart';
 import '../../shared/providers/account_provider.dart';
-import '../auth/miauth_webview_screen.dart';
 
 class AccountSettingsScreen extends ConsumerWidget {
   const AccountSettingsScreen({super.key});
@@ -91,18 +91,23 @@ class AccountSettingsScreen extends ConsumerWidget {
     if (!confirmed) return;
 
     if (!context.mounted) return;
-    final result = await Navigator.of(context)
-        .push<({String token, dynamic user})>(
-          MaterialPageRoute(builder: (_) => MiAuthWebViewScreen(host: host)),
+    try {
+      final result = await MiAuthService.authenticate(host);
+      await ref.read(accountProvider.notifier).updateToken(id, result.token);
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('トークンを更新しました')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
-
-    if (result == null) return;
-    await ref.read(accountProvider.notifier).updateToken(id, result.token);
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('トークンを更新しました')));
+      }
     }
   }
 

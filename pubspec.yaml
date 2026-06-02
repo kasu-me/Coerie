@@ -55,7 +55,6 @@ dependencies:
   # URLランチャー（MiAuth用）
   url_launcher: ^6.3.1
   app_links: ^7.0.0
-  webview_flutter: ^4.13.1
   image_picker: ^1.2.1
   google_fonts: ^8.0.2
   package_info_plus: ^9.0.1

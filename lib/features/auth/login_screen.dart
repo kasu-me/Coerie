@@ -9,9 +9,9 @@ import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/account_visibility_provider.dart';
 import '../../shared/providers/settings_provider.dart';
+import '../../core/auth/miauth_service.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/app_settings_model.dart';
-import 'miauth_webview_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   final bool addAccount;
@@ -51,17 +51,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     try {
-      // アプリ内 WebView で MiAuth 認証を行う（外部ブラウザ不要）
-      final result = await Navigator.of(context)
-          .push<({String token, dynamic user})>(
-            MaterialPageRoute(builder: (_) => MiAuthWebViewScreen(host: host)),
-          );
-
-      if (result == null) {
-        // ユーザーがキャンセル
-        if (mounted) setState(() => _isLoading = false);
-        return;
-      }
+      final result = await MiAuthService.authenticate(host);
 
       await ref
           .read(accountProvider.notifier)
@@ -315,7 +305,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                'サーバーの認証ページをアプリ内で開きます。',
+                'サーバーの認証ページを開きます。',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.outline,
