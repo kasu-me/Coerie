@@ -1953,8 +1953,12 @@ const _unicodeEmojiCategories = <String, List<String>>{
 /// サーバーのカスタム絵文字と通常の Unicode 絵文字をまとめて選択できるピッカー。
 /// カスタム絵文字は :name: 形式（例: :party_popper:）、
 /// 通常の Unicode 絵文字はそのまま（例: 👍）で結果を返す。
+///
+/// [isRemoteNote] が true の場合、localOnly 属性の絵文字はリアクション候補から除外される。
 class EmojiPickerSheet extends ConsumerStatefulWidget {
-  const EmojiPickerSheet({super.key});
+  const EmojiPickerSheet({super.key, this.isRemoteNote = false});
+
+  final bool isRemoteNote;
 
   @override
   ConsumerState<EmojiPickerSheet> createState() => _EmojiPickerSheetState();
@@ -2094,10 +2098,15 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
     List<Map<String, dynamic>> emojis,
     ScrollController scrollController,
   ) {
-    _buildCustomCategories(emojis);
+    // リモート投稿へのリアクション時は localOnly 絵文字を除外する
+    final availableEmojis = widget.isRemoteNote
+        ? emojis.where((e) => e['localOnly'] != true).toList()
+        : emojis;
+
+    _buildCustomCategories(availableEmojis);
 
     if (_query.isNotEmpty) {
-      final filtered = emojis.where((e) {
+      final filtered = availableEmojis.where((e) {
         final name = (e['name'] as String? ?? '').toLowerCase();
         final aliases = (e['aliases'] as List<dynamic>? ?? []);
         return name.contains(_query) ||

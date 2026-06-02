@@ -1680,11 +1680,12 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
   }
 
   Future<void> _pickReaction() async {
+    final isRemoteNote = widget.note.uri != null;
     final name = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => const EmojiPickerSheet(),
+      builder: (_) => EmojiPickerSheet(isRemoteNote: isRemoteNote),
     );
     if (name == null || !mounted) return;
     await widget.onReaction(name);
