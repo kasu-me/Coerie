@@ -40,7 +40,7 @@ final class _DriveMedia extends _AttachedMedia {
   _DriveMedia(this.driveFile);
 }
 
-enum _MediaSource { gallery, camera, drive, videoCamera, audio }
+enum _MediaSource { gallery, osPicker, camera, drive, videoCamera, audio }
 
 class ComposeScreen extends ConsumerStatefulWidget {
   final String? draftId;
@@ -323,7 +323,14 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       final pickerProvider = DefaultAssetPickerProvider(
         maxAssets: remaining,
         requestType: RequestType.common,
+        // 1ページあたりの取得件数を増やし、無限スクロール時の
+        // 逐次ロード回数を減らしてもたつきを軽減する（既定80）。
+        pageSize: 240,
       );
+      // OS標準ピッカーボタン経由の結果をここでキャプチャする。
+      // AssetPicker は List<AssetEntity>? を返すため XFile を直接 pop できず、
+      // デリゲートから onOsPickerSelected で受け取って null pop する方式を取る。
+      List<XFile>? osPickerResult;
       final assets =
           await AssetPicker.pickAssetsWithDelegate<
             AssetEntity,
@@ -337,9 +344,29 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               textDelegate: const _JaConfirmAssetPickerTextDelegate(),
               confirmDestructive: ref.read(settingsProvider).confirmDestructive,
               themeColor: pickerAccentColor,
+              onOpenOsPicker: () async {
+                final files = await picker.pickMultipleMedia(
+                  limit: remaining >= 2 ? remaining : null,
+                );
+                return files.isEmpty ? null : files.take(remaining).toList();
+              },
+              onOsPickerSelected: (files) => osPickerResult = files,
             ),
             permissionRequestOption: permOpt,
           );
+      // OS標準ピッカー経由の選択を優先処理する。
+      if (osPickerResult != null && osPickerResult!.isNotEmpty) {
+        final selected = osPickerResult!
+            .map((xfile) => _LocalMedia(xfile))
+            .toList();
+        setState(() {
+          for (final m in selected) {
+            _applyDefaultCompression(m);
+          }
+          _attachedMedia.addAll(selected);
+        });
+        return;
+      }
       if (assets != null && assets.isNotEmpty) {
         final files = await Future.wait(
           assets.map((a) async {
@@ -356,6 +383,30 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               _applyDefaultCompression(m);
             }
             _attachedMedia.addAll(validFiles);
+          });
+        }
+      }
+      return;
+    }
+
+    if (source == _MediaSource.osPicker) {
+      // OS標準（Android Photo Picker等）で画像/動画を複数選択する。
+      // limit は 2 未満だと例外になるため、残り枠が1のときは指定しない。
+      final pickedFiles = await picker.pickMultipleMedia(
+        limit: remaining >= 2 ? remaining : null,
+      );
+      if (pickedFiles.isNotEmpty) {
+        // limit が無視されるプラットフォームに備えて残り枠でクランプする。
+        final selected = pickedFiles
+            .take(remaining)
+            .map((xfile) => _LocalMedia(xfile))
+            .toList();
+        if (selected.isNotEmpty) {
+          setState(() {
+            for (final m in selected) {
+              _applyDefaultCompression(m);
+            }
+            _attachedMedia.addAll(selected);
           });
         }
       }
@@ -1950,15 +2001,60 @@ class _WideSelectViewerDelegate
 
 /// ギャラリーピッカー用カスタムデリゲート（_WideSelectViewerDelegate を使用）
 class _WideSelectPickerDelegate extends DefaultAssetPickerBuilderDelegate {
+  // super に固定値（dragToSelect/gridCount）を渡すため明示的な super 呼び出しが必要
+  // ignore: use_super_parameters
   _WideSelectPickerDelegate({
-    required super.provider,
-    required super.initialPermission,
-    super.textDelegate,
-    super.themeColor,
+    required DefaultAssetPickerProvider provider,
+    required PermissionState initialPermission,
+    AssetPickerTextDelegate? textDelegate,
+    Color? themeColor,
     required this.confirmDestructive,
-  });
+    required this.onOpenOsPicker,
+    required this.onOsPickerSelected,
+  }) : super(
+         provider: provider,
+         initialPermission: initialPermission,
+         textDelegate: textDelegate,
+         themeColor: themeColor,
+         // スクロール中の指の動きが pan ジェスチャとして拾われ、なぞった
+         // タイルが連続選択されてしまう「ドラッグ選択」を無効化する。
+         // （未指定だと !accessibleNavigation にフォールバックし通常端末では有効になる）
+         dragToSelect: false,
+       );
 
   final bool confirmDestructive;
+
+  /// OS標準ピッカーを起動し、選択結果を [List<XFile>] で返す。
+  /// null / 空の場合は操作なし（キャンセル等）とみなす。
+  final Future<List<XFile>?> Function() onOpenOsPicker;
+
+  /// OS標準ピッカーで選択が確定したとき、XFile リストを呼び出し元に渡す。
+  /// デリゲートはこの後 null でピッカーを閉じる。
+  final void Function(List<XFile>) onOsPickerSelected;
+
+  @override
+  AssetPickerAppBar appBar(BuildContext context) {
+    final base = super.appBar(context);
+    return AssetPickerAppBar(
+      title: base.title,
+      leading: base.leading,
+      blurRadius: base.blurRadius,
+      actions: [
+        IconButton(
+          tooltip: 'OS標準ピッカーで開く',
+          icon: const Icon(Icons.collections_outlined),
+          onPressed: () async {
+            final xfiles = await onOpenOsPicker();
+            if (xfiles == null || xfiles.isEmpty) return;
+            onOsPickerSelected(xfiles);
+            // List<XFile> を直接 pop すると型不一致エラーになるため、
+            // 結果は onOsPickerSelected で渡し、ピッカー自体は null で閉じる。
+            if (context.mounted) Navigator.of(context).maybePop();
+          },
+        ),
+      ],
+    );
+  }
 
   Future<void> _clearAllSelections(BuildContext context) async {
     if (confirmDestructive) {
