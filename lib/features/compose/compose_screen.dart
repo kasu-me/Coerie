@@ -1587,7 +1587,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                                   padding: const EdgeInsets.all(2),
                                   child: Icon(
                                     Icons.close,
-                                    size: 20,
+                                    size: 22,
                                     color: theme.colorScheme.onError,
                                   ),
                                 ),
