@@ -1100,7 +1100,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               TextButton.icon(
                 onPressed: _saveDraft,
                 icon: const Icon(Icons.save_outlined, size: 18),
-                label: const Text('下書き'),
+                label: const Text('下書き保存'),
               ),
             ],
           ),
