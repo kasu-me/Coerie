@@ -46,6 +46,8 @@ class StreamingService {
       StreamController<NotificationModel>.broadcast();
   final _noteUpdateController = StreamController<NoteUpdateEvent>.broadcast();
   final _statusController = StreamController<StreamingStatus>.broadcast();
+  // 再接続が完了したときに発火する（切断中に取りこぼした状態の再取得トリガー用）
+  final _reconnectedController = StreamController<void>.broadcast();
   final _noteSubCounts = <String, int>{}; // noteId -> subscriber count
   bool _connected = false;
   bool _reconnecting = false;
@@ -65,6 +67,10 @@ class StreamingService {
 
   /// 接続状態ストリーム
   Stream<StreamingStatus> get statusStream => _statusController.stream;
+
+  /// 再接続が完了したときに発火するストリーム。
+  /// 切断中に取りこぼしたリアクション等を再取得するためのトリガーに使う。
+  Stream<void> get reconnectedStream => _reconnectedController.stream;
 
   /// 初回接続（失敗しても静かに終了）
   Future<void> connect() async {
@@ -248,6 +254,10 @@ class StreamingService {
         if (!_statusController.isClosed) {
           _statusController.add(StreamingStatus.connected);
         }
+        // 切断中に取りこぼした状態を再取得させるため再接続イベントを通知する
+        if (!_reconnectedController.isClosed) {
+          _reconnectedController.add(null);
+        }
         return;
       }
       // まだ試行回数が残っている場合はバックオフして再試行
@@ -380,6 +390,7 @@ class StreamingService {
     _notificationController.close();
     _noteUpdateController.close();
     _statusController.close();
+    _reconnectedController.close();
     _channel?.sink.close();
     _channel = null;
     _connected = false;

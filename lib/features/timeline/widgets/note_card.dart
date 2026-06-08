@@ -91,6 +91,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
   bool _cwExpanded = false;
   final Set<int> _revealedSensitiveIndexes = {};
   StreamSubscription<NoteUpdateEvent>? _noteUpdateSub;
+  StreamSubscription<void>? _reconnectSub;
   PollModel? _localPoll;
   bool _isVoting = false;
   // このデバイスから送信したリアクション操作に対する WebSocket エコーの待ち数。
@@ -114,6 +115,27 @@ class _NoteCardState extends ConsumerState<NoteCard> {
     _noteUpdateSub = streaming.noteUpdateStream
         .where((e) => e.noteId == noteId)
         .listen(_onNoteUpdate);
+    // 再接続時は切断中に取りこぼしたリアクション等をサーバーから再取得する
+    _reconnectSub = streaming.reconnectedStream.listen((_) => _refreshState());
+  }
+
+  /// 切断中に失われたリアクション・投票状態をサーバーの最新値で再同期する。
+  Future<void> _refreshState() async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+    try {
+      final fresh = await api.getNote(widget.note.id);
+      if (!mounted) return;
+      setState(() {
+        _localReactions = Map.from(fresh.reactions);
+        _myReaction = fresh.myReaction;
+        _localPoll = fresh.poll;
+        // 切断中に送信したローカル操作のエコー待ちは届かないためリセットする
+        _pendingLocalEvents = 0;
+      });
+    } catch (_) {
+      // ノートが削除されている等のケースは無視する
+    }
   }
 
   void _onNoteUpdate(NoteUpdateEvent event) {
@@ -293,6 +315,15 @@ class _NoteCardState extends ConsumerState<NoteCard> {
             .listen(_onNoteUpdate);
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _noteUpdateSub?.cancel();
+    _reconnectSub?.cancel();
+    // 購読カウントを解放する（参照カウントが 0 になれば unsubNote が送信される）
+    ref.read(streamingServiceProvider)?.unsubNote(widget.note.id);
+    super.dispose();
   }
 
   Future<void> _showReactionUsers(String reactionKey) async {

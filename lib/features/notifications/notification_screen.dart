@@ -51,6 +51,7 @@ class _NotificationsState {
 class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
   final Ref _ref;
   StreamSubscription<NotificationModel>? _streamSub;
+  StreamSubscription<void>? _reconnectSub;
 
   _NotificationsNotifier(this._ref) : super(const _NotificationsState()) {
     fetch();
@@ -58,6 +59,8 @@ class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
     _ref.listen<StreamingService?>(streamingServiceProvider, (prev, next) {
       _streamSub?.cancel();
       _streamSub = null;
+      _reconnectSub?.cancel();
+      _reconnectSub = null;
       _subscribeStream();
     });
   }
@@ -66,11 +69,33 @@ class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
     final streaming = _ref.read(streamingServiceProvider);
     if (streaming == null) return;
     _streamSub = streaming.notificationStream.listen(_onRealtimeNotification);
+    // 再接続時は切断中に届かなかった通知をまとめて取得する
+    _reconnectSub = streaming.reconnectedStream.listen((_) => _fetchMissed());
   }
 
   void _onRealtimeNotification(NotificationModel notification) {
     if (state.items.any((n) => n.id == notification.id)) return;
     state = state.copyWith(items: [notification, ...state.items]);
+  }
+
+  /// 再接続後、現在の先頭より新しい通知を取得して欠落分を補完する。
+  Future<void> _fetchMissed() async {
+    final api = _ref.read(misskeyApiProvider);
+    if (api == null || state.items.isEmpty) return;
+    try {
+      final sinceId = state.items.first.id;
+      final items = await api.getNotifications(sinceId: sinceId);
+      if (items.isEmpty) return;
+      final existingIds = state.items.map((n) => n.id).toSet();
+      final newItems =
+          items.where((n) => !existingIds.contains(n.id)).toList()
+            ..sort((a, b) => b.id.compareTo(a.id));
+      if (newItems.isNotEmpty) {
+        state = state.copyWith(items: [...newItems, ...state.items]);
+      }
+    } catch (_) {
+      // 取得失敗は無視（次の更新で補完される）
+    }
   }
 
   Future<void> fetch({bool loadMore = false}) async {
@@ -104,6 +129,7 @@ class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
   @override
   void dispose() {
     _streamSub?.cancel();
+    _reconnectSub?.cancel();
     super.dispose();
   }
 }
