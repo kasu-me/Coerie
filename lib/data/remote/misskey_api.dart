@@ -465,6 +465,17 @@ class MisskeyApi {
     await _dio.post('drive/files/update', data: _body(params));
   }
 
+  /// ドライブファイルのセンシティブ設定を更新する。
+  Future<void> updateFileSensitive(
+    String fileId, {
+    required bool isSensitive,
+  }) async {
+    await _dio.post(
+      'drive/files/update',
+      data: _body({'fileId': fileId, 'isSensitive': isSensitive}),
+    );
+  }
+
   /// ドライブフォルダを指定フォルダに移動する（nullでルートに移動）。
   Future<void> moveFolder(String folderId, {String? parentId}) async {
     final params = <String, dynamic>{

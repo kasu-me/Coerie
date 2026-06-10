@@ -19,7 +19,6 @@ import '../../shared/providers/account_visibility_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../draft/draft_provider.dart';
 import 'emoji_picker_sheet.dart';
-import '../../data/models/app_settings_model.dart';
 import '../../shared/widgets/mfm_content.dart';
 
 sealed class _AttachedMedia {}
@@ -27,18 +26,21 @@ sealed class _AttachedMedia {}
 final class _LocalMedia extends _AttachedMedia {
   final XFile file;
   ImageCompressionLevel compressionLevel;
+  bool isSensitive;
 
   /// 圧縮中の Future。null の場合は圧縮しない（無圧縮）か非対象ファイル。
   Future<File>? compressFuture;
 
   _LocalMedia(this.file)
     : compressionLevel = ImageCompressionLevel.none,
+      isSensitive = false,
       compressFuture = null;
 }
 
 final class _DriveMedia extends _AttachedMedia {
   final DriveFileModel driveFile;
-  _DriveMedia(this.driveFile);
+  bool isSensitive;
+  _DriveMedia(this.driveFile) : isSensitive = driveFile.isSensitive;
 }
 
 enum _MediaSource { gallery, osPicker, camera, drive, videoCamera, audio }
@@ -86,7 +88,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   bool _isPosting = false;
   bool _isUploadingMedia = false;
   bool _cwEnabled = false;
-  bool _isSensitive = false;
   bool _isReplyToDirect = false;
   bool _showPreview = false;
   List<Map<String, dynamic>> _emojiSuggestions = [];
@@ -125,8 +126,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       _cwEnabled = true;
     }
 
-    _isSensitive = widget.initialIsSensitive;
-
     if (widget.initialFiles != null && widget.initialFiles!.isNotEmpty) {
       _attachedMedia.addAll(widget.initialFiles!.map((f) => _DriveMedia(f)));
     }
@@ -152,7 +151,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               _cwController.text = draft.cw!;
               _cwEnabled = true;
             }
-            _isSensitive = draft.isSensitive;
             if (draft.files.isNotEmpty) {
               _attachedMedia.addAll(draft.files.map(_DriveMedia.new));
             }
@@ -226,9 +224,20 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       context.pop();
       return;
     }
+    // isSensitiveはファイル単位で管理するため、変更された値をDriveFileModelに反映して保存
     final driveFiles = _attachedMedia
         .whereType<_DriveMedia>()
-        .map((m) => m.driveFile)
+        .map(
+          (m) => DriveFileModel(
+            id: m.driveFile.id,
+            name: m.driveFile.name,
+            type: m.driveFile.type,
+            url: m.driveFile.url,
+            thumbnailUrl: m.driveFile.thumbnailUrl,
+            size: m.driveFile.size,
+            isSensitive: m.isSensitive,
+          ),
+        )
         .toList();
     _currentDraftId = await ref
         .read(draftProvider.notifier)
@@ -240,7 +249,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           cw: _cwEnabled && _cwController.text.isNotEmpty
               ? _cwController.text
               : null,
-          isSensitive: _isSensitive,
+          isSensitive: false,
         );
     if (mounted) context.pop();
   }
@@ -520,46 +529,91 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     });
   }
 
-  /// 圧縮率選択シートを表示する
-  Future<void> _showCompressionPicker(_LocalMedia media) async {
-    if (!ImageCompressionService.isCompressible(media.file.path)) return;
-    final selected = await showModalBottomSheet<ImageCompressionLevel>(
+  /// メディア設定シートを表示する（圧縮率 + センシティブ設定）
+  Future<void> _showMediaSettings(_AttachedMedia media) async {
+    final _LocalMedia? localMedia =
+        media is _LocalMedia ? media : null;
+    final isCompressible = localMedia != null &&
+        ImageCompressionService.isCompressible(localMedia.file.path);
+
+    await showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(ctx).bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                '画像の圧縮',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setSheetState) {
+          final currentSensitive = switch (media) {
+            _LocalMedia m => m.isSensitive,
+            _DriveMedia m => m.isSensitive,
+          };
+          final currentLevel = localMedia?.compressionLevel;
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewPaddingOf(ctx2).bottom,
             ),
-            ...ImageCompressionLevel.values.map(
-              (level) => ListTile(
-                leading: Icon(_compressionIcon(level)),
-                title: Text(level.label),
-                subtitle: level == ImageCompressionLevel.none
-                    ? const Text('そのままアップロード')
-                    : Text(
-                        '最大 ${level.maxDimension}px / JPEG品質 ${level.quality}%',
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    'メディアの設定',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
+                if (isCompressible) ...[
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '画像の圧縮',
+                        style: TextStyle(fontWeight: FontWeight.w600),
                       ),
-                trailing: media.compressionLevel == level
-                    ? const Icon(Icons.check, color: Colors.green)
-                    : null,
-                onTap: () => Navigator.pop(ctx, level),
-              ),
+                    ),
+                  ),
+                  ...ImageCompressionLevel.values.map(
+                    (level) => ListTile(
+                      leading: Icon(_compressionIcon(level)),
+                      title: Text(level.label),
+                      subtitle: level == ImageCompressionLevel.none
+                          ? const Text('そのままアップロード')
+                          : Text(
+                              '最大 ${level.maxDimension}px / JPEG品質 ${level.quality}%',
+                            ),
+                      trailing: currentLevel == level
+                          ? const Icon(Icons.check, color: Colors.green)
+                          : null,
+                      onTap: () {
+                        _changeCompression(localMedia, level);
+                        setSheetState(() {});
+                      },
+                    ),
+                  ),
+                  const Divider(height: 1),
+                ],
+                SwitchListTile(
+                  secondary: Icon(
+                    currentSensitive
+                        ? Icons.disabled_visible
+                        : Icons.disabled_visible_outlined,
+                  ),
+                  title: const Text('センシティブ設定'),
+                  subtitle: const Text('このメディアをセンシティブとしてマーク'),
+                  value: currentSensitive,
+                  onChanged: (v) {
+                    if (media is _LocalMedia) media.isSensitive = v;
+                    if (media is _DriveMedia) media.isSensitive = v;
+                    setState(() {});
+                    setSheetState(() {});
+                  },
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
-    if (selected != null) {
-      _changeCompression(media, selected);
-    }
   }
 
   IconData _compressionIcon(ImageCompressionLevel level) {
@@ -654,10 +708,17 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               }
               final id = await api.uploadFile(
                 uploadFile,
-                isSensitive: _isSensitive,
+                isSensitive: media.isSensitive,
               );
               fileIds.add(id);
             } else if (media is _DriveMedia) {
+              // センシティブ設定が変更された場合はドライブファイルを更新
+              if (media.isSensitive != media.driveFile.isSensitive) {
+                await api.updateFileSensitive(
+                  media.driveFile.id,
+                  isSensitive: media.isSensitive,
+                );
+              }
               fileIds.add(media.driveFile.id);
             }
           }
@@ -1417,11 +1478,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                           clipBehavior: Clip.none,
                           children: [
                             GestureDetector(
-                              onTap: () {
-                                if (media is _LocalMedia) {
-                                  _showCompressionPicker(media);
-                                }
-                              },
+                              onTap: () => _showMediaSettings(media),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: switch (media) {
@@ -1575,6 +1632,29 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                                             ),
                                       ),
                                     ],
+                                  ),
+                                ),
+                              ),
+                            // センシティブインジケーター
+                            if (switch (media) {
+                              _LocalMedia m => m.isSensitive,
+                              _DriveMedia m => m.isSensitive,
+                            })
+                              Positioned(
+                                bottom: 4,
+                                right: 4,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.error.withValues(
+                                      alpha: 0.85,
+                                    ),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  padding: const EdgeInsets.all(3),
+                                  child: Icon(
+                                    Icons.disabled_visible,
+                                    size: 12,
+                                    color: theme.colorScheme.onError,
                                   ),
                                 ),
                               ),
@@ -1774,17 +1854,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                           _cwEnabled = !_cwEnabled;
                           if (!_cwEnabled) _cwController.clear();
                         }),
-                      ),
-
-                      // isSensitiveトグル
-                      IconButton(
-                        icon: Icon(
-                          Icons.disabled_visible_outlined,
-                          color: _isSensitive ? theme.colorScheme.error : null,
-                        ),
-                        tooltip: 'センシティブコンテンツ',
-                        onPressed: () =>
-                            setState(() => _isSensitive = !_isSensitive),
                       ),
 
                       // 投票作成

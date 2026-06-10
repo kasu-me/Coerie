@@ -310,6 +310,20 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
               },
             ),
             ListTile(
+              leading: Icon(
+                file.isSensitive
+                    ? Icons.visibility_outlined
+                    : Icons.disabled_visible_outlined,
+              ),
+              title: Text(
+                file.isSensitive ? 'センシティブ設定を解除' : 'センシティブとして設定',
+              ),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _toggleFileSensitive(file);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.drive_file_move_outlined),
               title: const Text('フォルダに移動'),
               onTap: () {
@@ -335,6 +349,24 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _toggleFileSensitive(DriveFileModel file) async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+    final newValue = !file.isSensitive;
+    try {
+      await api.updateFileSensitive(file.id, isSensitive: newValue);
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('更新に失敗しました: ${e.toString().replaceFirst('Exception: ', '')}'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
   }
 
   Future<void> _moveSingleFile(DriveFileModel file) async {
@@ -1250,6 +1282,23 @@ class _DriveFileTile extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(color: theme.colorScheme.primary, width: 2),
+              ),
+            ),
+          if (file.isSensitive)
+            Positioned(
+              bottom: 4,
+              left: 4,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.error.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                padding: const EdgeInsets.all(3),
+                child: Icon(
+                  Icons.disabled_visible,
+                  size: 12,
+                  color: theme.colorScheme.onError,
+                ),
               ),
             ),
           if (onMenuTap != null)
