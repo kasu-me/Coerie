@@ -538,7 +538,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
     await showModalBottomSheet<void>(
       context: context,
-      useSafeArea: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx2, setSheetState) {
           final currentSensitive = switch (media) {
@@ -547,10 +546,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           };
           final currentLevel = localMedia?.compressionLevel;
 
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.viewPaddingOf(ctx2).bottom,
-            ),
+          return SafeArea(
+            top: false,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
