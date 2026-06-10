@@ -20,6 +20,7 @@ import '../../shared/providers/settings_provider.dart';
 import '../draft/draft_provider.dart';
 import 'emoji_picker_sheet.dart';
 import '../../data/models/app_settings_model.dart';
+import '../../shared/widgets/mfm_content.dart';
 
 sealed class _AttachedMedia {}
 
@@ -87,6 +88,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   bool _cwEnabled = false;
   bool _isSensitive = false;
   bool _isReplyToDirect = false;
+  bool _showPreview = false;
   List<Map<String, dynamic>> _emojiSuggestions = [];
   AccountModel? _selectedAccount;
   String? _selectedChannelId;
@@ -1314,32 +1316,34 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                   ),
                 ),
 
-              // テキスト入力エリア（expands:true でExpandedを埋め、内部スクロール）
+              // テキスト入力 / MFMプレビュー切り替えエリア
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: TextField(
-                    controller: _textController,
-                    maxLines: null,
-                    expands: true,
-                    textAlignVertical: TextAlignVertical.top,
-                    autofocus: true,
-                    scrollPadding: EdgeInsets.zero,
-                    decoration: InputDecoration(
-                      hintText: widget.replyToNote != null
-                          ? '${widget.replyToNote!.user.name} に返信...'
-                          : '何かつぶやく...',
-                      border: InputBorder.none,
-                    ),
-                    onChanged: (_) {
-                      setState(() {});
-                      _updateEmojiSuggestions(_textController.text);
-                    },
-                  ),
-                ),
+                child: _showPreview
+                    ? _MfmPreviewArea(text: _textController.text)
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: TextField(
+                          controller: _textController,
+                          maxLines: null,
+                          expands: true,
+                          textAlignVertical: TextAlignVertical.top,
+                          autofocus: true,
+                          scrollPadding: EdgeInsets.zero,
+                          decoration: InputDecoration(
+                            hintText: widget.replyToNote != null
+                                ? '${widget.replyToNote!.user.name} に返信...'
+                                : '何かつぶやく...',
+                            border: InputBorder.none,
+                          ),
+                          onChanged: (_) {
+                            setState(() {});
+                            _updateEmojiSuggestions(_textController.text);
+                          },
+                        ),
+                      ),
               ),
 
               // 絵文字サジェストバー
@@ -1775,7 +1779,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                       // isSensitiveトグル
                       IconButton(
                         icon: Icon(
-                          Icons.visibility_off_outlined,
+                          Icons.disabled_visible_outlined,
                           color: _isSensitive ? theme.colorScheme.error : null,
                         ),
                         tooltip: 'センシティブコンテンツ',
@@ -1793,6 +1797,19 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                         ),
                         tooltip: '投票を追加',
                         onPressed: _isPosting ? null : _showPollEditor,
+                      ),
+
+                      // MFMプレビュートグル
+                      IconButton(
+                        icon: Icon(
+                          Icons.visibility_outlined,
+                          color: _showPreview
+                              ? theme.colorScheme.primary
+                              : null,
+                        ),
+                        tooltip: _showPreview ? '編集に戻る' : 'MFMプレビュー',
+                        onPressed: () =>
+                            setState(() => _showPreview = !_showPreview),
                       ),
 
                       // 絵文字ピッカー
@@ -1845,6 +1862,49 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       AppConstants.visibilitySpecified => Icons.mail_outline,
       _ => Icons.public,
     };
+  }
+}
+
+// ---- MFMプレビューエリア ----
+
+class _MfmPreviewArea extends ConsumerWidget {
+  final String text;
+  const _MfmPreviewArea({required this.text});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final emojisAsync = ref.watch(customEmojisProvider);
+    final emojiUrlMap = emojisAsync.when(
+      data: (list) => {
+        for (final e in list)
+          if (e['name'] != null && e['url'] != null)
+            e['name'] as String: e['url'] as String,
+      },
+      loading: () => <String, String>{},
+      error: (_, __) => <String, String>{},
+    );
+
+    if (text.trim().isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Text(
+          'プレビューするテキストがありません',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.outline,
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: MfmContent(
+        text: text,
+        emojiUrlMap: emojiUrlMap,
+        enableAnimations: true,
+      ),
+    );
   }
 }
 
