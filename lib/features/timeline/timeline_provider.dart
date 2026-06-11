@@ -45,6 +45,18 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
   final String timelineType;
   StreamSubscription<NoteUpdateEvent>? _noteUpdateSub;
 
+  /// メモリ上に保持するノートの最大件数。
+  /// ストリーミングで先頭に追加され続けると無制限に増え、受信ごとの
+  /// O(n) コピー/重複チェックが重くなって UI スレッドが飽和する。
+  /// 古い末尾を切り捨てることで増加を抑える。
+  static const int _maxNotes = 500;
+
+  /// ノートリストが上限を超えていれば古い末尾を切り捨てる。
+  List<NoteModel> _capNotes(List<NoteModel> notes) {
+    if (notes.length <= _maxNotes) return notes;
+    return notes.sublist(0, _maxNotes);
+  }
+
   TimelineNotifier(this._ref, this.timelineType)
     : super(const TimelineState()) {
     fetchNotes();
@@ -249,7 +261,7 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
   void prependNote(NoteModel note) {
     // 重複チェック
     if (state.notes.any((n) => n.id == note.id)) return;
-    state = state.copyWith(notes: [note, ...state.notes]);
+    state = state.copyWith(notes: _capNotes([note, ...state.notes]));
   }
 
   Future<List<NoteModel>> fetchNew() async {
@@ -281,7 +293,9 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
             .where((n) => n.id.compareTo(currentTopId) > 0)
             .toList();
         if (toInsert.isNotEmpty) {
-          state = state.copyWith(notes: [...toInsert, ...state.notes]);
+          state = state.copyWith(
+            notes: _capNotes([...toInsert, ...state.notes]),
+          );
         }
       }
       return newNotes;
