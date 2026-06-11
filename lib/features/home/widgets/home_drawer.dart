@@ -7,6 +7,7 @@ import '../../../shared/providers/account_provider.dart';
 import '../../../data/models/account_model.dart';
 import '../../../shared/providers/follow_requests_badge_provider.dart';
 import '../../../shared/providers/announcements_badge_provider.dart';
+import '../../../shared/providers/dm_badge_provider.dart';
 import '../../../shared/providers/is_locked_provider.dart';
 import '../../profile/follow_requests_sheet.dart';
 
@@ -118,7 +119,19 @@ class HomeDrawer extends ConsumerWidget {
                   ),
                   const Divider(),
                   ListTile(
-                    leading: const Icon(Icons.mail_outline),
+                    leading: Consumer(
+                      builder: (ctx, ref, _) {
+                        final accountId =
+                            ref.watch(activeAccountProvider)?.id ?? '';
+                        final dm = ref.watch(dmBadgeProvider(accountId));
+                        return dm > 0
+                            ? Badge(
+                                label: Text('$dm'),
+                                child: const Icon(Icons.mail_outline),
+                              )
+                            : const Icon(Icons.mail_outline);
+                      },
+                    ),
                     title: const Text('ダイレクトメッセージ'),
                     onTap: () {
                       Navigator.of(context).pop();

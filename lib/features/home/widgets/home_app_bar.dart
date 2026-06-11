@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/providers/account_provider.dart';
 import '../../../shared/providers/notifications_badge_provider.dart';
 import '../../../shared/providers/announcements_badge_provider.dart';
+import '../../../shared/providers/dm_badge_provider.dart';
 
 class HomeAppBar extends ConsumerWidget implements PreferredSizeWidget {
   final GlobalKey<ScaffoldState> scaffoldKey;
@@ -21,6 +22,16 @@ class HomeAppBar extends ConsumerWidget implements PreferredSizeWidget {
     final accountId = account?.id ?? '';
     final unread = ref.watch(notificationsBadgeProvider(accountId));
     final annUnread = ref.watch(announcementsBadgeProvider(accountId));
+    final dmUnread = ref.watch(dmBadgeProvider(accountId));
+
+    final avatar = account?.avatarUrl != null
+        ? CircleAvatar(
+            backgroundImage: CachedNetworkImageProvider(
+              account!.avatarUrl!,
+              cacheManager: AppCacheManager(),
+            ),
+          )
+        : const CircleAvatar(child: Icon(Icons.person, size: 20));
 
     return AppBar(
       automaticallyImplyLeading: false,
@@ -28,14 +39,12 @@ class HomeAppBar extends ConsumerWidget implements PreferredSizeWidget {
         onTap: () => scaffoldKey.currentState?.openDrawer(),
         child: Padding(
           padding: const EdgeInsets.all(8.0),
-          child: account?.avatarUrl != null
-              ? CircleAvatar(
-                  backgroundImage: CachedNetworkImageProvider(
-                    account!.avatarUrl!,
-                    cacheManager: AppCacheManager(),
-                  ),
+          child: dmUnread > 0
+              ? Badge(
+                  label: Text('$dmUnread'),
+                  child: avatar,
                 )
-              : const CircleAvatar(child: Icon(Icons.person, size: 20)),
+              : avatar,
         ),
       ),
       title: const Text(

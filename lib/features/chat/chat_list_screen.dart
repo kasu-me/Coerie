@@ -8,6 +8,7 @@ import '../../data/models/chat_room_model.dart';
 import '../../data/models/user_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
+import '../../shared/providers/dm_badge_provider.dart';
 
 // ─── State ─────────────────────────────────────────────────────────────────
 
@@ -169,6 +170,12 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    // DM一覧を開いたら未読バッジをクリアする
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final accountId = ref.read(activeAccountProvider)?.id ?? '';
+      ref.read(dmBadgeProvider(accountId).notifier).clear();
+    });
   }
 
   @override

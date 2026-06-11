@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import '../../data/models/chat_message_model.dart';
 import '../../data/models/note_model.dart';
 import '../../data/models/notification_model.dart';
 import '../../shared/providers/account_provider.dart';
@@ -45,6 +46,8 @@ class StreamingService {
   final _notificationController =
       StreamController<NotificationModel>.broadcast();
   final _noteUpdateController = StreamController<NoteUpdateEvent>.broadcast();
+  final _chatMessageController =
+      StreamController<ChatMessageModel>.broadcast();
   final _statusController = StreamController<StreamingStatus>.broadcast();
   // 再接続が完了したときに発火する（切断中に取りこぼした状態の再取得トリガー用）
   final _reconnectedController = StreamController<void>.broadcast();
@@ -64,6 +67,10 @@ class StreamingService {
 
   /// ノート更新イベントのストリーム（subNote で購読したノートのみ配信）
   Stream<NoteUpdateEvent> get noteUpdateStream => _noteUpdateController.stream;
+
+  /// チャット（DM）メッセージのリアルタイムストリーム（main チャンネル経由）
+  Stream<ChatMessageModel> get chatMessageStream =>
+      _chatMessageController.stream;
 
   /// 接続状態ストリーム
   Stream<StreamingStatus> get statusStream => _statusController.stream;
@@ -189,6 +196,8 @@ class StreamingService {
       if (eventType == 'notification') {
         final notification = NotificationModel.fromJson(eventBody, host: host);
         _notificationController.add(notification);
+      } else if (eventType == 'newChatMessage') {
+        _chatMessageController.add(ChatMessageModel.fromJson(eventBody));
       }
       return;
     }
@@ -389,6 +398,7 @@ class StreamingService {
     _noteSubCounts.clear();
     _notificationController.close();
     _noteUpdateController.close();
+    _chatMessageController.close();
     _statusController.close();
     _reconnectedController.close();
     _channel?.sink.close();
