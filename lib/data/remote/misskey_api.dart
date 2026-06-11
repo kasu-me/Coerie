@@ -1356,6 +1356,44 @@ class MisskeyApi {
         .toList();
   }
 
+  /// ルームの参加メンバー一覧を取得する（chat/rooms/members）
+  ///
+  /// `chat/rooms/members` は `ChatRoomMembership`（`user` に UserLite をネスト）の
+  /// 配列を返すが、オーナーは membership を持たず含まれない場合がある。
+  /// そのため `chat/rooms/show` でオーナーを取得し、先頭に補完する。
+  Future<List<UserModel>> getChatRoomMembers({
+    required String roomId,
+    int limit = 100,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'roomId': roomId, 'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+
+    // メンバー一覧とルーム情報（オーナー補完用）を並行取得する。
+    final results = await Future.wait([
+      _dio.post('chat/rooms/members', data: _body(params)),
+      _dio.post('chat/rooms/show', data: _body({'roomId': roomId})),
+    ]);
+
+    final memberList = (results[0].data as List<dynamic>)
+        .map((e) => (e as Map<String, dynamic>)['user'] as Map<String, dynamic>?)
+        .where((user) => user != null)
+        .map((user) => UserModel.fromJson(user!))
+        .toList();
+
+    // オーナーが一覧に含まれていなければ先頭に追加する。
+    final roomData = results[1].data as Map<String, dynamic>;
+    final ownerData = roomData['owner'] as Map<String, dynamic>?;
+    if (ownerData != null) {
+      final owner = UserModel.fromJson(ownerData);
+      if (!memberList.any((u) => u.id == owner.id)) {
+        memberList.insert(0, owner);
+      }
+    }
+
+    return memberList;
+  }
+
   /// チャットルームを作成する（chat/rooms/create）
   Future<ChatRoomModel> createChatRoom({
     required String name,

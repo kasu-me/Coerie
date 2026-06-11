@@ -546,6 +546,15 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                             PopupMenuButton<String>(
                               icon: const _AppBarIcon(Icons.more_vert),
                               onSelected: (value) async {
+                                if (value == 'dm') {
+                                  context.push(
+                                    '/dm/user/${widget.userId}',
+                                    extra: {
+                                      'name': user.name,
+                                      'avatarUrl': user.avatarUrl,
+                                    },
+                                  );
+                                }
                                 if (value == 'mute') _toggleMute();
                                 if (value == 'block') _toggleBlock();
                                 if (value == 'report') {
@@ -674,6 +683,16 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                                 }
                               },
                               itemBuilder: (ctx) => [
+                                PopupMenuItem(
+                                  value: 'dm',
+                                  child: Row(
+                                    children: const [
+                                      Icon(Icons.mail_outline),
+                                      SizedBox(width: 8),
+                                      Text('ダイレクトメッセージ'),
+                                    ],
+                                  ),
+                                ),
                                 PopupMenuItem(
                                   value: 'open',
                                   child: Row(

@@ -2,7 +2,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:coerie/core/services/cache_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../data/models/chat_message_model.dart';
+import '../../data/models/user_model.dart';
 import '../../data/remote/misskey_api.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
@@ -177,6 +179,14 @@ final _threadProvider = StateNotifierProvider.autoDispose
       (ref, params) => _ThreadNotifier(ref, params),
     );
 
+/// ルームの参加メンバー一覧
+final _roomMembersProvider = FutureProvider.autoDispose
+    .family<List<UserModel>, String>((ref, roomId) async {
+      final api = ref.watch(misskeyApiProvider);
+      if (api == null) return const [];
+      return api.getChatRoomMembers(roomId: roomId);
+    });
+
 // ─── Screen ────────────────────────────────────────────────────────────────
 
 class ChatThreadScreen extends ConsumerStatefulWidget {
@@ -258,6 +268,17 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     }
   }
 
+  Future<void> _showRoomMembers(BuildContext context) async {
+    final roomId = widget.roomId;
+    if (roomId == null) return;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _RoomMembersSheet(roomId: roomId),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final accountId = ref.watch(activeAccountProvider)?.id ?? '';
@@ -269,40 +290,56 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     );
     final state = ref.watch(_threadProvider(params));
 
+    final isRoom = widget.roomId != null;
+
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
-        title: Row(
-          children: [
-            if (widget.partnerAvatarUrl != null)
-              CircleAvatar(
-                radius: 16,
-                backgroundImage: CachedNetworkImageProvider(
-                  widget.partnerAvatarUrl!,
-                  cacheManager: AppCacheManager(),
+        title: InkWell(
+          // 1対1 はタップで相手のプロフィールへ。グループはメンバー一覧を開く。
+          onTap: isRoom
+              ? () => _showRoomMembers(context)
+              : () => context.push('/profile/${widget.userId}'),
+          child: Row(
+            children: [
+              const SizedBox(width: 4),
+              if (widget.partnerAvatarUrl != null)
+                CircleAvatar(
+                  radius: 16,
+                  backgroundImage: CachedNetworkImageProvider(
+                    widget.partnerAvatarUrl!,
+                    cacheManager: AppCacheManager(),
+                  ),
+                )
+              else
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor:
+                      Theme.of(context).colorScheme.surfaceContainerHighest,
+                  child: Icon(
+                    isRoom ? Icons.group : Icons.person,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
-              )
-            else
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: Icon(
-                  widget.roomId != null ? Icons.group : Icons.person,
-                  size: 18,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.partnerName,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                widget.partnerName,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
+          if (isRoom)
+            IconButton(
+              icon: const Icon(Icons.group_outlined),
+              tooltip: 'メンバー',
+              onPressed: () => _showRoomMembers(context),
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: '更新',
@@ -501,26 +538,34 @@ class _MessageBubble extends StatelessWidget {
             isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // 相手側アバター
+          // 相手側アバター（タップで送信者のプロフィールへ）
           if (!isMe)
             SizedBox(
               width: 36,
               child: showAvatar
-                  ? CircleAvatar(
-                      radius: 16,
-                      backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                      foregroundImage: (message.senderAvatarUrl ??
-                                  fallbackAvatarUrl) !=
-                              null
-                          ? CachedNetworkImageProvider(
-                              message.senderAvatarUrl ?? fallbackAvatarUrl!,
-                              cacheManager: AppCacheManager(),
-                            )
-                          : null,
-                      child: Icon(
-                        Icons.person,
-                        size: 16,
-                        color: theme.colorScheme.onSurfaceVariant,
+                  ? GestureDetector(
+                      onTap: message.fromUserId.isEmpty
+                          ? null
+                          : () => context.push(
+                              '/profile/${message.fromUserId}',
+                            ),
+                      child: CircleAvatar(
+                        radius: 16,
+                        backgroundColor:
+                            theme.colorScheme.surfaceContainerHighest,
+                        foregroundImage: (message.senderAvatarUrl ??
+                                    fallbackAvatarUrl) !=
+                                null
+                            ? CachedNetworkImageProvider(
+                                message.senderAvatarUrl ?? fallbackAvatarUrl!,
+                                cacheManager: AppCacheManager(),
+                              )
+                            : null,
+                        child: Icon(
+                          Icons.person,
+                          size: 16,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     )
                   : null,
@@ -740,6 +785,104 @@ class _MessageInputBar extends StatelessWidget {
                       padding: const EdgeInsets.all(10),
                     ),
                   ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Room Members Sheet ──────────────────────────────────────────────────────
+
+class _RoomMembersSheet extends ConsumerWidget {
+  final String roomId;
+
+  const _RoomMembersSheet({required this.roomId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final membersAsync = ref.watch(_roomMembersProvider(roomId));
+
+    return SafeArea(
+      child: DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) => Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'メンバー',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: membersAsync.when(
+                loading: () =>
+                    const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline, size: 40),
+                        const SizedBox(height: 12),
+                        const Text('メンバーの読み込みに失敗しました'),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed: () =>
+                              ref.invalidate(_roomMembersProvider(roomId)),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('再試行'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                data: (members) {
+                  if (members.isEmpty) {
+                    return const Center(child: Text('メンバーがいません'));
+                  }
+                  return ListView.builder(
+                    controller: scrollController,
+                    itemCount: members.length,
+                    itemBuilder: (context, i) {
+                      final u = members[i];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor:
+                              theme.colorScheme.surfaceContainerHighest,
+                          foregroundImage: u.avatarUrl != null
+                              ? CachedNetworkImageProvider(
+                                  u.avatarUrl!,
+                                  cacheManager: AppCacheManager(),
+                                )
+                              : null,
+                          child: const Icon(Icons.person),
+                        ),
+                        title: Text(
+                          u.name.isNotEmpty ? u.name : u.username,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(u.acct),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          context.push('/profile/${u.id}');
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
           ],
         ),
       ),
