@@ -20,4 +20,6 @@ const List<String> miauthPermissions = [
   'write:channels',
   'read:favorites',
   'write:favorites',
+  'read:chat',
+  'write:chat',
 ];

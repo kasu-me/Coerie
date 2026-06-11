@@ -118,6 +118,14 @@ class HomeDrawer extends ConsumerWidget {
                   ),
                   const Divider(),
                   ListTile(
+                    leading: const Icon(Icons.mail_outline),
+                    title: const Text('ダイレクトメッセージ'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.push('/dm');
+                    },
+                  ),
+                  ListTile(
                     leading: const Icon(Icons.cloud_outlined),
                     title: const Text('ドライブ'),
                     onTap: () {

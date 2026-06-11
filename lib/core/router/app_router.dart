@@ -41,6 +41,8 @@ import '../../features/timeline/note_detail_screen.dart';
 import '../../features/search/search_screen.dart';
 import '../../features/channels/channels_screen.dart';
 import '../../features/channels/channel_detail_screen.dart';
+import '../../features/chat/chat_list_screen.dart';
+import '../../features/chat/chat_thread_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final accountState = ref.watch(accountProvider);
@@ -265,6 +267,36 @@ final routerProvider = Provider<GoRouter>((ref) {
           return ChannelDetailScreen(
             channelId: channelId,
             initialData: initialData,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/dm',
+        builder: (context, state) => const ChatListScreen(),
+      ),
+      GoRoute(
+        path: '/dm/user/:userId',
+        builder: (context, state) {
+          final userId = state.pathParameters['userId']!;
+          final extra = state.extra as Map<String, dynamic>?;
+          final name = extra?['name'] as String? ?? 'DM';
+          final avatarUrl = extra?['avatarUrl'] as String?;
+          return ChatThreadScreen(
+            userId: userId,
+            partnerName: name,
+            partnerAvatarUrl: avatarUrl,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/dm/room/:roomId',
+        builder: (context, state) {
+          final roomId = state.pathParameters['roomId']!;
+          final extra = state.extra as Map<String, dynamic>?;
+          final name = extra?['name'] as String? ?? 'グループ';
+          return ChatThreadScreen(
+            roomId: roomId,
+            partnerName: name,
           );
         },
       ),

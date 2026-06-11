@@ -87,9 +87,8 @@ class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
       final items = await api.getNotifications(sinceId: sinceId);
       if (items.isEmpty) return;
       final existingIds = state.items.map((n) => n.id).toSet();
-      final newItems =
-          items.where((n) => !existingIds.contains(n.id)).toList()
-            ..sort((a, b) => b.id.compareTo(a.id));
+      final newItems = items.where((n) => !existingIds.contains(n.id)).toList()
+        ..sort((a, b) => b.id.compareTo(a.id));
       if (newItems.isNotEmpty) {
         state = state.copyWith(items: [...newItems, ...state.items]);
       }
@@ -552,6 +551,7 @@ class _NotificationTile extends StatelessWidget {
     'login' => 'ログインがありました',
     'createToken' => 'アクセストークンが作成されました',
     'exportCompleted' => 'ノートのエクスポートが完了しました',
+    'chatRoomInvitationReceived' => 'ダイレクトメッセージのグループへ招待されました',
     _ => type,
   };
 

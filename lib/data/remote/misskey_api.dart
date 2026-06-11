@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
+import '../../data/models/chat_message_model.dart';
+import '../../data/models/chat_room_model.dart';
 import '../../data/models/clip_model.dart';
 import '../../data/models/note_model.dart';
 import '../../data/models/notification_model.dart';
@@ -1218,6 +1220,169 @@ class MisskeyApi {
       'channels/unfavorite',
       data: _body({'channelId': channelId}),
     );
+  }
+
+  // ---- チャット（ダイレクトメッセージ） ----
+
+  /// チャット履歴を取得する（chat/history）
+  /// [room] が true の場合はルーム履歴、false の場合は1対1DM履歴
+  Future<List<ChatMessageModel>> getChatHistory({
+    bool room = false,
+    int limit = 20,
+  }) async {
+    final params = <String, dynamic>{'limit': limit, 'room': room};
+    final res = await _dio.post('chat/history', data: _body(params));
+    final list = res.data as List<dynamic>;
+    return list
+        .map((e) => ChatMessageModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// ユーザーとの1対1チャットメッセージ一覧を取得する（chat/messages/user-timeline）
+  Future<List<ChatMessageModel>> getChatUserTimeline({
+    required String userId,
+    int limit = 30,
+    String? untilId,
+    String? sinceId,
+  }) async {
+    final params = <String, dynamic>{'userId': userId, 'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    if (sinceId != null) params['sinceId'] = sinceId;
+    final res = await _dio.post(
+      'chat/messages/user-timeline',
+      data: _body(params),
+    );
+    final list = res.data as List<dynamic>;
+    return list
+        .map((e) => ChatMessageModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// ルームのチャットメッセージ一覧を取得する（chat/messages/room-timeline）
+  Future<List<ChatMessageModel>> getChatRoomTimeline({
+    required String roomId,
+    int limit = 30,
+    String? untilId,
+    String? sinceId,
+  }) async {
+    final params = <String, dynamic>{'roomId': roomId, 'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    if (sinceId != null) params['sinceId'] = sinceId;
+    final res = await _dio.post(
+      'chat/messages/room-timeline',
+      data: _body(params),
+    );
+    final list = res.data as List<dynamic>;
+    return list
+        .map((e) => ChatMessageModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// ユーザーにチャットメッセージを送信する（chat/messages/create-to-user）
+  Future<ChatMessageModel> sendChatMessageToUser({
+    required String toUserId,
+    String? text,
+    String? fileId,
+  }) async {
+    final params = <String, dynamic>{'toUserId': toUserId};
+    if (text != null && text.isNotEmpty) params['text'] = text;
+    if (fileId != null) params['fileId'] = fileId;
+    final res = await _dio.post(
+      'chat/messages/create-to-user',
+      data: _body(params),
+    );
+    return ChatMessageModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  /// ルームにチャットメッセージを送信する（chat/messages/create-to-room）
+  Future<ChatMessageModel> sendChatMessageToRoom({
+    required String toRoomId,
+    String? text,
+    String? fileId,
+  }) async {
+    final params = <String, dynamic>{'toRoomId': toRoomId};
+    if (text != null && text.isNotEmpty) params['text'] = text;
+    if (fileId != null) params['fileId'] = fileId;
+    final res = await _dio.post(
+      'chat/messages/create-to-room',
+      data: _body(params),
+    );
+    return ChatMessageModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  /// チャットメッセージを削除する（chat/messages/delete）
+  Future<void> deleteChatMessage(String messageId) async {
+    await _dio.post('chat/messages/delete', data: _body({'messageId': messageId}));
+  }
+
+  /// すべてのチャットを既読にする（chat/read-all）
+  Future<void> readAllChats() async {
+    await _dio.post('chat/read-all', data: _body({}));
+  }
+
+  /// 参加中のルーム一覧を取得する（chat/rooms/joining）
+  ///
+  /// このエンドポイントは `ChatRoomMembership`（`room` に [ChatRoomModel] を
+  /// ネストして持つ）の配列を返すため、`room` を取り出して変換する。
+  Future<List<ChatRoomModel>> getChatRoomsJoining({
+    int limit = 20,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('chat/rooms/joining', data: _body(params));
+    final list = res.data as List<dynamic>;
+    return list
+        .map((e) => (e as Map<String, dynamic>)['room'] as Map<String, dynamic>?)
+        .where((room) => room != null)
+        .map((room) => ChatRoomModel.fromJson(room!))
+        .toList();
+  }
+
+  /// 自分が作成（所有）したルーム一覧を取得する（chat/rooms/owned）
+  ///
+  /// `joining` には自分が所有するルームが含まれない場合があるため、
+  /// ルーム一覧を網羅するには両方を取得してマージする。
+  Future<List<ChatRoomModel>> getChatRoomsOwned({
+    int limit = 30,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('chat/rooms/owned', data: _body(params));
+    final list = res.data as List<dynamic>;
+    return list
+        .map((e) => ChatRoomModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// チャットルームを作成する（chat/rooms/create）
+  Future<ChatRoomModel> createChatRoom({
+    required String name,
+    String? description,
+  }) async {
+    final params = <String, dynamic>{'name': name};
+    if (description != null && description.isNotEmpty) {
+      params['description'] = description;
+    }
+    final res = await _dio.post('chat/rooms/create', data: _body(params));
+    return ChatRoomModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  /// チャットルームに招待する（chat/rooms/invitations/create）
+  Future<void> inviteToChatRoom({
+    required String roomId,
+    required String userId,
+  }) async {
+    await _dio.post(
+      'chat/rooms/invitations/create',
+      data: _body({'roomId': roomId, 'userId': userId}),
+    );
+  }
+
+  /// チャットルームから退出する（chat/rooms/leave）
+  Future<void> leaveChatRoom(String roomId) async {
+    await _dio.post('chat/rooms/leave', data: _body({'roomId': roomId}));
   }
 
   // ---- お気に入り（ノート） ----
