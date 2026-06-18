@@ -34,6 +34,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       vsync: this,
       initialIndex: widget.initialTab.clamp(0, 3),
     );
+    _tabController.addListener(_onTabChanged);
+    _tagQueryController.addListener(_onTagQueryChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // 画面表示時に必ず状態をリセット
       ref.read(noteSearchProvider.notifier).clear();
@@ -62,8 +64,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     });
   }
 
+  void _onTabChanged() => setState(() {});
+  void _onTagQueryChanged() => setState(() {});
+
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
+    _tagQueryController.removeListener(_onTagQueryChanged);
     _tabController.dispose();
     _noteQueryController.dispose();
     _tagQueryController.dispose();
@@ -97,6 +104,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           _HashtagSearchTab(controller: _hashtagQueryController),
         ],
       ),
+      floatingActionButton: _tabController.index == 1 &&
+              _tagQueryController.text.trim().isNotEmpty
+          ? FloatingActionButton(
+              onPressed: () {
+                final tag = _tagQueryController.text.trim();
+                context.push('/compose', extra: {'initialText': '#$tag '});
+              },
+              tooltip: '#${_tagQueryController.text.trim()} で投稿',
+              child: const Icon(Icons.edit),
+            )
+          : null,
     );
   }
 }
