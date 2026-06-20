@@ -2233,6 +2233,13 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
                   isDense: true,
                 ),
                 onChanged: (v) => setState(() => _query = v.toLowerCase()),
+                onSubmitted: (v) {
+                  // 検索欄に絵文字一文字だけが入力され確定された場合は、
+                  // その絵文字をそのままリアクションとして返す
+                  if (isSingleEmoji(v)) {
+                    Navigator.pop(context, v.trim());
+                  }
+                },
               ),
             ),
             TabBar(
