@@ -951,31 +951,8 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                     ),
                   ),
                 ),
-                // カウント行とピン留め投稿の区切り
-                SliverToBoxAdapter(
-                  child: Column(
-                    children: [
-                      const Divider(height: 1),
-                      if (pinnedAsync.valueOrNull?.isNotEmpty == true)
-                        const SizedBox(height: 4),
-                    ],
-                  ),
-                ),
-                if (pinnedAsync.valueOrNull?.isNotEmpty == true) ...[
-                  SliverList(
-                    delegate: SliverChildBuilderDelegate((context, i) {
-                      final notes = pinnedAsync.value!;
-                      if (i >= notes.length) return null;
-                      return NoteCard(
-                        note: notes[i],
-                        pinnedByUser: user,
-                        onPinnedChanged: () =>
-                            ref.invalidate(pinnedNotesProvider(widget.userId)),
-                      );
-                    }, childCount: pinnedAsync.value!.length),
-                  ),
-                  const SliverToBoxAdapter(child: Divider(height: 1)),
-                ],
+                // カウント行とタブバーの区切り
+                const SliverToBoxAdapter(child: Divider(height: 1)),
                 // タブバー
                 SliverPersistentHeader(
                   pinned: true,
@@ -991,14 +968,17 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
               ],
               body: TabBarView(
                 children: [
-                  _buildNotesList(notesState, (
-                    userId: widget.userId,
-                    withFiles: false,
-                  ), '投稿がありません'),
-                  _buildNotesList(mediaState, (
-                    userId: widget.userId,
-                    withFiles: true,
-                  ), 'メディア付きの投稿がありません'),
+                  _buildNotesList(
+                    notesState,
+                    (userId: widget.userId, withFiles: false),
+                    '投稿がありません',
+                    pinnedNotes: pinnedAsync.valueOrNull ?? [],
+                  ),
+                  _buildNotesList(
+                    mediaState,
+                    (userId: widget.userId, withFiles: true),
+                    'メディア付きの投稿がありません',
+                  ),
                 ],
               ),
             ),
@@ -1075,17 +1055,11 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
   Widget _buildNotesList(
     _ProfileNotesState state,
     _NotesProviderKey providerKey,
-    String emptyMessage,
-  ) {
-    if (state.isLoading && state.notes.isEmpty) {
+    String emptyMessage, {
+    List<NoteModel> pinnedNotes = const [],
+  }) {
+    if (state.isLoading && state.notes.isEmpty && pinnedNotes.isEmpty) {
       return const Center(child: CircularProgressIndicator());
-    }
-    if (state.notes.isEmpty) {
-      return CustomScrollView(
-        slivers: [
-          SliverFillRemaining(child: Center(child: Text(emptyMessage))),
-        ],
-      );
     }
     return NotificationListener<ScrollNotification>(
       onNotification: (n) {
@@ -1097,20 +1071,44 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
         }
         return false;
       },
-      child: ListView.builder(
-        padding: EdgeInsets.zero,
-        itemCount: state.notes.length + (state.hasMore ? 1 : 0),
-        itemBuilder: (context, i) {
-          if (i == state.notes.length) {
-            return state.isLoading
-                ? const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                : const SizedBox.shrink();
-          }
-          return NoteCard(note: state.notes[i]);
-        },
+      child: CustomScrollView(
+        slivers: [
+          if (pinnedNotes.isNotEmpty) ...[
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, i) => NoteCard(
+                  note: pinnedNotes[i],
+                  pinnedByUser: widget.user,
+                  onPinnedChanged: () =>
+                      ref.invalidate(pinnedNotesProvider(widget.userId)),
+                ),
+                childCount: pinnedNotes.length,
+              ),
+            ),
+            const SliverToBoxAdapter(child: Divider(height: 1)),
+          ],
+          if (state.notes.isEmpty && !state.isLoading && pinnedNotes.isEmpty)
+            SliverFillRemaining(
+              child: Center(child: Text(emptyMessage)),
+            ),
+          if (state.notes.isNotEmpty || state.isLoading)
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, i) {
+                  if (i == state.notes.length) {
+                    return state.isLoading
+                        ? const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        : const SizedBox.shrink();
+                  }
+                  return NoteCard(note: state.notes[i]);
+                },
+                childCount: state.notes.length + (state.hasMore ? 1 : 0),
+              ),
+            ),
+        ],
       ),
     );
   }
