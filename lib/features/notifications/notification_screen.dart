@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/streaming/streaming_service.dart';
+import '../../data/models/note_model.dart';
 import '../../data/models/notification_model.dart';
 import '../compose/emoji_picker_sheet.dart';
 import '../profile/follow_requests_sheet.dart';
@@ -523,6 +524,11 @@ class _NotificationTile extends StatelessWidget {
                       ),
                     ),
                   ],
+                  if (n.note != null &&
+                      n.note!.files.any((f) => f.isImage)) ...[
+                    const SizedBox(height: 6),
+                    _buildImagePreviews(context, n.note!.files),
+                  ],
                   const SizedBox(height: 2),
                   Text(
                     _formatTime(n.createdAt),
@@ -535,6 +541,62 @@ class _NotificationTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildImagePreviews(
+    BuildContext context,
+    List<DriveFileModel> files,
+  ) {
+    final imageFiles = files.where((f) => f.isImage).take(4).toList();
+    if (imageFiles.isEmpty) return const SizedBox.shrink();
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (int i = 0; i < imageFiles.length; i++) ...[
+            if (i > 0) const SizedBox(width: 4),
+            GestureDetector(
+              onTap: () {
+                if (notification.note != null) {
+                  context.push(
+                    '/note/${notification.note!.id}',
+                    extra: notification.note,
+                  );
+                }
+              },
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: SizedBox(
+                  width: 64,
+                  height: 64,
+                  child: imageFiles[i].isSensitive
+                      ? ColoredBox(
+                          color: Colors.grey.shade800,
+                          child: const Center(
+                            child: Icon(
+                              Icons.visibility_off,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        )
+                      : CachedNetworkImage(
+                          cacheManager: AppCacheManager(),
+                          imageUrl:
+                              imageFiles[i].thumbnailUrl ?? imageFiles[i].url,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, _, _) => ColoredBox(
+                            color: Colors.grey.shade300,
+                            child: const Icon(Icons.broken_image, size: 24),
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
