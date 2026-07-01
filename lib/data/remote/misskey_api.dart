@@ -493,7 +493,7 @@ class MisskeyApi {
     String? parentId,
   }) async {
     final params = <String, dynamic>{'name': name};
-    if (parentId != null) params['folderId'] = parentId;
+    if (parentId != null) params['parentId'] = parentId;
     final res = await _dio.post('drive/folders/create', data: _body(params));
     return res.data as Map<String, dynamic>;
   }
