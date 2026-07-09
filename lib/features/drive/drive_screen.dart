@@ -730,6 +730,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
 
     return GridView.builder(
       controller: _scrollController,
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: EdgeInsets.fromLTRB(
         4,
         4,

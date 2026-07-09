@@ -307,6 +307,7 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
       onRefresh: _load,
       child: ListView.builder(
         controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
         itemCount: _notes.length + (_hasMore ? 1 : 0),
         itemBuilder: (ctx, i) {
           if (i == _notes.length) {

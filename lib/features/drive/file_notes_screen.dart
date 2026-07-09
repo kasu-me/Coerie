@@ -177,6 +177,7 @@ class _DriveFileNotesScreenState extends ConsumerState<DriveFileNotesScreen> {
       onRefresh: _onRefresh,
       child: ListView.builder(
         controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
         itemCount: _notes.length + (_isLoadingMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index == _notes.length) {

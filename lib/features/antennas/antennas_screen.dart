@@ -215,6 +215,7 @@ class _AntennasScreenState extends ConsumerState<AntennasScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: _items.length,
         separatorBuilder: (_, __) => const Divider(height: 1),

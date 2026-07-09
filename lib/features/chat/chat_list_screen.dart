@@ -295,6 +295,7 @@ class _DmListTab extends ConsumerWidget {
       onRefresh: () =>
           ref.read(_dmDirectHistoryProvider(accountId).notifier).fetch(),
       child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
         itemCount: state.items.length,
         itemBuilder: (context, i) {
           final msg = state.items[i];
@@ -404,6 +405,7 @@ class _RoomListTab extends ConsumerWidget {
       onRefresh: () =>
           ref.read(_roomListProvider(accountId).notifier).fetch(),
       child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
         itemCount: state.items.length,
         itemBuilder: (context, i) {
           final entry = state.items[i];

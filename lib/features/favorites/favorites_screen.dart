@@ -142,6 +142,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       onRefresh: _load,
       child: ListView.separated(
         controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
         itemCount: _notes.length + (_isLoading || _hasMore ? 1 : 0),
         separatorBuilder: (context, index) => const Divider(height: 1),
         itemBuilder: (context, index) {

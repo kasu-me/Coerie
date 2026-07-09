@@ -292,6 +292,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
             .fetchNotes(),
         child: CustomScrollView(
           controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverFillRemaining(
               child: Center(
@@ -322,6 +323,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
         },
         child: ListView.builder(
           controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
           itemCount: state.notes.length + (state.isLoadingMore ? 1 : 0),
           itemBuilder: (context, index) {
             if (index == state.notes.length) {

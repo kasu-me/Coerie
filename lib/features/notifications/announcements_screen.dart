@@ -200,6 +200,7 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen>
           ref.read(_announcementsProvider(accountId).notifier).refresh(),
       child: ListView.separated(
         controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
         itemCount: state.items.length + (state.hasMore ? 1 : 0),
         separatorBuilder: (_, __) => const Divider(height: 1),
         itemBuilder: (context, index) {

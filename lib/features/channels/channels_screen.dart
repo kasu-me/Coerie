@@ -367,6 +367,7 @@ class _FeaturedTabState extends ConsumerState<_FeaturedTab>
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.only(
           bottom: MediaQuery.viewPaddingOf(context).bottom + 8,
         ),
@@ -444,6 +445,7 @@ class _FavoritesTabState extends ConsumerState<_FavoritesTab>
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.only(
           bottom: MediaQuery.viewPaddingOf(context).bottom + 8,
         ),
@@ -521,6 +523,7 @@ class _FollowedTabState extends ConsumerState<_FollowedTab>
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.only(
           bottom: MediaQuery.viewPaddingOf(context).bottom + 8,
         ),
@@ -686,6 +689,7 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.only(
           bottom: MediaQuery.viewPaddingOf(context).bottom + 80,
         ),

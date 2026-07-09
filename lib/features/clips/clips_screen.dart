@@ -240,6 +240,7 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: _clips.length,
         separatorBuilder: (context, index) => const Divider(height: 1),
