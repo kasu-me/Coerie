@@ -256,8 +256,10 @@ class _ProfileBody extends ConsumerStatefulWidget {
   ConsumerState<_ProfileBody> createState() => _ProfileBodyState();
 }
 
-class _ProfileBodyState extends ConsumerState<_ProfileBody> {
+class _ProfileBodyState extends ConsumerState<_ProfileBody>
+    with SingleTickerProviderStateMixin {
   final _scrollController = ScrollController();
+  late final TabController _tabController;
   late bool _isBlocking;
   late bool _isMuted;
   late bool _isFollowed;
@@ -266,13 +268,21 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this)
+      ..addListener(_onTabChanged);
     _isBlocking = widget.user.isBlocking;
     _isMuted = widget.user.isMuted;
     _isFollowed = widget.user.isFollowed;
   }
 
+  void _onTabChanged() {
+    // タブ切り替えで表示するスライバーを差し替える
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _tabController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -395,27 +405,34 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
     final activeAccount = ref.watch(activeAccountProvider);
     final isOwnProfile = activeAccount?.userId == widget.userId;
 
-    return DefaultTabController(
-      length: 2,
-      child: Stack(
-        children: [
-          RefreshIndicator(
-            onRefresh: _handleRefresh,
-            // 最上部に到達したときだけ RefreshIndicator を発火させる。
-            // depth==0: NestedScrollView 外側のオーバースクロール
-            // depth==2: タブ内のリストがトップかつ NestedScrollView もトップの場合のみ許可
-            notificationPredicate: (notification) {
-              if (notification.depth == 0) return true;
-              if (notification.depth == 2) {
-                return notification.metrics.pixels <= 0 &&
-                    _scrollController.hasClients &&
-                    _scrollController.position.pixels <= 0;
+    // NestedScrollView はフリング中に inner/outer のスクロール同期がずれ、
+    // リストが先頭に達する前にヘッダーが展開されてしまうため、
+    // 全体を単一の CustomScrollView で構成しタブ内容をスライバーとして差し替える。
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: _handleRefresh,
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (n) {
+              // 下端付近に到達したら表示中タブの続きを読み込む
+              if (n is ScrollUpdateNotification &&
+                  n.metrics.axis == Axis.vertical &&
+                  n.metrics.pixels >= n.metrics.maxScrollExtent - 300) {
+                ref
+                    .read(
+                      _profileNotesProvider((
+                        userId: widget.userId,
+                        withFiles: _tabController.index == 1,
+                      )).notifier,
+                    )
+                    .fetch(loadMore: true);
               }
               return false;
             },
-            child: NestedScrollView(
+            child: CustomScrollView(
               controller: _scrollController,
-              headerSliverBuilder: (context, _) => [
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
                 SliverAppBar(
                   leading: IconButton(
                     icon: const _AppBarIcon(Icons.arrow_back),
@@ -958,6 +975,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                   pinned: true,
                   delegate: _TabBarDelegate(
                     TabBar(
+                      controller: _tabController,
                       tabs: const [
                         Tab(text: '投稿'),
                         Tab(text: 'メディア'),
@@ -965,48 +983,42 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
                     ),
                   ),
                 ),
-              ],
-              body: TabBarView(
-                children: [
-                  _buildNotesList(
+                // タブ内容
+                if (_tabController.index == 0)
+                  ..._buildNotesSlivers(
                     notesState,
-                    (userId: widget.userId, withFiles: false),
                     '投稿がありません',
                     pinnedNotes: pinnedAsync.valueOrNull ?? [],
-                  ),
-                  _buildNotesList(
-                    mediaState,
-                    (userId: widget.userId, withFiles: true),
-                    'メディア付きの投稿がありません',
-                  ),
-                ],
-              ),
+                  )
+                else
+                  ..._buildNotesSlivers(mediaState, 'メディア付きの投稿がありません'),
+              ],
             ),
           ),
+        ),
+        Positioned(
+          bottom: MediaQuery.viewPaddingOf(context).bottom + 16,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: ScrollToTopFab(scrollController: _scrollController),
+          ),
+        ),
+        if (!isOwnProfile)
           Positioned(
             bottom: MediaQuery.viewPaddingOf(context).bottom + 16,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: ScrollToTopFab(scrollController: _scrollController),
+            right: 16,
+            child: FloatingActionButton(
+              heroTag: 'profileMention',
+              onPressed: () => context.push(
+                '/compose',
+                extra: {'initialText': '${widget.user.acct} '},
+              ),
+              tooltip: 'メンションして投稿',
+              child: const Icon(Icons.alternate_email),
             ),
           ),
-          if (!isOwnProfile)
-            Positioned(
-              bottom: MediaQuery.viewPaddingOf(context).bottom + 16,
-              right: 16,
-              child: FloatingActionButton(
-                heroTag: 'profileMention',
-                onPressed: () => context.push(
-                  '/compose',
-                  extra: {'initialText': '${widget.user.acct} '},
-                ),
-                tooltip: 'メンションして投稿',
-                child: const Icon(Icons.alternate_email),
-              ),
-            ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -1052,65 +1064,57 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody> {
     );
   }
 
-  Widget _buildNotesList(
+  List<Widget> _buildNotesSlivers(
     _ProfileNotesState state,
-    _NotesProviderKey providerKey,
     String emptyMessage, {
     List<NoteModel> pinnedNotes = const [],
   }) {
     if (state.isLoading && state.notes.isEmpty && pinnedNotes.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ];
     }
-    return NotificationListener<ScrollNotification>(
-      onNotification: (n) {
-        if (n is ScrollUpdateNotification &&
-            n.metrics.pixels >= n.metrics.maxScrollExtent - 300) {
-          ref
-              .read(_profileNotesProvider(providerKey).notifier)
-              .fetch(loadMore: true);
-        }
-        return false;
-      },
-      child: CustomScrollView(
-        slivers: [
-          if (pinnedNotes.isNotEmpty) ...[
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, i) => NoteCard(
-                  note: pinnedNotes[i],
-                  pinnedByUser: widget.user,
-                  onPinnedChanged: () =>
-                      ref.invalidate(pinnedNotesProvider(widget.userId)),
-                ),
-                childCount: pinnedNotes.length,
-              ),
+    return [
+      if (pinnedNotes.isNotEmpty) ...[
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, i) => NoteCard(
+              note: pinnedNotes[i],
+              pinnedByUser: widget.user,
+              onPinnedChanged: () =>
+                  ref.invalidate(pinnedNotesProvider(widget.userId)),
             ),
-            const SliverToBoxAdapter(child: Divider(height: 1)),
-          ],
-          if (state.notes.isEmpty && !state.isLoading && pinnedNotes.isEmpty)
-            SliverFillRemaining(
-              child: Center(child: Text(emptyMessage)),
-            ),
-          if (state.notes.isNotEmpty || state.isLoading)
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, i) {
-                  if (i == state.notes.length) {
-                    return state.isLoading
-                        ? const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Center(child: CircularProgressIndicator()),
-                          )
-                        : const SizedBox.shrink();
-                  }
-                  return NoteCard(note: state.notes[i]);
-                },
-                childCount: state.notes.length + (state.hasMore ? 1 : 0),
-              ),
-            ),
-        ],
-      ),
-    );
+            childCount: pinnedNotes.length,
+          ),
+        ),
+        const SliverToBoxAdapter(child: Divider(height: 1)),
+      ],
+      if (state.notes.isEmpty && !state.isLoading && pinnedNotes.isEmpty)
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(child: Text(emptyMessage)),
+        ),
+      if (state.notes.isNotEmpty || state.isLoading)
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, i) {
+              if (i == state.notes.length) {
+                return state.isLoading
+                    ? const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    : const SizedBox.shrink();
+              }
+              return NoteCard(note: state.notes[i]);
+            },
+            childCount: state.notes.length + (state.hasMore ? 1 : 0),
+          ),
+        ),
+    ];
   }
 }
 
