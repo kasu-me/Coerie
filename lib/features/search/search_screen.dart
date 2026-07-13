@@ -21,10 +21,15 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final _noteQueryController = TextEditingController();
-  final _tagQueryController = TextEditingController();
-  final _userQueryController = TextEditingController();
-  final _hashtagQueryController = TextEditingController();
+  // 検索対象タブを切り替えても入力内容が消えないよう、入力欄は全タブで共有する
+  final _queryController = TextEditingController();
+
+  static const _hintTexts = [
+    'キーワードでノートを検索',
+    'ハッシュタグでノートを検索（# 不要）',
+    'ユーザー名・表示名で検索',
+    'ハッシュタグを検索（# 不要）',
+  ];
 
   @override
   void initState() {
@@ -35,7 +40,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       initialIndex: widget.initialTab.clamp(0, 3),
     );
     _tabController.addListener(_onTabChanged);
-    _tagQueryController.addListener(_onTagQueryChanged);
+    _queryController.addListener(_onQueryChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // 画面表示時に必ず状態をリセット
       ref.read(noteSearchProvider.notifier).clear();
@@ -45,37 +50,36 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
       // 初期クエリがある場合はタブに応じて自動検索
       if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty) {
-        final q = widget.initialQuery!;
-        switch (widget.initialTab) {
-          case 0:
-            _noteQueryController.text = q;
-            ref.read(noteSearchProvider.notifier).search(q);
-          case 1:
-            _tagQueryController.text = q;
-            ref.read(tagNoteSearchProvider.notifier).search(q);
-          case 2:
-            _userQueryController.text = q;
-            ref.read(userSearchProvider.notifier).search(q);
-          case 3:
-            _hashtagQueryController.text = q;
-            ref.read(hashtagSearchProvider.notifier).search(q);
-        }
+        _queryController.text = widget.initialQuery!;
+        _search();
       }
     });
   }
 
   void _onTabChanged() => setState(() {});
-  void _onTagQueryChanged() => setState(() {});
+  void _onQueryChanged() => setState(() {});
+
+  /// 現在のタブに対応するプロバイダーで検索を実行する
+  void _search() {
+    final query = _queryController.text;
+    switch (_tabController.index) {
+      case 0:
+        ref.read(noteSearchProvider.notifier).search(query);
+      case 1:
+        ref.read(tagNoteSearchProvider.notifier).search(query);
+      case 2:
+        ref.read(userSearchProvider.notifier).search(query);
+      case 3:
+        ref.read(hashtagSearchProvider.notifier).search(query);
+    }
+  }
 
   @override
   void dispose() {
     _tabController.removeListener(_onTabChanged);
-    _tagQueryController.removeListener(_onTagQueryChanged);
+    _queryController.removeListener(_onQueryChanged);
     _tabController.dispose();
-    _noteQueryController.dispose();
-    _tagQueryController.dispose();
-    _userQueryController.dispose();
-    _hashtagQueryController.dispose();
+    _queryController.dispose();
     super.dispose();
   }
 
@@ -95,23 +99,34 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Column(
         children: [
-          _NoteSearchTab(controller: _noteQueryController),
-          _TagNoteSearchTab(controller: _tagQueryController),
-          _UserSearchTab(controller: _userQueryController),
-          _HashtagSearchTab(controller: _hashtagQueryController),
+          _SearchBar(
+            controller: _queryController,
+            hintText: _hintTexts[_tabController.index],
+            onSearch: _search,
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _NoteSearchTab(onRetry: _search),
+                _TagNoteSearchTab(onRetry: _search),
+                _UserSearchTab(onRetry: _search),
+                _HashtagSearchTab(onRetry: _search),
+              ],
+            ),
+          ),
         ],
       ),
-      floatingActionButton: _tabController.index == 1 &&
-              _tagQueryController.text.trim().isNotEmpty
+      floatingActionButton:
+          _tabController.index == 1 && _queryController.text.trim().isNotEmpty
           ? FloatingActionButton(
               onPressed: () {
-                final tag = _tagQueryController.text.trim();
+                final tag = _queryController.text.trim();
                 context.push('/compose', extra: {'initialText': '#$tag '});
               },
-              tooltip: '#${_tagQueryController.text.trim()} で投稿',
+              tooltip: '#${_queryController.text.trim()} で投稿',
               child: const Icon(Icons.edit),
             )
           : null,
@@ -203,9 +218,9 @@ Widget _buildErrorWidget(
 // ---- ノート検索タブ ----
 
 class _NoteSearchTab extends ConsumerStatefulWidget {
-  final TextEditingController controller;
+  final VoidCallback onRetry;
 
-  const _NoteSearchTab({required this.controller});
+  const _NoteSearchTab({required this.onRetry});
 
   @override
   ConsumerState<_NoteSearchTab> createState() => _NoteSearchTabState();
@@ -241,29 +256,12 @@ class _NoteSearchTabState extends ConsumerState<_NoteSearchTab>
   Widget build(BuildContext context) {
     super.build(context);
     final state = ref.watch(noteSearchProvider);
-    return Column(
-      children: [
-        _SearchBar(
-          controller: widget.controller,
-          hintText: 'キーワードでノートを検索',
-          onSearch: () => ref
-              .read(noteSearchProvider.notifier)
-              .search(widget.controller.text),
-        ),
-        Expanded(child: _buildBody(state)),
-      ],
-    );
+    return _buildBody(state);
   }
 
   Widget _buildBody(NoteSearchState state) {
     if (state.error != null) {
-      return _buildErrorWidget(
-        context,
-        state.error!,
-        () => ref
-            .read(noteSearchProvider.notifier)
-            .search(widget.controller.text),
-      );
+      return _buildErrorWidget(context, state.error!, widget.onRetry);
     }
     if (state.isLoading && state.notes.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -287,9 +285,9 @@ class _NoteSearchTabState extends ConsumerState<_NoteSearchTab>
 // ---- タグ検索タブ ----
 
 class _TagNoteSearchTab extends ConsumerStatefulWidget {
-  final TextEditingController controller;
+  final VoidCallback onRetry;
 
-  const _TagNoteSearchTab({required this.controller});
+  const _TagNoteSearchTab({required this.onRetry});
 
   @override
   ConsumerState<_TagNoteSearchTab> createState() => _TagNoteSearchTabState();
@@ -325,29 +323,12 @@ class _TagNoteSearchTabState extends ConsumerState<_TagNoteSearchTab>
   Widget build(BuildContext context) {
     super.build(context);
     final state = ref.watch(tagNoteSearchProvider);
-    return Column(
-      children: [
-        _SearchBar(
-          controller: widget.controller,
-          hintText: 'ハッシュタグでノートを検索（# 不要）',
-          onSearch: () => ref
-              .read(tagNoteSearchProvider.notifier)
-              .search(widget.controller.text),
-        ),
-        Expanded(child: _buildBody(state)),
-      ],
-    );
+    return _buildBody(state);
   }
 
   Widget _buildBody(TagNoteSearchState state) {
     if (state.error != null) {
-      return _buildErrorWidget(
-        context,
-        state.error!,
-        () => ref
-            .read(tagNoteSearchProvider.notifier)
-            .search(widget.controller.text),
-      );
+      return _buildErrorWidget(context, state.error!, widget.onRetry);
     }
     if (state.isLoading && state.notes.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -371,9 +352,9 @@ class _TagNoteSearchTabState extends ConsumerState<_TagNoteSearchTab>
 // ---- ユーザー検索タブ ----
 
 class _UserSearchTab extends ConsumerStatefulWidget {
-  final TextEditingController controller;
+  final VoidCallback onRetry;
 
-  const _UserSearchTab({required this.controller});
+  const _UserSearchTab({required this.onRetry});
 
   @override
   ConsumerState<_UserSearchTab> createState() => _UserSearchTabState();
@@ -409,29 +390,12 @@ class _UserSearchTabState extends ConsumerState<_UserSearchTab>
   Widget build(BuildContext context) {
     super.build(context);
     final state = ref.watch(userSearchProvider);
-    return Column(
-      children: [
-        _SearchBar(
-          controller: widget.controller,
-          hintText: 'ユーザー名・表示名で検索',
-          onSearch: () => ref
-              .read(userSearchProvider.notifier)
-              .search(widget.controller.text),
-        ),
-        Expanded(child: _buildBody(state)),
-      ],
-    );
+    return _buildBody(state);
   }
 
   Widget _buildBody(UserSearchState state) {
     if (state.error != null) {
-      return _buildErrorWidget(
-        context,
-        state.error!,
-        () => ref
-            .read(userSearchProvider.notifier)
-            .search(widget.controller.text),
-      );
+      return _buildErrorWidget(context, state.error!, widget.onRetry);
     }
     if (state.isLoading && state.users.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -487,9 +451,9 @@ class _UserTile extends StatelessWidget {
 // ---- ハッシュタグ検索タブ ----
 
 class _HashtagSearchTab extends ConsumerStatefulWidget {
-  final TextEditingController controller;
+  final VoidCallback onRetry;
 
-  const _HashtagSearchTab({required this.controller});
+  const _HashtagSearchTab({required this.onRetry});
 
   @override
   ConsumerState<_HashtagSearchTab> createState() => _HashtagSearchTabState();
@@ -525,29 +489,12 @@ class _HashtagSearchTabState extends ConsumerState<_HashtagSearchTab>
   Widget build(BuildContext context) {
     super.build(context);
     final state = ref.watch(hashtagSearchProvider);
-    return Column(
-      children: [
-        _SearchBar(
-          controller: widget.controller,
-          hintText: 'ハッシュタグを検索（# 不要）',
-          onSearch: () => ref
-              .read(hashtagSearchProvider.notifier)
-              .search(widget.controller.text),
-        ),
-        Expanded(child: _buildBody(state)),
-      ],
-    );
+    return _buildBody(state);
   }
 
   Widget _buildBody(HashtagSearchState state) {
     if (state.error != null) {
-      return _buildErrorWidget(
-        context,
-        state.error!,
-        () => ref
-            .read(hashtagSearchProvider.notifier)
-            .search(widget.controller.text),
-      );
+      return _buildErrorWidget(context, state.error!, widget.onRetry);
     }
     if (state.isLoading && state.hashtags.isEmpty) {
       return const Center(child: CircularProgressIndicator());
