@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:coerie/core/services/cache_service.dart';
@@ -82,9 +82,14 @@ class _ProfileNotesNotifier extends StateNotifier<_ProfileNotesState> {
   final Ref _ref;
   final String userId;
   final bool withFiles;
+  final bool withReplies;
 
-  _ProfileNotesNotifier(this._ref, this.userId, {this.withFiles = false})
-    : super(const _ProfileNotesState()) {
+  _ProfileNotesNotifier(
+    this._ref,
+    this.userId, {
+    this.withFiles = false,
+    this.withReplies = false,
+  }) : super(const _ProfileNotesState()) {
     fetch();
   }
 
@@ -104,6 +109,7 @@ class _ProfileNotesNotifier extends StateNotifier<_ProfileNotesState> {
         userId: userId,
         limit: 20,
         withFiles: withFiles,
+        withReplies: withReplies,
         untilId: untilId,
       );
       state = state.copyWith(
@@ -122,11 +128,24 @@ class _ProfileNotesNotifier extends StateNotifier<_ProfileNotesState> {
   }
 }
 
-typedef _NotesProviderKey = ({String userId, bool withFiles});
+typedef _NotesProviderKey = ({String userId, bool withFiles, bool withReplies});
 final _profileNotesProvider = StateNotifierProvider.autoDispose
     .family<_ProfileNotesNotifier, _ProfileNotesState, _NotesProviderKey>(
-      (ref, p) => _ProfileNotesNotifier(ref, p.userId, withFiles: p.withFiles),
+      (ref, p) => _ProfileNotesNotifier(
+        ref,
+        p.userId,
+        withFiles: p.withFiles,
+        withReplies: p.withReplies,
+      ),
     );
+
+// タブ順に対応するプロバイダーキー（0:投稿 / 1:投稿と返信 / 2:メディア）
+_NotesProviderKey _notesKeyForTab(String userId, int tabIndex) =>
+    switch (tabIndex) {
+      1 => (userId: userId, withFiles: false, withReplies: true),
+      2 => (userId: userId, withFiles: true, withReplies: false),
+      _ => (userId: userId, withFiles: false, withReplies: false),
+    };
 
 // ---- フォロー/フォロワー リスト状態 ----
 class _FollowListState {
@@ -268,7 +287,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this)
+    _tabController = TabController(length: 3, vsync: this)
       ..addListener(_onTabChanged);
     _isBlocking = widget.user.isBlocking;
     _isMuted = widget.user.isMuted;
@@ -291,22 +310,12 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
     ref.invalidate(userProfileProvider(widget.userId));
     ref.invalidate(pinnedNotesProvider(widget.userId));
     await Future.wait([
-      ref
-          .read(
-            _profileNotesProvider((
-              userId: widget.userId,
-              withFiles: false,
-            )).notifier,
-          )
-          .refresh(),
-      ref
-          .read(
-            _profileNotesProvider((
-              userId: widget.userId,
-              withFiles: true,
-            )).notifier,
-          )
-          .refresh(),
+      for (var i = 0; i < _tabController.length; i++)
+        ref
+            .read(
+              _profileNotesProvider(_notesKeyForTab(widget.userId, i)).notifier,
+            )
+            .refresh(),
     ]);
   }
 
@@ -394,13 +403,13 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tabIndex = _tabController.index;
     final notesState = ref.watch(
-      _profileNotesProvider((userId: widget.userId, withFiles: false)),
-    );
-    final mediaState = ref.watch(
-      _profileNotesProvider((userId: widget.userId, withFiles: true)),
+      _profileNotesProvider(_notesKeyForTab(widget.userId, tabIndex)),
     );
     final pinnedAsync = ref.watch(pinnedNotesProvider(widget.userId));
+    // ナビゲーションバーと投稿が重ならないよう、最下部に確保する余白
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom + 88;
     final user = widget.user;
     final activeAccount = ref.watch(activeAccountProvider);
     final isOwnProfile = activeAccount?.userId == widget.userId;
@@ -420,10 +429,9 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                   n.metrics.pixels >= n.metrics.maxScrollExtent - 300) {
                 ref
                     .read(
-                      _profileNotesProvider((
-                        userId: widget.userId,
-                        withFiles: _tabController.index == 1,
-                      )).notifier,
+                      _profileNotesProvider(
+                        _notesKeyForTab(widget.userId, _tabController.index),
+                      ).notifier,
                     )
                     .fetch(loadMore: true);
               }
@@ -978,20 +986,25 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                       controller: _tabController,
                       tabs: const [
                         Tab(text: '投稿'),
+                        Tab(text: '投稿と返信'),
                         Tab(text: 'メディア'),
                       ],
                     ),
                   ),
                 ),
                 // タブ内容
-                if (_tabController.index == 0)
-                  ..._buildNotesSlivers(
-                    notesState,
-                    '投稿がありません',
-                    pinnedNotes: pinnedAsync.valueOrNull ?? [],
-                  )
-                else
-                  ..._buildNotesSlivers(mediaState, 'メディア付きの投稿がありません'),
+                ..._buildNotesSlivers(
+                  notesState,
+                  switch (tabIndex) {
+                    1 => '投稿・返信がありません',
+                    2 => 'メディア付きの投稿がありません',
+                    _ => '投稿がありません',
+                  },
+                  pinnedNotes: tabIndex == 0
+                      ? (pinnedAsync.valueOrNull ?? [])
+                      : const [],
+                  bottomInset: bottomInset,
+                ),
               ],
             ),
           ),
@@ -1068,6 +1081,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
     _ProfileNotesState state,
     String emptyMessage, {
     List<NoteModel> pinnedNotes = const [],
+    double bottomInset = 0,
   }) {
     if (state.isLoading && state.notes.isEmpty && pinnedNotes.isEmpty) {
       return const [
@@ -1099,21 +1113,20 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
         ),
       if (state.notes.isNotEmpty || state.isLoading)
         SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, i) {
-              if (i == state.notes.length) {
-                return state.isLoading
-                    ? const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Center(child: CircularProgressIndicator()),
-                      )
-                    : const SizedBox.shrink();
-              }
-              return NoteCard(note: state.notes[i]);
-            },
-            childCount: state.notes.length + (state.hasMore ? 1 : 0),
-          ),
+          delegate: SliverChildBuilderDelegate((context, i) {
+            if (i == state.notes.length) {
+              return state.isLoading
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  : const SizedBox.shrink();
+            }
+            return NoteCard(note: state.notes[i]);
+          }, childCount: state.notes.length + (state.hasMore ? 1 : 0)),
         ),
+      // ナビゲーションバー・FAB と最後の投稿が重ならないようにする余白
+      SliverToBoxAdapter(child: SizedBox(height: bottomInset)),
     ];
   }
 }

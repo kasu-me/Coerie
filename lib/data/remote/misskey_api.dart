@@ -240,10 +240,13 @@ class MisskeyApi {
     int limit = 20,
     String? untilId,
     bool withFiles = false,
+    bool withReplies = false,
   }) async {
     final params = <String, dynamic>{'userId': userId, 'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
     if (withFiles) params['withFiles'] = true;
+    // withReplies を有効にすると他ユーザーへのリプライも含まれる
+    if (withReplies) params['withReplies'] = true;
     final res = await _dio.post('users/notes', data: _body(params));
     final list = res.data as List<dynamic>;
     return list
@@ -1312,7 +1315,10 @@ class MisskeyApi {
 
   /// チャットメッセージを削除する（chat/messages/delete）
   Future<void> deleteChatMessage(String messageId) async {
-    await _dio.post('chat/messages/delete', data: _body({'messageId': messageId}));
+    await _dio.post(
+      'chat/messages/delete',
+      data: _body({'messageId': messageId}),
+    );
   }
 
   /// すべてのチャットを既読にする（chat/read-all）
@@ -1333,7 +1339,9 @@ class MisskeyApi {
     final res = await _dio.post('chat/rooms/joining', data: _body(params));
     final list = res.data as List<dynamic>;
     return list
-        .map((e) => (e as Map<String, dynamic>)['room'] as Map<String, dynamic>?)
+        .map(
+          (e) => (e as Map<String, dynamic>)['room'] as Map<String, dynamic>?,
+        )
         .where((room) => room != null)
         .map((room) => ChatRoomModel.fromJson(room!))
         .toList();
@@ -1376,7 +1384,9 @@ class MisskeyApi {
     ]);
 
     final memberList = (results[0].data as List<dynamic>)
-        .map((e) => (e as Map<String, dynamic>)['user'] as Map<String, dynamic>?)
+        .map(
+          (e) => (e as Map<String, dynamic>)['user'] as Map<String, dynamic>?,
+        )
         .where((user) => user != null)
         .map((user) => UserModel.fromJson(user!))
         .toList();
