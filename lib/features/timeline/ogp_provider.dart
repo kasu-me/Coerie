@@ -131,7 +131,7 @@ class _OgpCardContent extends StatelessWidget {
                     cacheManager: AppCacheManager(),
                     imageUrl: ogp.imageUrl!,
                     fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(
+                    errorWidget: (_, _, _) => Container(
                       color: theme.colorScheme.surfaceContainerHighest,
                       child: const Icon(Icons.broken_image_outlined, size: 24),
                     ),

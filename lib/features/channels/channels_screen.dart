@@ -3,11 +3,6 @@ import 'package:coerie/core/services/cache_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:uuid/uuid.dart';
-import '../../core/constants/app_constants.dart';
-import '../../data/models/app_settings_model.dart';
-import '../../shared/providers/account_provider.dart';
-import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 
@@ -111,7 +106,7 @@ class _ChannelTile extends StatelessWidget {
                 width: 48,
                 height: 48,
                 fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => _colorIcon(channelColor),
+                errorWidget: (_, _, _) => _colorIcon(channelColor),
               ),
             )
           : _colorIcon(channelColor),
@@ -295,7 +290,7 @@ class _SearchTabState extends ConsumerState<_SearchTab>
         bottom: MediaQuery.viewPaddingOf(context).bottom + 8,
       ),
       itemCount: _results.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (_, i) => _ChannelTile(channel: _results[i]),
     );
   }
@@ -372,7 +367,7 @@ class _FeaturedTabState extends ConsumerState<_FeaturedTab>
           bottom: MediaQuery.viewPaddingOf(context).bottom + 8,
         ),
         itemCount: _items.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (_, i) => _ChannelTile(channel: _items[i]),
       ),
     );
@@ -450,7 +445,7 @@ class _FavoritesTabState extends ConsumerState<_FavoritesTab>
           bottom: MediaQuery.viewPaddingOf(context).bottom + 8,
         ),
         itemCount: _items.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (_, i) => _ChannelTile(channel: _items[i]),
       ),
     );
@@ -528,7 +523,7 @@ class _FollowedTabState extends ConsumerState<_FollowedTab>
           bottom: MediaQuery.viewPaddingOf(context).bottom + 8,
         ),
         itemCount: _items.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (_, i) => _ChannelTile(channel: _items[i]),
       ),
     );
@@ -694,7 +689,7 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
           bottom: MediaQuery.viewPaddingOf(context).bottom + 80,
         ),
         itemCount: _items.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (ctx, i) {
           final item = _items[i];
           return _ChannelTile(

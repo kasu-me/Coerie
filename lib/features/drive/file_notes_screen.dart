@@ -82,7 +82,7 @@ class _DriveFileNotesScreenState extends ConsumerState<DriveFileNotesScreen> {
         }
         _hasMore = notes.length >= 20;
       });
-    } on DioError catch (dioErr) {
+    } on DioException catch (dioErr) {
       // 400 が返るサーバでは file:ID 検索をサポートしていないことがあるため
       // 代替としてファイル名で検索を試みる
       if (dioErr.response?.statusCode == 400) {

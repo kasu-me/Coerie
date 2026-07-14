@@ -278,7 +278,7 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
         };
       },
       loading: () {},
-      error: (_, __) {},
+      error: (_, _) {},
     );
 
     return RefreshIndicator(
@@ -466,7 +466,7 @@ class _NotificationTile extends StatelessWidget {
                                   height: 16,
                                   width: 16,
                                   fit: BoxFit.contain,
-                                  errorWidget: (_, __, ___) => Text(
+                                  errorWidget: (_, _, _) => Text(
                                     ' $reactionKey',
                                     style: const TextStyle(fontSize: 15),
                                   ),
@@ -488,7 +488,7 @@ class _NotificationTile extends StatelessWidget {
                                   height: 16,
                                   width: 16,
                                   fit: BoxFit.contain,
-                                  errorWidget: (_, __, ___) => Text(
+                                  errorWidget: (_, _, _) => Text(
                                     ' $reactionKey',
                                     style: const TextStyle(fontSize: 15),
                                   ),
@@ -499,7 +499,7 @@ class _NotificationTile extends StatelessWidget {
                         } else {
                           spans.add(
                             TextSpan(
-                              text: ' ${reactionKey}',
+                              text: ' $reactionKey',
                               style: const TextStyle(fontSize: 15),
                             ),
                           );

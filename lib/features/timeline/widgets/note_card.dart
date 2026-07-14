@@ -1380,6 +1380,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                               final me2 = await api.getMe();
                               final currentlyPinned = me2.pinnedNoteIds
                                   .contains(widget.note.id);
+                              if (!context.mounted) return;
                               if (currentlyPinned) {
                                 final settings = ref.read(settingsProvider);
                                 if (settings.confirmDestructive) {
@@ -2260,11 +2261,12 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer>
             offset: const Offset(0, 8),
             onSelected: (v) {
               if (v == 'download') _downloadCurrent();
-              if (v == 'open')
+              if (v == 'open') {
                 launchUrl(
                   Uri.parse(widget.files[_current].url),
                   mode: LaunchMode.externalApplication,
                 );
+              }
             },
             itemBuilder: (_) => [
               PopupMenuItem(
@@ -2355,7 +2357,7 @@ class _FullscreenImageViewerState extends State<_FullscreenImageViewer>
     final tx = -focal.dx * (targetScale - 1);
     final ty = -focal.dy * (targetScale - 1);
 
-    final end = Matrix4.identity()..translate(tx, ty);
+    final end = Matrix4.identity()..translateByDouble(tx, ty, 0.0, 1.0);
     end.multiply(Matrix4.diagonal3Values(targetScale, targetScale, 1.0));
 
     _animation = Matrix4Tween(begin: begin, end: end).animate(

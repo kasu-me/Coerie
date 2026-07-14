@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## プロジェクト概要
 
-MisskeyクライアントのFlutterモバイルアプリ（Android向け）。分散型SNS Misskeyに接続し、タイムライン閲覧・ノート投稿・通知確認などの機能を提供する。バージョン 0.6.2。
+MisskeyクライアントのFlutterモバイルアプリ（Android向け）。分散型SNS Misskeyに接続し、タイムライン閲覧・ノート投稿・通知確認などの機能を提供する。バージョンは `pubspec.yaml` の `version` を参照。
 
 ## 主要コマンド
 
@@ -25,7 +25,7 @@ flutter run
 flutter analyze
 
 # Hiveモデルのコード生成
-flutter pub run build_runner build
+dart run build_runner build
 
 # リリースAPKビルド
 flutter build apk --release

@@ -9,33 +9,6 @@ import 'features/compose/emoji_picker_sheet.dart';
 import 'shared/providers/settings_provider.dart';
 import 'shared/providers/is_locked_provider.dart';
 
-/// fontSize が null のスタイルをスキップしてスケールを適用する。
-/// TextTheme.apply(fontSizeFactor:) はfontSize==nullのスタイルに対して
-/// アサーションエラーになるため、このヘルパーで安全に適用する。
-TextTheme _applyFontScale(TextTheme base, double factor) {
-  if (factor == 1.0) return base;
-  TextStyle? scale(TextStyle? s) => (s != null && s.fontSize != null)
-      ? s.copyWith(fontSize: s.fontSize! * factor)
-      : s;
-  return base.copyWith(
-    displayLarge: scale(base.displayLarge),
-    displayMedium: scale(base.displayMedium),
-    displaySmall: scale(base.displaySmall),
-    headlineLarge: scale(base.headlineLarge),
-    headlineMedium: scale(base.headlineMedium),
-    headlineSmall: scale(base.headlineSmall),
-    titleLarge: scale(base.titleLarge),
-    titleMedium: scale(base.titleMedium),
-    titleSmall: scale(base.titleSmall),
-    bodyLarge: scale(base.bodyLarge),
-    bodyMedium: scale(base.bodyMedium),
-    bodySmall: scale(base.bodySmall),
-    labelLarge: scale(base.labelLarge),
-    labelMedium: scale(base.labelMedium),
-    labelSmall: scale(base.labelSmall),
-  );
-}
-
 class App extends ConsumerStatefulWidget {
   const App({super.key});
 
@@ -139,14 +112,13 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [Locale('ja', 'JP'), Locale('en', 'US')],
-      theme: AppTheme.light.copyWith(
-        textTheme: _applyFontScale(AppTheme.light.textTheme, factor),
-      ),
-      darkTheme: AppTheme.dark.copyWith(
-        textTheme: _applyFontScale(AppTheme.dark.textTheme, factor),
-      ),
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
       themeMode: themeMode,
       routerConfig: router,
+      // フォントサイズ設定は TextScaler のみで適用する。
+      // テーマの textTheme にも同時にスケールを掛けると二重適用（factor²）になるため
+      // ここ以外でフォント倍率を掛けないこと。
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(
           context,

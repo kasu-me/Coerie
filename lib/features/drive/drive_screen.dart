@@ -1181,8 +1181,8 @@ class _DriveFileTile extends StatelessWidget {
               cacheManager: AppCacheManager(),
               imageUrl: file.thumbnailUrl!,
               fit: BoxFit.cover,
-              placeholder: (_, __) => Container(color: Colors.black),
-              errorWidget: (_, __, ___) => Container(color: Colors.black),
+              placeholder: (_, _) => Container(color: Colors.black),
+              errorWidget: (_, _, _) => Container(color: Colors.black),
             )
           : Container(color: Colors.black);
     } else if (file.isAudio) {
@@ -1558,7 +1558,7 @@ class _DriveImagePreviewScreenState extends State<_DriveImagePreviewScreen>
     final tx = -focal.dx * (targetScale - 1);
     final ty = -focal.dy * (targetScale - 1);
 
-    final end = Matrix4.identity()..translate(tx, ty);
+    final end = Matrix4.identity()..translateByDouble(tx, ty, 0.0, 1.0);
     end.multiply(Matrix4.diagonal3Values(targetScale, targetScale, 1.0));
 
     _animation = Matrix4Tween(begin: begin, end: end).animate(
@@ -1625,11 +1625,12 @@ class _DriveImagePreviewScreenState extends State<_DriveImagePreviewScreen>
             offset: const Offset(0, 8),
             onSelected: (v) {
               if (v == 'download') _downloadFile();
-              if (v == 'open')
+              if (v == 'open') {
                 launchUrl(
                   Uri.parse(widget.file.url),
                   mode: LaunchMode.externalApplication,
                 );
+              }
             },
             itemBuilder: (_) => [
               PopupMenuItem(
@@ -1679,9 +1680,9 @@ class _DriveImagePreviewScreenState extends State<_DriveImagePreviewScreen>
                   cacheManager: AppCacheManager(),
                   imageUrl: widget.file.url,
                   fit: BoxFit.contain,
-                  placeholder: (_, __) =>
+                  placeholder: (_, _) =>
                       const CircularProgressIndicator(color: Colors.white),
-                  errorWidget: (_, __, ___) => const Icon(
+                  errorWidget: (_, _, _) => const Icon(
                     Icons.broken_image_outlined,
                     color: Colors.white54,
                     size: 64,

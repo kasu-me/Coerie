@@ -456,7 +456,7 @@ class MfmContent extends StatelessWidget {
                 fit: BoxFit.fitHeight,
                 alignment: Alignment.centerLeft,
                 fadeInDuration: Duration.zero,
-                placeholder: (_, __) =>
+                placeholder: (_, _) =>
                     SizedBox(height: emojiSize, width: emojiSize * 0.9),
                 errorWidget: (_, _, _) => Text(':${node.name}:', style: style),
               ),
@@ -481,7 +481,7 @@ class MfmContent extends StatelessWidget {
               fit: BoxFit.fitHeight,
               alignment: Alignment.centerLeft,
               fadeInDuration: Duration.zero,
-              placeholder: (_, __) =>
+              placeholder: (_, _) =>
                   SizedBox(height: emojiSize, width: emojiSize * 0.9),
               errorWidget: (_, _, _) => Text(node.emoji, style: style),
             ),
@@ -976,7 +976,7 @@ class MfmContent extends StatelessWidget {
               fit: BoxFit.fitHeight,
               alignment: Alignment.centerLeft,
               fadeInDuration: Duration.zero,
-              placeholder: (_, __) =>
+              placeholder: (_, _) =>
                   SizedBox(height: emojiSize, width: emojiSize * 0.9),
               errorWidget: (_, _, _) => Text(emoji, style: style),
             ),

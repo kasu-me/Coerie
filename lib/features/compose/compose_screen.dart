@@ -1138,7 +1138,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                         final list = snap.data ?? [];
                         return ListView.separated(
                           itemCount: list.length + 1,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          separatorBuilder: (_, _) => const Divider(height: 1),
                           itemBuilder: (ctx2, i) {
                             if (i == 0) {
                               return ListTile(
@@ -1294,7 +1294,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                             child: ListView.separated(
                               scrollDirection: Axis.horizontal,
                               itemCount: widget.renoteToNote!.files.length,
-                              separatorBuilder: (_, __) =>
+                              separatorBuilder: (_, _) =>
                                   const SizedBox(width: 8),
                               itemBuilder: (ctx, i) {
                                 final f = widget.renoteToNote!.files[i];
@@ -1948,7 +1948,7 @@ class _MfmPreviewArea extends ConsumerWidget {
             e['name'] as String: e['url'] as String,
       },
       loading: () => <String, String>{},
-      error: (_, __) => <String, String>{},
+      error: (_, _) => <String, String>{},
     );
 
     if (text.trim().isEmpty) {
@@ -1994,7 +1994,7 @@ class _EmojiSuggestBar extends ConsumerWidget {
             e['name'] as String: e['url'] as String,
       },
       loading: () => <String, String>{},
-      error: (_, __) => <String, String>{},
+      error: (_, _) => <String, String>{},
     );
 
     return Container(
@@ -2010,7 +2010,7 @@ class _EmojiSuggestBar extends ConsumerWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         itemCount: suggestions.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 4),
+        separatorBuilder: (_, _) => const SizedBox(width: 4),
         itemBuilder: (_, i) {
           final emoji = suggestions[i];
           final name = emoji['name'] as String? ?? '';
@@ -2216,7 +2216,7 @@ class _WideSelectPickerDelegate extends DefaultAssetPickerBuilderDelegate {
   Widget bottomActionBar(BuildContext context) {
     return AnimatedBuilder(
       animation: provider,
-      builder: (_, __) {
+      builder: (_, _) {
         final bottomPadding = MediaQuery.paddingOf(context).bottom;
         final hasSelection = provider.isSelectedNotEmpty;
         final children = <Widget>[

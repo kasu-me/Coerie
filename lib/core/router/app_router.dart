@@ -130,7 +130,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           final listId = state.pathParameters['listId']!;
           if (extra is Map<String, dynamic>) {
             final name = extra['name'] as String? ?? 'リスト';
-            return _ListTimelineScreen(listId: listId, name: name);
+            return _SourceTimelineScreen(
+              sourceId: listId,
+              name: name,
+              tabType: AppConstants.tabTypeList,
+              timelinePrefix: 'list',
+            );
           }
           return _ListLoader(listId: listId);
         },
@@ -166,7 +171,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           final antennaId = state.pathParameters['antennaId']!;
           if (extra is Map<String, dynamic>) {
             final name = extra['name'] as String? ?? 'アンテナ';
-            return _AntennaTimelineScreen(antennaId: antennaId, name: name);
+            return _SourceTimelineScreen(
+              sourceId: antennaId,
+              name: name,
+              tabType: AppConstants.tabTypeAntenna,
+              timelinePrefix: 'antenna',
+            );
           }
           return _AntennaLoader(antennaId: antennaId);
         },
@@ -386,7 +396,12 @@ class _ListLoader extends ConsumerWidget {
         }
         final item = snapshot.data;
         final title = item?['name'] as String? ?? 'リスト';
-        return _ListTimelineScreen(listId: listId, name: title);
+        return _SourceTimelineScreen(
+          sourceId: listId,
+          name: title,
+          tabType: AppConstants.tabTypeList,
+          timelinePrefix: 'list',
+        );
       },
     );
   }
@@ -434,25 +449,40 @@ class _AntennaLoader extends ConsumerWidget {
         }
         final item = snapshot.data;
         final title = item?['name'] as String? ?? 'アンテナ';
-        return _AntennaTimelineScreen(antennaId: antennaId, name: title);
+        return _SourceTimelineScreen(
+          sourceId: antennaId,
+          name: title,
+          tabType: AppConstants.tabTypeAntenna,
+          timelinePrefix: 'antenna',
+        );
       },
     );
   }
 }
 
-// ─── List timeline screen with "add to home tab" menu ───────────────────────
+// ─── List/Antenna timeline screen with "add to home tab" menu ───────────────
 
-class _ListTimelineScreen extends ConsumerStatefulWidget {
-  final String listId;
+/// リスト・アンテナ共通の「ホームタブに追加」メニュー付きタイムライン画面。
+/// [timelinePrefix] は timelineType の接頭辞（'list' / 'antenna'）、
+/// [tabType] はタブ設定に保存する種別（AppConstants.tabTypeList など）。
+class _SourceTimelineScreen extends ConsumerStatefulWidget {
+  final String sourceId;
   final String name;
-  const _ListTimelineScreen({required this.listId, required this.name});
+  final String tabType;
+  final String timelinePrefix;
+  const _SourceTimelineScreen({
+    required this.sourceId,
+    required this.name,
+    required this.tabType,
+    required this.timelinePrefix,
+  });
 
   @override
-  ConsumerState<_ListTimelineScreen> createState() =>
-      _ListTimelineScreenState();
+  ConsumerState<_SourceTimelineScreen> createState() =>
+      _SourceTimelineScreenState();
 }
 
-class _ListTimelineScreenState extends ConsumerState<_ListTimelineScreen> {
+class _SourceTimelineScreenState extends ConsumerState<_SourceTimelineScreen> {
   Future<void> _addToHomeTab() async {
     final labelController = TextEditingController(text: widget.name);
     final confirmed = await showDialog<bool>(
@@ -479,10 +509,10 @@ class _ListTimelineScreenState extends ConsumerState<_ListTimelineScreen> {
         ],
       ),
     );
+    final input = labelController.text.trim();
+    labelController.dispose();
     if (confirmed != true || !mounted) return;
-    final label = labelController.text.trim().isEmpty
-        ? widget.name
-        : labelController.text.trim();
+    final label = input.isEmpty ? widget.name : input;
     final accountId = ref.read(activeAccountProvider)?.id ?? '';
     final currentTabs = List<TabConfigModel>.from(
       ref.read(accountTabsProvider(accountId)),
@@ -491,8 +521,8 @@ class _ListTimelineScreenState extends ConsumerState<_ListTimelineScreen> {
       TabConfigModel(
         id: const Uuid().v4(),
         label: label,
-        type: AppConstants.tabTypeList,
-        sourceId: widget.listId,
+        type: widget.tabType,
+        sourceId: widget.sourceId,
       ),
     );
     await ref
@@ -530,103 +560,9 @@ class _ListTimelineScreenState extends ConsumerState<_ListTimelineScreen> {
           ),
         ],
       ),
-      body: TimelineScreen(timelineType: 'list:${widget.listId}'),
-    );
-  }
-}
-
-// ─── Antenna timeline screen with "add to home tab" menu ────────────────────
-
-class _AntennaTimelineScreen extends ConsumerStatefulWidget {
-  final String antennaId;
-  final String name;
-  const _AntennaTimelineScreen({required this.antennaId, required this.name});
-
-  @override
-  ConsumerState<_AntennaTimelineScreen> createState() =>
-      _AntennaTimelineScreenState();
-}
-
-class _AntennaTimelineScreenState
-    extends ConsumerState<_AntennaTimelineScreen> {
-  Future<void> _addToHomeTab() async {
-    final labelController = TextEditingController(text: widget.name);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('ホームタブに追加'),
-        content: TextField(
-          controller: labelController,
-          decoration: const InputDecoration(
-            labelText: 'タブ名',
-            border: OutlineInputBorder(),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('キャンセル'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('追加'),
-          ),
-        ],
+      body: TimelineScreen(
+        timelineType: '${widget.timelinePrefix}:${widget.sourceId}',
       ),
-    );
-    if (confirmed != true || !mounted) return;
-    final label = labelController.text.trim().isEmpty
-        ? widget.name
-        : labelController.text.trim();
-    final accountId = ref.read(activeAccountProvider)?.id ?? '';
-    final currentTabs = List<TabConfigModel>.from(
-      ref.read(accountTabsProvider(accountId)),
-    );
-    currentTabs.add(
-      TabConfigModel(
-        id: const Uuid().v4(),
-        label: label,
-        type: AppConstants.tabTypeAntenna,
-        sourceId: widget.antennaId,
-      ),
-    );
-    await ref
-        .read(accountTabsProvider(accountId).notifier)
-        .setTabs(currentTabs);
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('「$label」タブを追加しました')));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.name),
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'add_tab') _addToHomeTab();
-            },
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'add_tab',
-                child: Row(
-                  children: [
-                    Icon(Icons.add_to_photos_outlined),
-                    SizedBox(width: 8),
-                    Text('ホームタブに追加'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-      body: TimelineScreen(timelineType: 'antenna:${widget.antennaId}'),
     );
   }
 }

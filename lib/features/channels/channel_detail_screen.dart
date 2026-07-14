@@ -359,7 +359,7 @@ class _InfoTabState extends ConsumerState<_InfoTab> {
               imageUrl: bannerUrl,
               height: 160,
               fit: BoxFit.cover,
-              errorWidget: (_, __, ___) => Container(
+              errorWidget: (_, _, _) => Container(
                 height: 160,
                 color: channelColor.withValues(alpha: 0.3),
               ),

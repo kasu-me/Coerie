@@ -26,7 +26,12 @@ class ImageCompressionService {
 
     final tmpDir = await getTemporaryDirectory();
     final basename = p.basenameWithoutExtension(file.path);
-    final outPath = p.join(tmpDir.path, '$basename$ext');
+    // 入力ファイルも一時ディレクトリ内にある場合（image_picker等）に
+    // 入出力パスが同一になるのを避けるため、出力名にタイムスタンプを付与する
+    final outPath = p.join(
+      tmpDir.path,
+      '${basename}_${DateTime.now().millisecondsSinceEpoch}$ext',
+    );
 
     // PNG の quality パラメーターは iOS では無視される
     final quality = level.quality ?? 80;

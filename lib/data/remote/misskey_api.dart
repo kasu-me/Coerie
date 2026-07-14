@@ -132,7 +132,7 @@ class MisskeyApi {
     final List<UserModel> users = [];
     final Set<String> idsToFetch = {};
 
-    void _collectFromEntry(dynamic entry) {
+    void collectFromEntry(dynamic entry) {
       if (entry is Map<String, dynamic>) {
         if (entry.containsKey('user') && entry['user'] is Map) {
           users.add(
@@ -154,7 +154,7 @@ class MisskeyApi {
 
     if (data is List) {
       for (final e in data) {
-        _collectFromEntry(e);
+        collectFromEntry(e);
       }
     } else if (data is Map<String, dynamic>) {
       // keys may be reaction strings mapping to lists
@@ -164,10 +164,10 @@ class MisskeyApi {
         final v = entry.value;
         if (v is List) {
           for (final e in v) {
-            _collectFromEntry(e);
+            collectFromEntry(e);
           }
         } else {
-          _collectFromEntry(v);
+          collectFromEntry(v);
         }
       }
     }
@@ -365,7 +365,7 @@ class MisskeyApi {
     final List<UserModel> users = [];
     final Set<String> idsToFetch = {};
 
-    void _collect(dynamic entry) {
+    void collect(dynamic entry) {
       if (entry is Map<String, dynamic>) {
         if (entry.containsKey('user') && entry['user'] is Map) {
           users.add(
@@ -393,14 +393,18 @@ class MisskeyApi {
     }
 
     if (data is List) {
-      for (final e in data) _collect(e);
+      for (final e in data) {
+        collect(e);
+      }
     } else if (data is Map<String, dynamic>) {
       for (final entry in data.entries) {
         final v = entry.value;
         if (v is List) {
-          for (final e in v) _collect(e);
+          for (final e in v) {
+            collect(e);
+          }
         } else {
-          _collect(v);
+          collect(v);
         }
       }
     }
@@ -555,9 +559,9 @@ class MisskeyApi {
     final formData = FormData.fromMap({
       'i': token,
       'file': await MultipartFile.fromFile(file.path, filename: fileName),
-      if (name != null) 'name': name,
+      'name': ?name,
       if (isSensitive) 'isSensitive': 'true',
-      if (folderId != null) 'folderId': folderId,
+      'folderId': ?folderId,
     });
 
     // Drive upload は multipart/form-data を使用
@@ -1388,14 +1392,14 @@ class MisskeyApi {
           (e) => (e as Map<String, dynamic>)['user'] as Map<String, dynamic>?,
         )
         .where((user) => user != null)
-        .map((user) => UserModel.fromJson(user!))
+        .map((user) => UserModel.fromJson(user!, host: host))
         .toList();
 
     // オーナーが一覧に含まれていなければ先頭に追加する。
     final roomData = results[1].data as Map<String, dynamic>;
     final ownerData = roomData['owner'] as Map<String, dynamic>?;
     if (ownerData != null) {
-      final owner = UserModel.fromJson(ownerData);
+      final owner = UserModel.fromJson(ownerData, host: host);
       if (!memberList.any((u) => u.id == owner.id)) {
         memberList.insert(0, owner);
       }

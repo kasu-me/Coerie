@@ -20,7 +20,7 @@ import 'follow_requests_sheet.dart';
 class _AppBarIcon extends StatelessWidget {
   final IconData icon;
 
-  const _AppBarIcon(this.icon, {Key? key}) : super(key: key);
+  const _AppBarIcon(this.icon);
 
   @override
   Widget build(BuildContext context) {
@@ -488,7 +488,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                     uri,
                                     mode: LaunchMode.externalApplication,
                                   );
-                                  if (!mounted) return;
+                                  if (!context.mounted) return;
                                   if (!ok) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
@@ -504,6 +504,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                   _showFollowRequestsSheet();
                                 }
                                 if (value == 'clips') {
+                                  if (!context.mounted) return;
                                   context.push(
                                     '/users/${user.id}/clips',
                                     extra: user,
@@ -592,6 +593,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                   );
                                 }
                                 if (value == 'clips') {
+                                  if (!context.mounted) return;
                                   context.push(
                                     '/users/${user.id}/clips',
                                     extra: user,
@@ -602,6 +604,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                   if (api == null) return;
                                   final settings = ref.read(settingsProvider);
                                   if (settings.confirmDestructive) {
+                                    if (!context.mounted) return;
                                     final confirmed =
                                         await showDialog<bool>(
                                           context: context,
@@ -640,7 +643,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                   });
                                   try {
                                     await api.invalidateFollower(user.id);
-                                    if (!mounted) return;
+                                    if (!context.mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
                                         content: Text('フォロワーを解除しました'),
@@ -658,7 +661,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                       );
                                     }
                                   } catch (_) {
-                                    if (mounted) {
+                                    if (context.mounted) {
                                       // 失敗したら状態を元に戻す
                                       setState(
                                         () => _isFollowed = prevFollowed,
@@ -672,8 +675,11 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                       );
                                     }
                                   } finally {
-                                    if (mounted)
-                                      setState(() => _isLoadingAction = false);
+                                    if (mounted) {
+                                      setState(
+                                        () => _isLoadingAction = false,
+                                      );
+                                    }
                                   }
                                 }
                                 if (value == 'open') {
@@ -682,7 +688,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                       : ref.read(activeAccountProvider)?.host ??
                                             '';
                                   if (host.isEmpty) {
-                                    if (!mounted) return;
+                                    if (!context.mounted) return;
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
                                         content: Text('公開URLが見つかりません'),
@@ -697,7 +703,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                     uri,
                                     mode: LaunchMode.externalApplication,
                                   );
-                                  if (!mounted) return;
+                                  if (!context.mounted) return;
                                   if (!ok) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
@@ -1055,7 +1061,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
         ),
       ),
     );
-    if (!mounted) return;
+    if (!context.mounted) return;
     if (selected != null) {
       context.push('/profile/$selected');
     }
@@ -1509,7 +1515,9 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet>
     WidgetsBinding.instance.removeObserver(this);
     _nameController.dispose();
     _descController.dispose();
-    for (final e in _fields) e.dispose();
+    for (final e in _fields) {
+      e.dispose();
+    }
     super.dispose();
   }
 

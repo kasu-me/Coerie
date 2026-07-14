@@ -50,7 +50,7 @@ class AppInfoScreen extends StatelessWidget {
                   future: PackageInfo.fromPlatform(),
                   builder: (context, snapshot) {
                     final versionText = snapshot.hasData
-                        ? '${snapshot.data!.version}'
+                        ? snapshot.data!.version
                         : '読み込み中';
                     return Text(
                       'バージョン $versionText',

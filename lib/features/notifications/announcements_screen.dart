@@ -202,7 +202,7 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen>
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: state.items.length + (state.hasMore ? 1 : 0),
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, index) {
           if (index == state.items.length) {
             return state.isLoading
@@ -335,7 +335,7 @@ class _AnnouncementDetailScreenState
             tooltip: '既読にする',
             onPressed: () async {
               await _markRead();
-              if (!mounted) return;
+              if (!context.mounted) return;
               ScaffoldMessenger.of(
                 context,
               ).showSnackBar(const SnackBar(content: Text('既読にしました')));
@@ -370,8 +370,9 @@ class _AnnouncementDetailScreenState
               TextButton(
                 onPressed: () async {
                   final uri = Uri.tryParse(a.url!);
-                  if (uri != null)
+                  if (uri != null) {
                     await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
                 },
                 child: const Text('詳細を見る'),
               ),

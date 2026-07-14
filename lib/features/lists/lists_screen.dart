@@ -35,11 +35,12 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
     });
     final api = ref.read(misskeyApiProvider);
     if (api == null) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _isLoading = false;
           _error = 'ログインが必要です';
         });
+      }
       return;
     }
 
@@ -232,7 +233,7 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: _lists.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (ctx, i) {
           final item = _lists[i];
           final id = item['id'] as String? ?? '';
@@ -725,7 +726,7 @@ class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
     return ListView.separated(
       controller: scrollController,
       itemCount: _members.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (ctx, i) {
         final membership = _members[i];
         final user = membership['user'] as Map<String, dynamic>? ?? {};

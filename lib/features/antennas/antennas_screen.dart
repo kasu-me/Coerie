@@ -35,11 +35,12 @@ class _AntennasScreenState extends ConsumerState<AntennasScreen> {
     });
     final api = ref.read(misskeyApiProvider);
     if (api == null) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _isLoading = false;
           _error = 'ログインが必要です';
         });
+      }
       return;
     }
 
@@ -218,7 +219,7 @@ class _AntennasScreenState extends ConsumerState<AntennasScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: _items.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (ctx, i) {
           final item = _items[i];
           final id = item['id'] as String? ?? '';
@@ -844,20 +845,22 @@ class _SrcSelector extends StatelessWidget {
       ('users', '指定ユーザーのノート'),
       ('users_blacklist', '指定ユーザーを除いた全てのノート'),
     ];
-    return Column(
-      children: options.map((opt) {
-        final (src, label) = opt;
-        return RadioListTile<String>(
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-          title: Text(label),
-          value: src,
-          groupValue: value,
-          onChanged: (v) {
-            if (v != null) onChanged(v);
-          },
-        );
-      }).toList(),
+    return RadioGroup<String>(
+      groupValue: value,
+      onChanged: (v) {
+        if (v != null) onChanged(v);
+      },
+      child: Column(
+        children: options.map((opt) {
+          final (src, label) = opt;
+          return RadioListTile<String>(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: Text(label),
+            value: src,
+          );
+        }).toList(),
+      ),
     );
   }
 }

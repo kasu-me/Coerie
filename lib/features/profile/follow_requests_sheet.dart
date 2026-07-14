@@ -13,8 +13,8 @@ class FollowRequestsSheet extends ConsumerStatefulWidget {
   const FollowRequestsSheet({
     required this.profileOwnerId,
     this.onChanged,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   ConsumerState<FollowRequestsSheet> createState() =>
@@ -52,10 +52,11 @@ class _FollowRequestsSheetState extends ConsumerState<FollowRequestsSheet> {
         _requests = [];
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -67,15 +68,17 @@ class _FollowRequestsSheetState extends ConsumerState<FollowRequestsSheet> {
       setState(() => _requests.removeAt(index));
       widget.onChanged?.call();
       ref.invalidate(followRequestsBadgeProvider(widget.profileOwnerId));
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('フォローを許可しました')));
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('操作に失敗しました')));
+      }
     }
   }
 
@@ -115,15 +118,17 @@ class _FollowRequestsSheetState extends ConsumerState<FollowRequestsSheet> {
       setState(() => _requests.removeAt(index));
       widget.onChanged?.call();
       ref.invalidate(followRequestsBadgeProvider(widget.profileOwnerId));
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('フォローを拒否しました')));
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('操作に失敗しました')));
+      }
     }
   }
 
