@@ -907,13 +907,20 @@ class MisskeyApi {
   // ---- 検索 ----
 
   /// notes/search: ノートをキーワード検索する
+  ///
+  /// [rangeStartAt] / [rangeEndAt] はエポックミリ秒で投稿日時の範囲を指定
+  /// （Misskey 2026.6.0+、旧サーバーでは無視される）。
   Future<List<NoteModel>> searchNotes({
     required String query,
     int limit = 20,
     String? untilId,
+    int? rangeStartAt,
+    int? rangeEndAt,
   }) async {
     final params = <String, dynamic>{'query': query, 'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
+    if (rangeStartAt != null) params['rangeStartAt'] = rangeStartAt;
+    if (rangeEndAt != null) params['rangeEndAt'] = rangeEndAt;
     final res = await _dio.post('notes/search', data: _body(params));
     final list = res.data as List<dynamic>;
     return list

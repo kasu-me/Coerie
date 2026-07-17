@@ -23,6 +23,9 @@ class NoteSearchState {
   final bool hasMore;
   final SearchError? error;
   final String query;
+  // 投稿日時の期間フィルタ（日単位・null なら未指定）
+  final DateTime? rangeStart;
+  final DateTime? rangeEnd;
 
   const NoteSearchState({
     this.notes = const [],
@@ -30,6 +33,8 @@ class NoteSearchState {
     this.hasMore = false,
     this.error,
     this.query = '',
+    this.rangeStart,
+    this.rangeEnd,
   });
 
   NoteSearchState copyWith({
@@ -39,12 +44,17 @@ class NoteSearchState {
     SearchError? error,
     bool clearError = false,
     String? query,
+    DateTime? rangeStart,
+    DateTime? rangeEnd,
+    bool clearRange = false,
   }) => NoteSearchState(
     notes: notes ?? this.notes,
     isLoading: isLoading ?? this.isLoading,
     hasMore: hasMore ?? this.hasMore,
     error: clearError ? null : (error ?? this.error),
     query: query ?? this.query,
+    rangeStart: clearRange ? null : (rangeStart ?? this.rangeStart),
+    rangeEnd: clearRange ? null : (rangeEnd ?? this.rangeEnd),
   );
 }
 
@@ -60,11 +70,21 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
 
   Future<void> search(String query) async {
     if (query.trim().isEmpty) return;
-    state = NoteSearchState(isLoading: true, query: query);
+    // 期間フィルタは検索をまたいで保持する
+    state = NoteSearchState(
+      isLoading: true,
+      query: query,
+      rangeStart: state.rangeStart,
+      rangeEnd: state.rangeEnd,
+    );
     final api = _ref.read(misskeyApiProvider);
     if (api == null) return;
     try {
-      final notes = await api.searchNotes(query: query);
+      final notes = await api.searchNotes(
+        query: query,
+        rangeStartAt: _rangeStartAt(),
+        rangeEndAt: _rangeEndAt(),
+      );
       state = state.copyWith(
         notes: notes,
         isLoading: false,
@@ -93,6 +113,8 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
       final notes = await api.searchNotes(
         query: state.query,
         untilId: state.notes.last.id,
+        rangeStartAt: _rangeStartAt(),
+        rangeEndAt: _rangeEndAt(),
       );
       state = state.copyWith(
         notes: [...state.notes, ...notes],
@@ -112,8 +134,50 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
     }
   }
 
+  /// 期間フィルタを設定する。日単位指定のため下限はその日の 00:00:00.000、
+  /// 上限はその日の 23:59:59.999 に丸めて API へ渡す。
+  /// start/end がともに null の場合は範囲解除。
+  /// query が入力済みなら同条件で即再検索する。
+  void setDateRange(DateTime? start, DateTime? end) {
+    if (start == null && end == null) {
+      state = state.copyWith(clearRange: true);
+    } else {
+      state = state.copyWith(rangeStart: start, rangeEnd: end);
+    }
+    if (state.query.trim().isNotEmpty) {
+      search(state.query);
+    }
+  }
+
+  /// rangeStart をその日の始まり（00:00:00.000）のエポックミリ秒に変換する。
+  int? _rangeStartAt() {
+    final s = state.rangeStart;
+    if (s == null) return null;
+    return DateTime(s.year, s.month, s.day).millisecondsSinceEpoch;
+  }
+
+  /// rangeEnd をその日の終わり（23:59:59.999）のエポックミリ秒に変換する。
+  int? _rangeEndAt() {
+    final e = state.rangeEnd;
+    if (e == null) return null;
+    return DateTime(
+      e.year,
+      e.month,
+      e.day,
+      23,
+      59,
+      59,
+      999,
+    ).millisecondsSinceEpoch;
+  }
+
   void clear() {
-    state = const NoteSearchState();
+    // 検索結果はクリアするが、期間フィルタ（rangeStart/rangeEnd）は保持する。
+    // 範囲の完全解除はチップの × から setDateRange(null, null) で行う。
+    state = NoteSearchState(
+      rangeStart: state.rangeStart,
+      rangeEnd: state.rangeEnd,
+    );
   }
 }
 

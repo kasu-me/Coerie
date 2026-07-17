@@ -256,7 +256,16 @@ class _NoteSearchTabState extends ConsumerState<_NoteSearchTab>
   Widget build(BuildContext context) {
     super.build(context);
     final state = ref.watch(noteSearchProvider);
-    return _buildBody(state);
+    // 期間フィルタ行は常にリスト上部に表示し、本文は状態に応じて切り替える
+    return Column(
+      children: [
+        _DateRangeFilter(
+          rangeStart: state.rangeStart,
+          rangeEnd: state.rangeEnd,
+        ),
+        Expanded(child: _buildBody(state)),
+      ],
+    );
   }
 
   Widget _buildBody(NoteSearchState state) {
@@ -278,6 +287,71 @@ class _NoteSearchTabState extends ConsumerState<_NoteSearchTab>
       notes: state.notes,
       isLoadingMore: state.isLoading,
       scrollController: _scrollController,
+    );
+  }
+}
+
+// ---- 期間フィルタ（ノート検索専用）----
+
+class _DateRangeFilter extends ConsumerWidget {
+  final DateTime? rangeStart;
+  final DateTime? rangeEnd;
+
+  const _DateRangeFilter({this.rangeStart, this.rangeEnd});
+
+  /// yyyy/MM/dd 形式に手組みで整形する（intl はプロジェクト直接依存ではないため）
+  String _formatDate(DateTime d) {
+    final y = d.year.toString().padLeft(4, '0');
+    final m = d.month.toString().padLeft(2, '0');
+    final day = d.day.toString().padLeft(2, '0');
+    return '$y/$m/$day';
+  }
+
+  /// 期間ピッカーを開き、確定した範囲をプロバイダーへ反映する
+  Future<void> _pickRange(BuildContext context, WidgetRef ref) async {
+    final now = DateTime.now();
+    final initialRange = (rangeStart != null && rangeEnd != null)
+        ? DateTimeRange(start: rangeStart!, end: rangeEnd!)
+        : null;
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2010, 1, 1),
+      lastDate: DateTime(now.year, now.month, now.day),
+      initialDateRange: initialRange,
+    );
+    if (picked != null) {
+      ref
+          .read(noteSearchProvider.notifier)
+          .setDateRange(picked.start, picked.end);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasRange = rangeStart != null && rangeEnd != null;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+        child: hasRange
+            ? InputChip(
+                avatar: const Icon(Icons.date_range, size: 18),
+                label: Text(
+                  '${_formatDate(rangeStart!)} 〜 ${_formatDate(rangeEnd!)}',
+                ),
+                onPressed: () => _pickRange(context, ref),
+                onDeleted: () => ref
+                    .read(noteSearchProvider.notifier)
+                    .setDateRange(null, null),
+                deleteIcon: const Icon(Icons.close, size: 18),
+                deleteButtonTooltipMessage: '期間を解除',
+              )
+            : ActionChip(
+                avatar: const Icon(Icons.date_range, size: 18),
+                label: const Text('期間を指定'),
+                onPressed: () => _pickRange(context, ref),
+              ),
+      ),
     );
   }
 }
