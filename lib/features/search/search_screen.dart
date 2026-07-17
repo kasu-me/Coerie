@@ -64,7 +64,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     final query = _queryController.text;
     switch (_tabController.index) {
       case 0:
-        ref.read(noteSearchProvider.notifier).search(query);
+        // ノート検索がサーバーで無効な場合は何もしない（initialQuery 自動検索のガードも兼ねる）
+        final canSearchNotes =
+            ref.read(canSearchNotesProvider).valueOrNull ?? true;
+        if (canSearchNotes) {
+          ref.read(noteSearchProvider.notifier).search(query);
+        }
       case 1:
         ref.read(tagNoteSearchProvider.notifier).search(query);
       case 2:
@@ -85,6 +90,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
   @override
   Widget build(BuildContext context) {
+    final canSearchNotes = ref.watch(canSearchNotesProvider).valueOrNull ?? true;
+    // ノートタブでのみ、サーバー側でノート検索が無効な場合に検索操作を封じる
+    final searchBarEnabled = !(_tabController.index == 0 && !canSearchNotes);
     return Scaffold(
       appBar: AppBar(
         title: const Text('検索'),
@@ -105,6 +113,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
             controller: _queryController,
             hintText: _hintTexts[_tabController.index],
             onSearch: _search,
+            enabled: searchBarEnabled,
           ),
           Expanded(
             child: TabBarView(
@@ -140,11 +149,14 @@ class _SearchBar extends StatelessWidget {
   final TextEditingController controller;
   final String hintText;
   final VoidCallback onSearch;
+  // サーバー側で検索機能が無効な場合に検索ボタン・Enter送信を封じるためのフラグ
+  final bool enabled;
 
   const _SearchBar({
     required this.controller,
     required this.hintText,
     required this.onSearch,
+    this.enabled = true,
   });
 
   @override
@@ -167,11 +179,11 @@ class _SearchBar extends StatelessWidget {
                 ),
               ),
               textInputAction: TextInputAction.search,
-              onSubmitted: (_) => onSearch(),
+              onSubmitted: enabled ? (_) => onSearch() : null,
             ),
           ),
           const SizedBox(width: 8),
-          FilledButton(onPressed: onSearch, child: const Text('検索')),
+          FilledButton(onPressed: enabled ? onSearch : null, child: const Text('検索')),
         ],
       ),
     );
@@ -184,24 +196,41 @@ Widget _buildErrorWidget(
   VoidCallback onRetry,
 ) {
   final isDisabled = error.type == SearchErrorType.disabled;
+  return _buildStatusWidget(
+    context,
+    icon: isDisabled ? Icons.block : Icons.wifi_off,
+    message: isDisabled ? 'この機能はサーバーで無効になっています' : error.message,
+    onRetry: isDisabled ? null : onRetry,
+  );
+}
+
+/// サーバー側で機能自体が無効と事前判明している場合の案内表示。
+/// 事後エラー（_buildErrorWidget）と同じ見た目だが、再試行しても無意味なため
+/// 再試行ボタンは表示しない。
+Widget _buildDisabledWidget(BuildContext context, String message) {
+  return _buildStatusWidget(context, icon: Icons.block, message: message);
+}
+
+Widget _buildStatusWidget(
+  BuildContext context, {
+  required IconData icon,
+  required String message,
+  VoidCallback? onRetry,
+}) {
   return Center(
     child: Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            isDisabled ? Icons.block : Icons.wifi_off,
-            size: 48,
-            color: Theme.of(context).colorScheme.error,
-          ),
+          Icon(icon, size: 48, color: Theme.of(context).colorScheme.error),
           const SizedBox(height: 12),
           Text(
-            isDisabled ? 'この機能はサーバーで無効になっています' : error.message,
+            message,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
-          if (!isDisabled) ...[
+          if (onRetry != null) ...[
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: onRetry,
@@ -256,6 +285,12 @@ class _NoteSearchTabState extends ConsumerState<_NoteSearchTab>
   Widget build(BuildContext context) {
     super.build(context);
     final state = ref.watch(noteSearchProvider);
+    final canSearchNotes = ref.watch(canSearchNotesProvider).valueOrNull ?? true;
+    if (!canSearchNotes) {
+      // サーバー側で無効と事前判明している場合は、期間フィルタも含めて
+      // 操作しても無意味な要素は表示せず案内のみ表示する
+      return _buildDisabledWidget(context, 'ノート検索はこのサーバーで無効になっています');
+    }
     // 期間フィルタ行は常にリスト上部に表示し、本文は状態に応じて切り替える
     return Column(
       children: [

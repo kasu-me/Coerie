@@ -523,3 +523,16 @@ SearchError _parseDioError(DioException e) {
     message: e.message ?? '不明なエラーが発生しました',
   );
 }
+
+// ---- ノート検索の事前有効性判定 ----
+
+/// ノート検索がサーバーで有効かどうか（事前判定用）。
+/// 取得できない場合は true（実行時エラー処理にフォールバック）。
+///
+/// misskeyApiProvider はアカウント切替時に再生成されるため、
+/// これを watch していれば切替時に自動で再評価される。
+final canSearchNotesProvider = FutureProvider<bool>((ref) async {
+  final api = ref.watch(misskeyApiProvider);
+  if (api == null) return true;
+  return api.fetchCanSearchNotes();
+});

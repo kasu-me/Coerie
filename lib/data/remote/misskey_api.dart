@@ -16,6 +16,9 @@ class MisskeyApi {
   /// キャッシュされたサーバーの最大ファイルサイズ（バイト）
   int? _maxFileSize;
 
+  /// キャッシュされたノート検索（notes/search）の利用可否
+  bool? _canSearchNotes;
+
   MisskeyApi({required this.host, this.token})
     : _dio = Dio(
         BaseOptions(
@@ -567,6 +570,26 @@ class MisskeyApi {
       _maxFileSize = fallback;
     }
     return _maxFileSize!;
+  }
+
+  /// ノート検索（notes/search）がこのサーバーで利用可能かを取得する。
+  /// Misskey v13 以降は `i` 応答の `policies.canSearchNotes` で判定できる。
+  /// 取得失敗・キー欠落（旧サーバー等）の場合は true を返し、
+  /// 実行時の事後エラー処理（search_provider 側）にフォールバックする。
+  Future<bool> fetchCanSearchNotes() async {
+    if (_canSearchNotes != null) return _canSearchNotes!;
+    if (token == null) return true;
+    try {
+      final res = await _dio.post('i', data: _body({}));
+      final data = res.data as Map<String, dynamic>;
+      final policies = data['policies'] as Map<String, dynamic>?;
+      final canSearch = policies?['canSearchNotes'] as bool?;
+      _canSearchNotes = canSearch ?? true;
+    } catch (_) {
+      // 取得失敗時は実行時の事後エラー処理にフォールバックするため true とする
+      _canSearchNotes = true;
+    }
+    return _canSearchNotes!;
   }
 
   /// ファイルをDriveにアップロードし、ファイルIDを返す。
