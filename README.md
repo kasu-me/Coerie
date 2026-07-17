@@ -29,6 +29,10 @@ Google Playストアでの公開にはクローズドテスト参加者が**12�
 - Flutter 3.x
 - Dart 3.x
 
+## 対応API
+
+- Misskey API **v2026.6.0** に準拠しています（それ以前のバージョンのサーバーでも基本機能は動作します）
+
 ## 使用している主なパッケージ
 - [MFM Parser](https://pub.dev/packages/mfm_parser) 1.0.6
 - [Twemoji](https://github.com/twitter/twemoji) 14.0.2

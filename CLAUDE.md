@@ -12,6 +12,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MisskeyクライアントのFlutterモバイルアプリ（Android向け）。分散型SNS Misskeyに接続し、タイムライン閲覧・ノート投稿・通知確認などの機能を提供する。バージョンは `pubspec.yaml` の `version` を参照。
 
+API実装は **Misskey v2026.6.0** に準拠している（`lib/data/remote/misskey_api.dart`）。API変更時は当該バージョンのAPIリファレンスと照合すること。
+
 ## 主要コマンド
 
 ```bash
