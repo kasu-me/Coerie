@@ -436,6 +436,16 @@ class MisskeyApi {
 
   // ---- ドライブ ----
 
+  /// ドライブの使用状況（容量・使用量、単位バイト）を取得する。
+  Future<({int capacity, int usage})> getDriveInfo() async {
+    final res = await _dio.post('drive', data: _body({}));
+    final data = res.data as Map<String, dynamic>;
+    return (
+      capacity: (data['capacity'] as num).toInt(),
+      usage: (data['usage'] as num).toInt(),
+    );
+  }
+
   /// ドライブのフォルダ一覧を取得する。
   Future<List<Map<String, dynamic>>> getDriveFolders({String? folderId}) async {
     final params = <String, dynamic>{};

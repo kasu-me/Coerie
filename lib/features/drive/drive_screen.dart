@@ -648,6 +648,12 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
                 actions: [
                   if (!widget.selectionMode)
                     IconButton(
+                      icon: const Icon(Icons.pie_chart_outline),
+                      tooltip: 'ドライブの使用状況',
+                      onPressed: _showDriveUsage,
+                    ),
+                  if (!widget.selectionMode)
+                    IconButton(
                       icon: const Icon(Icons.create_new_folder_outlined),
                       tooltip: 'フォルダ作成',
                       onPressed: _showCreateFolderDialog,
@@ -794,6 +800,14 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
               : () => _showFileMenu(file),
         );
       },
+    );
+  }
+
+  void _showDriveUsage() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => const _DriveUsageSheet(),
     );
   }
 
@@ -1499,6 +1513,259 @@ class _FolderPickerSheetState extends ConsumerState<_FolderPickerSheet> {
         );
       },
     );
+  }
+}
+
+// ---- ドライブ使用状況シート ----
+
+class _DriveUsageSheet extends ConsumerStatefulWidget {
+  const _DriveUsageSheet();
+
+  @override
+  ConsumerState<_DriveUsageSheet> createState() => _DriveUsageSheetState();
+}
+
+class _DriveUsageSheetState extends ConsumerState<_DriveUsageSheet> {
+  Future<({int capacity, int usage})>? _future;
+
+  @override
+  void initState() {
+    super.initState();
+    final api = ref.read(misskeyApiProvider);
+    _future = api?.getDriveInfo();
+  }
+
+  /// バイト数を読みやすい単位に変換する。
+  static String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    const units = ['KB', 'MB', 'GB', 'TB', 'PB'];
+    double value = bytes / 1024;
+    int unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex++;
+    }
+    final text = value >= 100
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(1);
+    return '$text ${units[unitIndex]}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.cloud_outlined, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('ドライブの使用状況', style: theme.textTheme.titleLarge),
+              ],
+            ),
+            const SizedBox(height: 24),
+            if (_future == null)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: Center(child: Text('アカウント情報を取得できません')),
+              )
+            else
+              FutureBuilder<({int capacity, int usage})>(
+                future: _future,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 60),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  if (snapshot.hasError || !snapshot.hasData) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 40),
+                      child: Center(child: Text('使用状況の取得に失敗しました')),
+                    );
+                  }
+                  return _buildUsage(context, snapshot.data!);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUsage(
+    BuildContext context,
+    ({int capacity, int usage}) info,
+  ) {
+    final theme = Theme.of(context);
+    final capacity = info.capacity;
+    final usage = info.usage;
+    final ratio = capacity > 0 ? (usage / capacity).clamp(0.0, 1.0) : 0.0;
+    final remaining = (capacity - usage).clamp(0, capacity);
+    final percent = (ratio * 100);
+
+    // 使用率が高いほど警告色に変化させる
+    final Color usedColor = ratio >= 0.9
+        ? theme.colorScheme.error
+        : ratio >= 0.7
+        ? Colors.orange
+        : theme.colorScheme.primary;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // ドーナツグラフ
+        SizedBox(
+          height: 180,
+          child: Center(
+            child: SizedBox(
+              width: 180,
+              height: 180,
+              child: CustomPaint(
+                painter: _DonutChartPainter(
+                  ratio: ratio,
+                  usedColor: usedColor,
+                  trackColor: theme.colorScheme.surfaceContainerHighest,
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${percent.toStringAsFixed(percent >= 10 ? 0 : 1)}%',
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: usedColor,
+                        ),
+                      ),
+                      Text(
+                        '使用中',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        _usageRow(
+          context,
+          color: usedColor,
+          label: '使用量',
+          value: _formatBytes(usage),
+        ),
+        const SizedBox(height: 12),
+        _usageRow(
+          context,
+          color: theme.colorScheme.surfaceContainerHighest,
+          label: '空き容量',
+          value: _formatBytes(remaining),
+        ),
+        const Divider(height: 32),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '総容量',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              _formatBytes(capacity),
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _usageRow(
+    BuildContext context, {
+    required Color color,
+    required String label,
+    required String value,
+  }) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Container(
+          width: 14,
+          height: 14,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(label, style: theme.textTheme.bodyLarge),
+        const Spacer(),
+        Text(
+          value,
+          style: theme.textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// ドライブ使用状況を表すドーナツ型グラフのペインター。
+class _DonutChartPainter extends CustomPainter {
+  final double ratio;
+  final Color usedColor;
+  final Color trackColor;
+
+  _DonutChartPainter({
+    required this.ratio,
+    required this.usedColor,
+    required this.trackColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const strokeWidth = 20.0;
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - strokeWidth) / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    final trackPaint = Paint()
+      ..color = trackColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+    canvas.drawCircle(center, radius, trackPaint);
+
+    if (ratio > 0) {
+      final usedPaint = Paint()
+        ..color = usedColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round;
+      const startAngle = -1.5707963267948966; // -90度（真上）
+      final sweepAngle = 6.283185307179586 * ratio; // 2π * ratio
+      canvas.drawArc(rect, startAngle, sweepAngle, false, usedPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DonutChartPainter oldDelegate) {
+    return oldDelegate.ratio != ratio ||
+        oldDelegate.usedColor != usedColor ||
+        oldDelegate.trackColor != trackColor;
   }
 }
 
