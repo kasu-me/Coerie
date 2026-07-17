@@ -55,6 +55,7 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
     try {
       final clips = await api.getClips(
         userId: isOwn ? null : widget.ownerUserId,
+        limit: 100,
       );
       if (mounted) {
         setState(() {

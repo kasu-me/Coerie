@@ -1631,7 +1631,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     // クリップ一覧を取得
     List<ClipModel> clips;
     try {
-      clips = await api.getClips();
+      clips = await api.getClips(limit: 100);
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(

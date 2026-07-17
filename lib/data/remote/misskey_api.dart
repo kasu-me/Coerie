@@ -303,15 +303,16 @@ class MisskeyApi {
   /// 指定ユーザー群に対するリレーションを一括取得する。
   ///
   /// 返却は userId -> relation map の形。
-  /// Misskey の `users/relation` エンドポイントの戻り値はサーバ実装やバージョンで
-  /// 形式が異なることがあるため、Map / List の両ケースを扱います。
+  /// Misskey の `users/relation` エンドポイントの必須パラメータは `userId` で、
+  /// 単一の文字列または文字列配列を受け付けます。
+  /// 応答は relation オブジェクトの配列（各要素は取得対象ユーザーIDを `id` キーに持つ）で、
+  /// 単一IDを渡した場合は単一オブジェクトが返ります。
+  /// サーバ実装やバージョンで形式が異なることがあるため、Map / List の両ケースを扱います。
   Future<Map<String, Map<String, dynamic>>> getUsersRelation(
-    List<String> userIds, {
-    String? sourceUserId,
-  }) async {
+    List<String> userIds,
+  ) async {
     if (userIds.isEmpty) return {};
-    final params = <String, dynamic>{'userIds': userIds};
-    if (sourceUserId != null) params['userId'] = sourceUserId;
+    final params = <String, dynamic>{'userId': userIds};
     final res = await _dio.post('users/relation', data: _body(params));
     final data = res.data;
 
@@ -530,17 +531,40 @@ class MisskeyApi {
     );
   }
 
-  /// サーバーの最大ファイルサイズ（バイト）を取得する。
-  /// 取得に失敗した場合はMisskeyのデフォルト値（250MB）を返す。
+  /// 実効的な最大ファイルサイズ（バイト）を取得する。
+  ///
+  /// 現行Misskeyの実効上限はロールポリシーで決まり、`i` エンドポイント応答の
+  /// `policies.maxFileSizeMb`（MB単位、デフォルト30）が正の値です。
+  /// サーバー側で min(サーバー設定, ロール値) に集約済みの値が返ります。
+  /// 認証がない・旧サーバー・取得失敗時は `meta` の `maxFileSize` にフォールバックし、
+  /// それも取れない場合はロールポリシーのデフォルト値（30MB）を返す。
   Future<int> fetchMaxFileSize() async {
     if (_maxFileSize != null) return _maxFileSize!;
+    const fallback = 30 * 1024 * 1024;
+    // 認証済みならロールポリシーの実効上限を優先して取得する。
+    // 例外（トークン失効・レートリミット等）や値なしの場合は握りつぶし、
+    // 後続の meta フォールバックに落ちる。
+    if (token != null) {
+      try {
+        final res = await _dio.post('i', data: _body({}));
+        final data = res.data as Map<String, dynamic>;
+        final policies = data['policies'] as Map<String, dynamic>?;
+        final mb = (policies?['maxFileSizeMb'] as num?)?.toInt();
+        if (mb != null) {
+          _maxFileSize = mb * 1024 * 1024;
+          return _maxFileSize!;
+        }
+      } catch (_) {
+        // i 取得失敗時は meta フォールバックへ
+      }
+    }
     try {
+      // 旧サーバー・未認証・値なしの場合は meta のサーバー設定値にフォールバック。
       final res = await _dio.post('meta', data: {'detail': false});
       final data = res.data as Map<String, dynamic>;
-      _maxFileSize =
-          (data['maxFileSize'] as num?)?.toInt() ?? (250 * 1024 * 1024);
+      _maxFileSize = (data['maxFileSize'] as num?)?.toInt() ?? fallback;
     } catch (_) {
-      _maxFileSize = 250 * 1024 * 1024;
+      _maxFileSize = fallback;
     }
     return _maxFileSize!;
   }
@@ -1002,18 +1026,28 @@ class MisskeyApi {
 
   /// クリップ一覧を取得する（clips/list）
   /// userId を指定するとそのユーザーが作成したクリップを取得します。
-  Future<List<ClipModel>> getClips({String? userId}) async {
+  ///
+  /// `clips/list` は 2025.8.0 からページネーション対応となり `limit` のデフォルトが
+  /// 10 のため、`limit`（最大100）を明示的に指定します。`untilId` を渡すと
+  /// そのIDより古いクリップを取得します。
+  Future<List<ClipModel>> getClips({
+    String? userId,
+    int limit = 100,
+    String? untilId,
+  }) async {
+    final cappedLimit = limit > 100 ? 100 : limit;
     final String endpoint;
     final Map<String, dynamic> params;
     if (userId != null) {
       // 他ユーザーの公開クリップは users/clips エンドポイントを使用する
       endpoint = 'users/clips';
-      params = {'userId': userId};
+      params = {'userId': userId, 'limit': cappedLimit};
     } else {
       // 自分のクリップは clips/list エンドポイントを使用する
       endpoint = 'clips/list';
-      params = {};
+      params = {'limit': cappedLimit};
     }
+    if (untilId != null) params['untilId'] = untilId;
     final res = await _dio.post(endpoint, data: _body(params));
     final list = res.data as List<dynamic>;
     return list
