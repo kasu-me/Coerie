@@ -291,9 +291,11 @@ class _NoteSearchTabState extends ConsumerState<_NoteSearchTab>
       // 操作しても無意味な要素は表示せず案内のみ表示する
       return _buildDisabledWidget(context, 'ノート検索はこのサーバーで無効になっています');
     }
-    // 期間フィルタ行は常にリスト上部に表示し、本文は状態に応じて切り替える
+    // 検索対象セレクタ・期間フィルタ行は常にリスト上部に表示し、
+    // 本文は状態に応じて切り替える
     return Column(
       children: [
+        const _NoteScopeSelector(),
         _DateRangeFilter(
           rangeStart: state.rangeStart,
           rangeEnd: state.rangeEnd,
@@ -322,6 +324,103 @@ class _NoteSearchTabState extends ConsumerState<_NoteSearchTab>
       notes: state.notes,
       isLoadingMore: state.isLoading,
       scrollController: _scrollController,
+    );
+  }
+}
+
+// ---- 検索対象セレクタ（ノート検索専用）----
+
+class _NoteScopeSelector extends ConsumerStatefulWidget {
+  const _NoteScopeSelector();
+
+  @override
+  ConsumerState<_NoteScopeSelector> createState() => _NoteScopeSelectorState();
+}
+
+class _NoteScopeSelectorState extends ConsumerState<_NoteScopeSelector> {
+  late final TextEditingController _hostController;
+  late final TextEditingController _userController;
+
+  static const _scopes = [
+    (NoteSearchScope.all, '全て'),
+    (NoteSearchScope.local, 'ローカル'),
+    (NoteSearchScope.server, 'サーバ指定'),
+    (NoteSearchScope.user, 'ユーザー指定'),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    // 保持されている検索対象の入力内容を初期表示する
+    final state = ref.read(noteSearchProvider);
+    _hostController = TextEditingController(text: state.host);
+    _userController = TextEditingController(text: state.userAcct);
+  }
+
+  @override
+  void dispose() {
+    _hostController.dispose();
+    _userController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = ref.watch(noteSearchProvider.select((s) => s.scope));
+    final notifier = ref.read(noteSearchProvider.notifier);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final s in _scopes)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(s.$2),
+                      selected: scope == s.$1,
+                      onSelected: (_) => notifier.setScope(s.$1),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (scope == NoteSearchScope.server)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: TextField(
+                controller: _hostController,
+                decoration: const InputDecoration(
+                  hintText: '対象サーバーのホスト名（例: misskey.io）',
+                  prefixIcon: Icon(Icons.dns),
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                onChanged: notifier.setScopeHost,
+                textInputAction: TextInputAction.search,
+              ),
+            ),
+          if (scope == NoteSearchScope.user)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: TextField(
+                controller: _userController,
+                decoration: const InputDecoration(
+                  hintText: '対象ユーザー（例: @name または @name@example.com）',
+                  prefixIcon: Icon(Icons.alternate_email),
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                onChanged: notifier.setScopeUserAcct,
+                textInputAction: TextInputAction.search,
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -499,7 +598,12 @@ class _UserSearchTabState extends ConsumerState<_UserSearchTab>
   Widget build(BuildContext context) {
     super.build(context);
     final state = ref.watch(userSearchProvider);
-    return _buildBody(state);
+    return Column(
+      children: [
+        const _UserOriginSelector(),
+        Expanded(child: _buildBody(state)),
+      ],
+    );
   }
 
   Widget _buildBody(UserSearchState state) {
@@ -529,6 +633,43 @@ class _UserSearchTabState extends ConsumerState<_UserSearchTab>
         }
         return _UserTile(user: state.users[index]);
       },
+    );
+  }
+}
+
+// ---- 検索対象セレクタ（ユーザー検索専用）----
+
+class _UserOriginSelector extends ConsumerWidget {
+  const _UserOriginSelector();
+
+  static const _origins = [
+    (UserSearchOrigin.all, '全て'),
+    (UserSearchOrigin.local, 'ローカル'),
+    (UserSearchOrigin.remote, 'リモート'),
+  ];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final origin = ref.watch(userSearchProvider.select((s) => s.origin));
+    final notifier = ref.read(userSearchProvider.notifier);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final o in _origins)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  label: Text(o.$2),
+                  selected: origin == o.$1,
+                  onSelected: (_) => notifier.setOrigin(o.$1),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

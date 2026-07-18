@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../../data/models/note_model.dart';
 import '../../data/models/user_model.dart';
+import '../../data/remote/misskey_api.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 
 // ---- 検索エラー種別 ----
@@ -17,6 +18,10 @@ class SearchError {
 
 // ---- ノート検索（notes/search）----
 
+/// ノート検索の検索対象。
+/// all: 全サーバー / local: ローカルのみ / server: 指定サーバー / user: 指定ユーザー
+enum NoteSearchScope { all, local, server, user }
+
 class NoteSearchState {
   final List<NoteModel> notes;
   final bool isLoading;
@@ -26,6 +31,14 @@ class NoteSearchState {
   // 投稿日時の期間フィルタ（日単位・null なら未指定）
   final DateTime? rangeStart;
   final DateTime? rangeEnd;
+  // 検索対象の絞り込み
+  final NoteSearchScope scope;
+  // scope == server のときの対象ホスト名（例: misskey.io）
+  final String host;
+  // scope == user のときの対象ユーザー（@name または @name@host 形式で入力）
+  final String userAcct;
+  // scope == user のとき、userAcct から解決した userId（loadMore で再利用）
+  final String? resolvedUserId;
 
   const NoteSearchState({
     this.notes = const [],
@@ -35,6 +48,10 @@ class NoteSearchState {
     this.query = '',
     this.rangeStart,
     this.rangeEnd,
+    this.scope = NoteSearchScope.all,
+    this.host = '',
+    this.userAcct = '',
+    this.resolvedUserId,
   });
 
   NoteSearchState copyWith({
@@ -47,6 +64,10 @@ class NoteSearchState {
     DateTime? rangeStart,
     DateTime? rangeEnd,
     bool clearRange = false,
+    NoteSearchScope? scope,
+    String? host,
+    String? userAcct,
+    String? resolvedUserId,
   }) => NoteSearchState(
     notes: notes ?? this.notes,
     isLoading: isLoading ?? this.isLoading,
@@ -55,6 +76,10 @@ class NoteSearchState {
     query: query ?? this.query,
     rangeStart: clearRange ? null : (rangeStart ?? this.rangeStart),
     rangeEnd: clearRange ? null : (rangeEnd ?? this.rangeEnd),
+    scope: scope ?? this.scope,
+    host: host ?? this.host,
+    userAcct: userAcct ?? this.userAcct,
+    resolvedUserId: resolvedUserId ?? this.resolvedUserId,
   );
 }
 
@@ -70,26 +95,67 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
 
   Future<void> search(String query) async {
     if (query.trim().isEmpty) return;
-    // 期間フィルタは検索をまたいで保持する
+    // 期間フィルタ・検索対象は検索をまたいで保持する
     state = NoteSearchState(
       isLoading: true,
       query: query,
       rangeStart: state.rangeStart,
       rangeEnd: state.rangeEnd,
+      scope: state.scope,
+      host: state.host,
+      userAcct: state.userAcct,
     );
     final api = _ref.read(misskeyApiProvider);
     if (api == null) return;
+    // 検索対象ごとの入力バリデーションと userId 解決
+    if (state.scope == NoteSearchScope.server && state.host.trim().isEmpty) {
+      state = state.copyWith(
+        isLoading: false,
+        error: const SearchError(
+          type: SearchErrorType.unknown,
+          message: '対象サーバーのホスト名を入力してください',
+        ),
+      );
+      return;
+    }
+    String? userId;
+    if (state.scope == NoteSearchScope.user) {
+      if (state.userAcct.trim().isEmpty) {
+        state = state.copyWith(
+          isLoading: false,
+          error: const SearchError(
+            type: SearchErrorType.unknown,
+            message: '対象ユーザーを入力してください（例: @name@example.com）',
+          ),
+        );
+        return;
+      }
+      userId = await _resolveUserId(api, state.userAcct);
+      if (userId == null) {
+        state = state.copyWith(
+          isLoading: false,
+          error: const SearchError(
+            type: SearchErrorType.unknown,
+            message: '指定したユーザーが見つかりませんでした',
+          ),
+        );
+        return;
+      }
+    }
     try {
       final notes = await api.searchNotes(
         query: query,
         rangeStartAt: _rangeStartAt(),
         rangeEndAt: _rangeEndAt(),
+        host: _hostParam(),
+        userId: userId,
       );
       state = state.copyWith(
         notes: notes,
         isLoading: false,
         hasMore: notes.length >= 20,
         clearError: true,
+        resolvedUserId: userId,
       );
     } on DioException catch (e) {
       state = state.copyWith(isLoading: false, error: _parseDioError(e));
@@ -115,6 +181,8 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
         untilId: state.notes.last.id,
         rangeStartAt: _rangeStartAt(),
         rangeEndAt: _rangeEndAt(),
+        host: _hostParam(),
+        userId: state.resolvedUserId,
       );
       state = state.copyWith(
         notes: [...state.notes, ...notes],
@@ -149,6 +217,56 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
     }
   }
 
+  /// 検索対象を切り替える。入力済みクエリがあれば同条件で即再検索する。
+  /// ただし server / user は対象が未入力のうちは自動再検索しない
+  /// （ホスト名・ユーザー入力後に明示的な検索操作で実行する）。
+  void setScope(NoteSearchScope scope) {
+    if (state.scope == scope) return;
+    state = state.copyWith(scope: scope);
+    if (state.query.trim().isEmpty) return;
+    if (scope == NoteSearchScope.server && state.host.trim().isEmpty) return;
+    if (scope == NoteSearchScope.user && state.userAcct.trim().isEmpty) return;
+    search(state.query);
+  }
+
+  /// scope == server のときの対象ホスト名を更新する（再検索は明示操作に委ねる）。
+  void setScopeHost(String host) => state = state.copyWith(host: host);
+
+  /// scope == user のときの対象ユーザーを更新する（再検索は明示操作に委ねる）。
+  void setScopeUserAcct(String acct) => state = state.copyWith(userAcct: acct);
+
+  /// 現在の scope から notes/search の host パラメータを算出する。
+  /// all / user は null（絞り込みなし）、local は '.'、server は入力ホスト名。
+  String? _hostParam() {
+    switch (state.scope) {
+      case NoteSearchScope.all:
+      case NoteSearchScope.user:
+        return null;
+      case NoteSearchScope.local:
+        return '.';
+      case NoteSearchScope.server:
+        final h = state.host.trim();
+        return h.isEmpty ? null : h;
+    }
+  }
+
+  /// `@name` / `@name@host` / `name@host` 形式の入力から userId を解決する。
+  /// 見つからない場合は null を返す。
+  Future<String?> _resolveUserId(MisskeyApi api, String acct) async {
+    var s = acct.trim();
+    if (s.startsWith('@')) s = s.substring(1);
+    final parts = s.split('@');
+    final username = parts[0];
+    if (username.isEmpty) return null;
+    final userHost = parts.length > 1 && parts[1].isNotEmpty ? parts[1] : null;
+    try {
+      final user = await api.getUserByUsername(username, userHost: userHost);
+      return user.id;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// rangeStart をその日の始まり（00:00:00.000）のエポックミリ秒に変換する。
   int? _rangeStartAt() {
     final s = state.rangeStart;
@@ -172,11 +290,15 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
   }
 
   void clear() {
-    // 検索結果はクリアするが、期間フィルタ（rangeStart/rangeEnd）は保持する。
+    // 検索結果はクリアするが、期間フィルタ（rangeStart/rangeEnd）と
+    // 検索対象（scope/host/userAcct）は保持する。
     // 範囲の完全解除はチップの × から setDateRange(null, null) で行う。
     state = NoteSearchState(
       rangeStart: state.rangeStart,
       rangeEnd: state.rangeEnd,
+      scope: state.scope,
+      host: state.host,
+      userAcct: state.userAcct,
     );
   }
 }
@@ -286,12 +408,26 @@ class TagNoteSearchNotifier extends StateNotifier<TagNoteSearchState> {
 
 // ---- ユーザー検索（users/search）----
 
+/// ユーザー検索の検索対象。
+/// all: 全て（combined）/ local: ローカル / remote: リモート
+enum UserSearchOrigin { all, local, remote }
+
+extension UserSearchOriginApi on UserSearchOrigin {
+  /// users/search の origin パラメータ値へ変換する。
+  String get apiValue => switch (this) {
+    UserSearchOrigin.all => 'combined',
+    UserSearchOrigin.local => 'local',
+    UserSearchOrigin.remote => 'remote',
+  };
+}
+
 class UserSearchState {
   final List<UserModel> users;
   final bool isLoading;
   final bool hasMore;
   final SearchError? error;
   final String query;
+  final UserSearchOrigin origin;
 
   const UserSearchState({
     this.users = const [],
@@ -299,6 +435,7 @@ class UserSearchState {
     this.hasMore = false,
     this.error,
     this.query = '',
+    this.origin = UserSearchOrigin.all,
   });
 
   UserSearchState copyWith({
@@ -308,12 +445,14 @@ class UserSearchState {
     SearchError? error,
     bool clearError = false,
     String? query,
+    UserSearchOrigin? origin,
   }) => UserSearchState(
     users: users ?? this.users,
     isLoading: isLoading ?? this.isLoading,
     hasMore: hasMore ?? this.hasMore,
     error: clearError ? null : (error ?? this.error),
     query: query ?? this.query,
+    origin: origin ?? this.origin,
   );
 }
 
@@ -329,11 +468,15 @@ class UserSearchNotifier extends StateNotifier<UserSearchState> {
 
   Future<void> search(String query) async {
     if (query.trim().isEmpty) return;
-    state = UserSearchState(isLoading: true, query: query);
+    // 検索対象は検索をまたいで保持する
+    state = UserSearchState(isLoading: true, query: query, origin: state.origin);
     final api = _ref.read(misskeyApiProvider);
     if (api == null) return;
     try {
-      final users = await api.searchUsers(query: query);
+      final users = await api.searchUsers(
+        query: query,
+        origin: state.origin.apiValue,
+      );
       state = state.copyWith(
         users: users,
         isLoading: false,
@@ -362,6 +505,7 @@ class UserSearchNotifier extends StateNotifier<UserSearchState> {
       final users = await api.searchUsers(
         query: state.query,
         offset: state.users.length,
+        origin: state.origin.apiValue,
       );
       state = state.copyWith(
         users: [...state.users, ...users],
@@ -381,8 +525,16 @@ class UserSearchNotifier extends StateNotifier<UserSearchState> {
     }
   }
 
+  /// 検索対象を切り替える。入力済みクエリがあれば同条件で即再検索する。
+  void setOrigin(UserSearchOrigin origin) {
+    if (state.origin == origin) return;
+    state = state.copyWith(origin: origin);
+    if (state.query.trim().isNotEmpty) search(state.query);
+  }
+
   void clear() {
-    state = const UserSearchState();
+    // 検索対象（origin）は保持する
+    state = UserSearchState(origin: state.origin);
   }
 }
 

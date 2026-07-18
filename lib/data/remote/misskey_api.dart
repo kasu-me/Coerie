@@ -933,21 +933,28 @@ class MisskeyApi {
   ///
   /// [rangeStartAt] / [rangeEndAt] はエポックミリ秒で投稿日時の範囲を指定
   /// （Misskey 2026.6.0+、旧サーバーでは無視される）。
+  ///
+  /// [host] は検索対象サーバーを絞り込む。ローカルのみに絞る場合は `'.'` を指定する
+  /// （null なら全サーバー対象）。[userId] を指定するとそのユーザーの投稿に絞り込む。
   Future<List<NoteModel>> searchNotes({
     required String query,
     int limit = 20,
     String? untilId,
     int? rangeStartAt,
     int? rangeEndAt,
+    String? host,
+    String? userId,
   }) async {
     final params = <String, dynamic>{'query': query, 'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
     if (rangeStartAt != null) params['rangeStartAt'] = rangeStartAt;
     if (rangeEndAt != null) params['rangeEndAt'] = rangeEndAt;
+    if (host != null) params['host'] = host;
+    if (userId != null) params['userId'] = userId;
     final res = await _dio.post('notes/search', data: _body(params));
     final list = res.data as List<dynamic>;
     return list
-        .map((n) => NoteModel.fromJson(n as Map<String, dynamic>, host: host))
+        .map((n) => NoteModel.fromJson(n as Map<String, dynamic>, host: this.host))
         .toList();
   }
 
@@ -986,15 +993,20 @@ class MisskeyApi {
   }
 
   /// users/search: ユーザーをキーワード検索する
+  ///
+  /// [origin] は検索対象を絞り込む。'combined'（全て・既定）/ 'local'（ローカル）/
+  /// 'remote'（リモート）のいずれかを指定する。
   Future<List<UserModel>> searchUsers({
     required String query,
     int limit = 20,
     int? offset,
+    String origin = 'combined',
   }) async {
     final params = <String, dynamic>{
       'query': query,
       'limit': limit,
       'detail': true,
+      'origin': origin,
     };
     if (offset != null) params['offset'] = offset;
     final res = await _dio.post('users/search', data: _body(params));
