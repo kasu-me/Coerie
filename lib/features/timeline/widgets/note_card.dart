@@ -92,6 +92,11 @@ class _NoteCardState extends ConsumerState<NoteCard> {
   final Set<int> _revealedSensitiveIndexes = {};
   StreamSubscription<NoteUpdateEvent>? _noteUpdateSub;
   StreamSubscription<void>? _reconnectSub;
+  // 購読時に取得した StreamingService をキャッシュする。
+  // dispose() 内では `ref` を使用できない（"Cannot use ref after the widget
+  // was disposed" 例外になり、その例外がツリー破棄を中断して ScrollPosition
+  // 漏れ等の二次障害を招く）ため、キャッシュ経由で unsubNote する。
+  StreamingService? _streaming;
   PollModel? _localPoll;
   bool _isVoting = false;
   // このデバイスから送信したリアクション操作に対する WebSocket エコーの待ち数。
@@ -110,6 +115,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
   void _subscribeNote() {
     final streaming = ref.read(streamingServiceProvider);
     if (streaming == null) return;
+    _streaming = streaming;
     final noteId = widget.note.id;
     streaming.subNote(noteId);
     _noteUpdateSub = streaming.noteUpdateStream
@@ -307,6 +313,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
       // 購読し直し
       final streaming = ref.read(streamingServiceProvider);
       if (streaming != null) {
+        _streaming = streaming;
         _noteUpdateSub?.cancel();
         streaming.unsubNote(oldWidget.note.id);
         streaming.subNote(widget.note.id);
@@ -321,8 +328,9 @@ class _NoteCardState extends ConsumerState<NoteCard> {
   void dispose() {
     _noteUpdateSub?.cancel();
     _reconnectSub?.cancel();
-    // 購読カウントを解放する（参照カウントが 0 になれば unsubNote が送信される）
-    ref.read(streamingServiceProvider)?.unsubNote(widget.note.id);
+    // 購読カウントを解放する（参照カウントが 0 になれば unsubNote が送信される）。
+    // dispose 内では ref を使えないため、購読時にキャッシュした参照を使う。
+    _streaming?.unsubNote(widget.note.id);
     super.dispose();
   }
 

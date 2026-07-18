@@ -258,6 +258,11 @@ class _NoteSearchTab extends ConsumerStatefulWidget {
 class _NoteSearchTabState extends ConsumerState<_NoteSearchTab>
     with AutomaticKeepAliveClientMixin {
   final _scrollController = ScrollController();
+  // 新規検索（loadMore ではない）を検知したら、結果反映後にスクロール位置を
+  // 先頭へ戻すためのフラグ。これをしないと前回結果を下までスクロールした
+  // オフセットが新結果に引き継がれ最下部にクランプされ、無限スクロールが
+  // 発火しなくなる。
+  bool _pendingScrollReset = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -275,15 +280,35 @@ class _NoteSearchTabState extends ConsumerState<_NoteSearchTab>
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 300) {
+    // 稀に ScrollController が複数の ScrollPosition に紐づくと `.position` が
+    // 例外を投げ、以降 loadMore に到達しなくなるため安全に判定する（本来は 1 個）。
+    if (_scrollController.positions.length != 1) return;
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 300) {
       ref.read(noteSearchProvider.notifier).loadMore();
+    }
+  }
+
+  /// 新規検索の開始→結果反映を監視し、結果が入った直後に先頭へスクロールを戻す。
+  void _handleScrollReset(NoteSearchState? prev, NoteSearchState next) {
+    final startedFresh =
+        next.isLoading &&
+        next.notes.isEmpty &&
+        !(prev != null && prev.isLoading && prev.notes.isEmpty);
+    if (startedFresh) _pendingScrollReset = true;
+    final gotResults = !next.isLoading && next.notes.isNotEmpty;
+    if (gotResults && _pendingScrollReset) {
+      _pendingScrollReset = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) _scrollController.jumpTo(0);
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    ref.listen(noteSearchProvider, _handleScrollReset);
     final state = ref.watch(noteSearchProvider);
     final canSearchNotes = ref.watch(canSearchNotesProvider).valueOrNull ?? true;
     if (!canSearchNotes) {
@@ -571,6 +596,8 @@ class _UserSearchTab extends ConsumerStatefulWidget {
 class _UserSearchTabState extends ConsumerState<_UserSearchTab>
     with AutomaticKeepAliveClientMixin {
   final _scrollController = ScrollController();
+  // 新規検索の結果反映後に先頭へスクロールを戻すためのフラグ（_NoteSearchTab と同様）
+  bool _pendingScrollReset = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -588,15 +615,34 @@ class _UserSearchTabState extends ConsumerState<_UserSearchTab>
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 300) {
+    // 同上（複数ポジション時の例外を防ぐ）。
+    if (_scrollController.positions.length != 1) return;
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 300) {
       ref.read(userSearchProvider.notifier).loadMore();
+    }
+  }
+
+  /// 新規検索の開始→結果反映を監視し、結果が入った直後に先頭へスクロールを戻す。
+  void _handleScrollReset(UserSearchState? prev, UserSearchState next) {
+    final startedFresh =
+        next.isLoading &&
+        next.users.isEmpty &&
+        !(prev != null && prev.isLoading && prev.users.isEmpty);
+    if (startedFresh) _pendingScrollReset = true;
+    final gotResults = !next.isLoading && next.users.isNotEmpty;
+    if (gotResults && _pendingScrollReset) {
+      _pendingScrollReset = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) _scrollController.jumpTo(0);
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    ref.listen(userSearchProvider, _handleScrollReset);
     final state = ref.watch(userSearchProvider);
     return Column(
       children: [

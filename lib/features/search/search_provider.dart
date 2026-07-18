@@ -90,11 +90,17 @@ final noteSearchProvider =
 
 class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
   final Ref _ref;
+  // リクエスト世代トークン。新規検索ごとに増分し、await 完了後に値が変わって
+  // いれば「別の検索に切り替わった後に遅れて返ってきた古い結果」とみなして破棄する。
+  // これがないと飛行中の loadMore が新しい検索結果を上書き・混入させ、
+  // 古い hasMore が居座って無限スクロールが止まる。
+  int _requestId = 0;
 
   NoteSearchNotifier(this._ref) : super(const NoteSearchState());
 
   Future<void> search(String query) async {
     if (query.trim().isEmpty) return;
+    final reqId = ++_requestId;
     // 期間フィルタ・検索対象は検索をまたいで保持する
     state = NoteSearchState(
       isLoading: true,
@@ -131,6 +137,7 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
         return;
       }
       userId = await _resolveUserId(api, state.userAcct);
+      if (reqId != _requestId) return;
       if (userId == null) {
         state = state.copyWith(
           isLoading: false,
@@ -150,6 +157,7 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
         host: _hostParam(),
         userId: userId,
       );
+      if (reqId != _requestId) return;
       state = state.copyWith(
         notes: notes,
         isLoading: false,
@@ -158,8 +166,10 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
         resolvedUserId: userId,
       );
     } on DioException catch (e) {
+      if (reqId != _requestId) return;
       state = state.copyWith(isLoading: false, error: _parseDioError(e));
     } catch (e) {
+      if (reqId != _requestId) return;
       state = state.copyWith(
         isLoading: false,
         error: SearchError(
@@ -172,6 +182,8 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
 
   Future<void> loadMore() async {
     if (state.isLoading || !state.hasMore || state.notes.isEmpty) return;
+    // 現在の検索に紐づく世代を捕捉。await 中に新規検索が走ったら結果を捨てる。
+    final reqId = _requestId;
     state = state.copyWith(isLoading: true);
     final api = _ref.read(misskeyApiProvider);
     if (api == null) return;
@@ -184,14 +196,17 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
         host: _hostParam(),
         userId: state.resolvedUserId,
       );
+      if (reqId != _requestId) return;
       state = state.copyWith(
         notes: [...state.notes, ...notes],
         isLoading: false,
         hasMore: notes.length >= 20,
       );
     } on DioException catch (e) {
+      if (reqId != _requestId) return;
       state = state.copyWith(isLoading: false, error: _parseDioError(e));
     } catch (e) {
+      if (reqId != _requestId) return;
       state = state.copyWith(
         isLoading: false,
         error: SearchError(
@@ -343,17 +358,21 @@ final tagNoteSearchProvider =
 
 class TagNoteSearchNotifier extends StateNotifier<TagNoteSearchState> {
   final Ref _ref;
+  // リクエスト世代トークン（[NoteSearchNotifier] と同様、古い応答の破棄用）。
+  int _requestId = 0;
 
   TagNoteSearchNotifier(this._ref) : super(const TagNoteSearchState());
 
   Future<void> search(String tag) async {
     final trimmed = tag.trim().replaceAll('#', '');
     if (trimmed.isEmpty) return;
+    final reqId = ++_requestId;
     state = TagNoteSearchState(isLoading: true, tag: trimmed);
     final api = _ref.read(misskeyApiProvider);
     if (api == null) return;
     try {
       final notes = await api.searchNotesByTag(tag: trimmed);
+      if (reqId != _requestId) return;
       state = state.copyWith(
         notes: notes,
         isLoading: false,
@@ -361,8 +380,10 @@ class TagNoteSearchNotifier extends StateNotifier<TagNoteSearchState> {
         clearError: true,
       );
     } on DioException catch (e) {
+      if (reqId != _requestId) return;
       state = state.copyWith(isLoading: false, error: _parseDioError(e));
     } catch (e) {
+      if (reqId != _requestId) return;
       state = state.copyWith(
         isLoading: false,
         error: SearchError(
@@ -375,6 +396,7 @@ class TagNoteSearchNotifier extends StateNotifier<TagNoteSearchState> {
 
   Future<void> loadMore() async {
     if (state.isLoading || !state.hasMore || state.notes.isEmpty) return;
+    final reqId = _requestId;
     state = state.copyWith(isLoading: true);
     final api = _ref.read(misskeyApiProvider);
     if (api == null) return;
@@ -383,14 +405,17 @@ class TagNoteSearchNotifier extends StateNotifier<TagNoteSearchState> {
         tag: state.tag,
         untilId: state.notes.last.id,
       );
+      if (reqId != _requestId) return;
       state = state.copyWith(
         notes: [...state.notes, ...notes],
         isLoading: false,
         hasMore: notes.length >= 20,
       );
     } on DioException catch (e) {
+      if (reqId != _requestId) return;
       state = state.copyWith(isLoading: false, error: _parseDioError(e));
     } catch (e) {
+      if (reqId != _requestId) return;
       state = state.copyWith(
         isLoading: false,
         error: SearchError(
@@ -463,11 +488,14 @@ final userSearchProvider =
 
 class UserSearchNotifier extends StateNotifier<UserSearchState> {
   final Ref _ref;
+  // リクエスト世代トークン（[NoteSearchNotifier] と同様、古い応答の破棄用）。
+  int _requestId = 0;
 
   UserSearchNotifier(this._ref) : super(const UserSearchState());
 
   Future<void> search(String query) async {
     if (query.trim().isEmpty) return;
+    final reqId = ++_requestId;
     // 検索対象は検索をまたいで保持する
     state = UserSearchState(isLoading: true, query: query, origin: state.origin);
     final api = _ref.read(misskeyApiProvider);
@@ -477,6 +505,7 @@ class UserSearchNotifier extends StateNotifier<UserSearchState> {
         query: query,
         origin: state.origin.apiValue,
       );
+      if (reqId != _requestId) return;
       state = state.copyWith(
         users: users,
         isLoading: false,
@@ -484,8 +513,10 @@ class UserSearchNotifier extends StateNotifier<UserSearchState> {
         clearError: true,
       );
     } on DioException catch (e) {
+      if (reqId != _requestId) return;
       state = state.copyWith(isLoading: false, error: _parseDioError(e));
     } catch (e) {
+      if (reqId != _requestId) return;
       state = state.copyWith(
         isLoading: false,
         error: SearchError(
@@ -498,6 +529,7 @@ class UserSearchNotifier extends StateNotifier<UserSearchState> {
 
   Future<void> loadMore() async {
     if (state.isLoading || !state.hasMore || state.users.isEmpty) return;
+    final reqId = _requestId;
     state = state.copyWith(isLoading: true);
     final api = _ref.read(misskeyApiProvider);
     if (api == null) return;
@@ -507,14 +539,17 @@ class UserSearchNotifier extends StateNotifier<UserSearchState> {
         offset: state.users.length,
         origin: state.origin.apiValue,
       );
+      if (reqId != _requestId) return;
       state = state.copyWith(
         users: [...state.users, ...users],
         isLoading: false,
         hasMore: users.length >= 20,
       );
     } on DioException catch (e) {
+      if (reqId != _requestId) return;
       state = state.copyWith(isLoading: false, error: _parseDioError(e));
     } catch (e) {
+      if (reqId != _requestId) return;
       state = state.copyWith(
         isLoading: false,
         error: SearchError(
@@ -578,17 +613,21 @@ final hashtagSearchProvider =
 
 class HashtagSearchNotifier extends StateNotifier<HashtagSearchState> {
   final Ref _ref;
+  // リクエスト世代トークン（[NoteSearchNotifier] と同様、古い応答の破棄用）。
+  int _requestId = 0;
 
   HashtagSearchNotifier(this._ref) : super(const HashtagSearchState());
 
   Future<void> search(String query) async {
     final trimmed = query.trim().replaceAll('#', '');
     if (trimmed.isEmpty) return;
+    final reqId = ++_requestId;
     state = HashtagSearchState(isLoading: true, query: trimmed);
     final api = _ref.read(misskeyApiProvider);
     if (api == null) return;
     try {
       final tags = await api.searchHashtags(query: trimmed);
+      if (reqId != _requestId) return;
       state = state.copyWith(
         hashtags: tags,
         isLoading: false,
@@ -596,8 +635,10 @@ class HashtagSearchNotifier extends StateNotifier<HashtagSearchState> {
         clearError: true,
       );
     } on DioException catch (e) {
+      if (reqId != _requestId) return;
       state = state.copyWith(isLoading: false, error: _parseDioError(e));
     } catch (e) {
+      if (reqId != _requestId) return;
       state = state.copyWith(
         isLoading: false,
         error: SearchError(
@@ -610,6 +651,7 @@ class HashtagSearchNotifier extends StateNotifier<HashtagSearchState> {
 
   Future<void> loadMore() async {
     if (state.isLoading || !state.hasMore || state.hashtags.isEmpty) return;
+    final reqId = _requestId;
     state = state.copyWith(isLoading: true);
     final api = _ref.read(misskeyApiProvider);
     if (api == null) return;
@@ -618,14 +660,17 @@ class HashtagSearchNotifier extends StateNotifier<HashtagSearchState> {
         query: state.query,
         offset: state.hashtags.length,
       );
+      if (reqId != _requestId) return;
       state = state.copyWith(
         hashtags: [...state.hashtags, ...tags],
         isLoading: false,
         hasMore: tags.length >= 20,
       );
     } on DioException catch (e) {
+      if (reqId != _requestId) return;
       state = state.copyWith(isLoading: false, error: _parseDioError(e));
     } catch (e) {
+      if (reqId != _requestId) return;
       state = state.copyWith(
         isLoading: false,
         error: SearchError(
