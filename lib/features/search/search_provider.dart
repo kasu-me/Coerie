@@ -316,6 +316,9 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
       userAcct: state.userAcct,
     );
   }
+
+  /// プルリフレッシュ用。現在のクエリ・条件のまま先頭から再検索する。
+  Future<void> refresh() => search(state.query);
 }
 
 // ---- タグ検索（notes/search-by-tag）----
@@ -429,6 +432,9 @@ class TagNoteSearchNotifier extends StateNotifier<TagNoteSearchState> {
   void clear() {
     state = const TagNoteSearchState();
   }
+
+  /// プルリフレッシュ用。現在のタグのまま先頭から再検索する。
+  Future<void> refresh() => search(state.tag);
 }
 
 // ---- ユーザー検索（users/search）----
@@ -571,6 +577,9 @@ class UserSearchNotifier extends StateNotifier<UserSearchState> {
     // 検索対象（origin）は保持する
     state = UserSearchState(origin: state.origin);
   }
+
+  /// プルリフレッシュ用。現在のクエリ・条件のまま先頭から再検索する。
+  Future<void> refresh() => search(state.query);
 }
 
 // ---- ハッシュタグ検索（hashtags/search）----
@@ -684,6 +693,9 @@ class HashtagSearchNotifier extends StateNotifier<HashtagSearchState> {
   void clear() {
     state = const HashtagSearchState();
   }
+
+  /// プルリフレッシュ用。現在のクエリのまま先頭から再検索する。
+  Future<void> refresh() => search(state.query);
 }
 
 // ---- エラー解析ヘルパー ----

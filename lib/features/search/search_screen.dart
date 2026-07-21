@@ -349,6 +349,7 @@ class _NoteSearchTabState extends ConsumerState<_NoteSearchTab>
       notes: state.notes,
       isLoadingMore: state.isLoading,
       scrollController: _scrollController,
+      onRefresh: () => ref.read(noteSearchProvider.notifier).refresh(),
     );
   }
 }
@@ -578,6 +579,7 @@ class _TagNoteSearchTabState extends ConsumerState<_TagNoteSearchTab>
       notes: state.notes,
       isLoadingMore: state.isLoading,
       scrollController: _scrollController,
+      onRefresh: () => ref.read(tagNoteSearchProvider.notifier).refresh(),
     );
   }
 }
@@ -667,18 +669,22 @@ class _UserSearchTabState extends ConsumerState<_UserSearchTab>
         child: Text('キーワードを入力して検索してください', style: TextStyle(color: Colors.grey)),
       );
     }
-    return ListView.builder(
-      controller: _scrollController,
-      itemCount: state.users.length + (state.isLoading ? 1 : 0),
-      itemBuilder: (context, index) {
-        if (index == state.users.length) {
-          return const Padding(
-            padding: EdgeInsets.all(16),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        return _UserTile(user: state.users[index]);
-      },
+    return RefreshIndicator(
+      onRefresh: () => ref.read(userSearchProvider.notifier).refresh(),
+      child: ListView.builder(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: state.users.length + (state.isLoading ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (index == state.users.length) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          return _UserTile(user: state.users[index]);
+        },
+      ),
     );
   }
 }
@@ -803,29 +809,33 @@ class _HashtagSearchTabState extends ConsumerState<_HashtagSearchTab>
         child: Text('キーワードを入力して検索してください', style: TextStyle(color: Colors.grey)),
       );
     }
-    return ListView.builder(
-      controller: _scrollController,
-      itemCount: state.hashtags.length + (state.isLoading ? 1 : 0),
-      itemBuilder: (context, index) {
-        if (index == state.hashtags.length) {
-          return const Padding(
-            padding: EdgeInsets.all(16),
-            child: Center(child: CircularProgressIndicator()),
+    return RefreshIndicator(
+      onRefresh: () => ref.read(hashtagSearchProvider.notifier).refresh(),
+      child: ListView.builder(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: state.hashtags.length + (state.isLoading ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (index == state.hashtags.length) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          final tag = state.hashtags[index];
+          return ListTile(
+            leading: const Icon(Icons.tag),
+            title: Text('#$tag'),
+            onTap: () {
+              // タグタブに遷移してそのタグで検索
+              // SearchScreen の TabController を操作する方法として
+              // タグタブ（index=1）にフォーカスして自動検索するために
+              // go_router の extra で情報を渡す
+              context.push('/search', extra: {'tab': 1, 'query': tag});
+            },
           );
-        }
-        final tag = state.hashtags[index];
-        return ListTile(
-          leading: const Icon(Icons.tag),
-          title: Text('#$tag'),
-          onTap: () {
-            // タグタブに遷移してそのタグで検索
-            // SearchScreen の TabController を操作する方法として
-            // タグタブ（index=1）にフォーカスして自動検索するために
-            // go_router の extra で情報を渡す
-            context.push('/search', extra: {'tab': 1, 'query': tag});
-          },
-        );
-      },
+        },
+      ),
     );
   }
 }
@@ -836,27 +846,33 @@ class _NoteList extends StatelessWidget {
   final List<NoteModel> notes;
   final bool isLoadingMore;
   final ScrollController scrollController;
+  final Future<void> Function() onRefresh;
 
   const _NoteList({
     required this.notes,
     required this.isLoadingMore,
     required this.scrollController,
+    required this.onRefresh,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      controller: scrollController,
-      itemCount: notes.length + (isLoadingMore ? 1 : 0),
-      itemBuilder: (context, index) {
-        if (index == notes.length) {
-          return const Padding(
-            padding: EdgeInsets.all(16),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        return NoteCard(note: notes[index]);
-      },
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView.builder(
+        controller: scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: notes.length + (isLoadingMore ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (index == notes.length) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          return NoteCard(note: notes[index]);
+        },
+      ),
     );
   }
 }
