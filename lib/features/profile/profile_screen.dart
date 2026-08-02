@@ -42,15 +42,14 @@ class _AppBarIcon extends StatelessWidget {
   }
 }
 
-// ユーザー情報プロバイダー
-final userProfileProvider = FutureProvider.family<UserModel, String>((
-  ref,
-  userId,
-) async {
-  final api = ref.watch(misskeyApiProvider);
-  if (api == null) throw Exception('未ログイン');
-  return api.getUser(userId);
-});
+// ユーザー情報プロバイダー。
+// autoDispose により、閲覧したユーザーぶんの UserModel が際限なく残らないようにする。
+final userProfileProvider = FutureProvider.autoDispose
+    .family<UserModel, String>((ref, userId) async {
+      final api = ref.watch(misskeyApiProvider);
+      if (api == null) throw Exception('未ログイン');
+      return api.getUser(userId);
+    });
 
 // ピン留め投稿プロバイダーは pinned_notes_provider.dart に移動しました
 

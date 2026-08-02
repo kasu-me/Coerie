@@ -410,9 +410,14 @@ class StreamingService {
 // Riverpodプロバイダー
 final streamingServiceProvider = Provider<StreamingService?>((ref) {
   final account = ref.watch(activeAccountProvider);
-  final settings = ref.watch(settingsProvider);
+  // 設定全体を watch すると、フォントサイズ等の無関係な変更でも
+  // このプロバイダーが再生成され、WebSocket の再接続と
+  // subNote 購読の消失を招くため、必要な項目だけを購読する。
+  final realtimeUpdate = ref.watch(
+    settingsProvider.select((s) => s.realtimeUpdate),
+  );
 
-  if (account == null || !settings.realtimeUpdate) return null;
+  if (account == null || !realtimeUpdate) return null;
 
   final service = StreamingService(host: account.host, token: account.token);
   service.connect();

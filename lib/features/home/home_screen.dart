@@ -6,7 +6,6 @@ import '../../core/streaming/streaming_service.dart';
 import '../../data/models/app_settings_model.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
-import '../../shared/providers/settings_provider.dart';
 import '../../shared/providers/notifications_badge_provider.dart';
 import '../../shared/providers/notifications_tab_visibility_provider.dart';
 import 'widgets/home_app_bar.dart';
@@ -88,7 +87,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    ref.watch(settingsProvider); // theme/fontSize等の変更を受け取る
+    // テーマ・フォントサイズの変更は app.dart の MaterialApp が
+    // settingsProvider を watch して配下ごと再構築するため、ここでは購読しない。
     final accountId = ref.watch(activeAccountProvider)?.id ?? '';
     final tabs = ref.watch(accountTabsProvider(accountId));
 

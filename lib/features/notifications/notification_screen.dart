@@ -266,20 +266,8 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
     if (state.items.isEmpty) {
       return const Center(child: Text('通知はありません'));
     }
-    // カスタム絵文字のローカルマップを取得
-    var localEmojiMap = <String, String>{};
-    final customEmojisAsync = ref.watch(customEmojisProvider);
-    customEmojisAsync.when(
-      data: (list) {
-        localEmojiMap = {
-          for (final e in list)
-            if (e['name'] != null && e['url'] != null)
-              e['name'] as String: e['url'] as String,
-        };
-      },
-      loading: () {},
-      error: (_, _) {},
-    );
+    // 接続先インスタンスのカスタム絵文字（マップは共有インスタンスをそのまま参照する）
+    final instanceEmojis = ref.watch(customEmojiUrlMapProvider);
 
     return RefreshIndicator(
       onRefresh: () =>
@@ -299,15 +287,14 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
                 : const SizedBox.shrink();
           }
           final note = state.items[index].note;
-          final emojiUrlMap = {
-            ...localEmojiMap,
-            if (note != null) ...note.emojis,
-            if (note != null) ...note.reactionEmojis,
-          };
           final profileOwnerId = ref.read(activeAccountProvider)?.userId ?? '';
           return _NotificationTile(
             notification: state.items[index],
-            emojiUrlMap: emojiUrlMap,
+            emojiResolver: EmojiResolver(
+              reactionEmojis: note?.reactionEmojis ?? const {},
+              noteEmojis: note?.emojis ?? const {},
+              instanceEmojis: instanceEmojis,
+            ),
             profileOwnerId: profileOwnerId,
           );
         },
@@ -320,12 +307,12 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
 
 class _NotificationTile extends StatelessWidget {
   final NotificationModel notification;
-  final Map<String, String> emojiUrlMap;
+  final EmojiResolver emojiResolver;
   final String? profileOwnerId;
 
   const _NotificationTile({
     required this.notification,
-    this.emojiUrlMap = const {},
+    this.emojiResolver = EmojiResolver.empty,
     this.profileOwnerId,
   });
 
@@ -444,14 +431,7 @@ class _NotificationTile extends StatelessWidget {
                           );
                         }
                         if (inner != null) {
-                          imageUrl = emojiUrlMap[inner];
-                          if (imageUrl == null) {
-                            final atIdx = inner.indexOf('@');
-                            final nameOnly = atIdx >= 0
-                                ? inner.substring(0, atIdx)
-                                : inner;
-                            imageUrl = emojiUrlMap[nameOnly];
-                          }
+                          imageUrl = emojiResolver.resolve(inner);
                         }
 
                         if (imageUrl != null) {

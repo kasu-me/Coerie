@@ -28,22 +28,6 @@ import '../../../shared/utils/emoji_utils.dart';
 import '../ogp_provider.dart';
 import '../timeline_provider.dart';
 
-// ---- カスタム絵文字URLマップ（name → url） ----
-final _emojiUrlMapProvider = Provider<Map<String, String>>((ref) {
-  return ref
-      .watch(customEmojisProvider)
-      .when(
-        data: (list) => {
-          for (final e in list)
-            if (e['name'] != null && e['url'] != null)
-              e['name'] as String: e['url'] as String,
-        },
-        loading: () => {},
-        // エラー時は空マップを返す（既存ノートの emojis/reactionEmojis フィールドで補完される）
-        error: (e, s) => {},
-      );
-});
-
 // ---- NoteCard ----
 
 IconData _renoteVisibilityIcon(String visibility) {
@@ -56,7 +40,57 @@ IconData _renoteVisibilityIcon(String visibility) {
   };
 }
 
-class NoteCard extends ConsumerStatefulWidget {
+/// ノート1件を表示する。
+///
+/// 引用なしリノートはラッパーではなく中身のノートを描画するため、
+/// アンラップだけを担当し、実体の描画は [_NoteCardBody] に委譲する。
+/// アンラップを [_NoteCardBody] の build 内で行うと、ラッパー側の State も
+/// 生成されて subNote 購読が二重になるため、ここで解決してから渡す。
+class NoteCard extends ConsumerWidget {
+  final NoteModel note;
+  final bool navigatable;
+  final UserModel? pinnedByUser;
+  final VoidCallback? onPinnedChanged;
+  final VoidCallback? onUnfavorited;
+  final Widget? trailing;
+  const NoteCard({
+    super.key,
+    required this.note,
+    this.navigatable = true,
+    this.pinnedByUser,
+    this.onPinnedChanged,
+    this.onUnfavorited,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 引用なしリノート（本文が無く renote だけがある）は、中身のノートを
+    // 描画してリノート情報をヘッダーとして添える。
+    if (note.text == null && note.renote != null) {
+      final activeAccount = ref.read(activeAccountProvider);
+      return _NoteCardBody(
+        note: note.renote!,
+        navigatable: navigatable,
+        renoteUser: note.user,
+        isMyRenote: activeAccount?.userId == note.user.id,
+        renoteWrapperNoteId: note.id,
+        renoteVisibility: note.visibility,
+      );
+    }
+
+    return _NoteCardBody(
+      note: note,
+      navigatable: navigatable,
+      pinnedByUser: pinnedByUser,
+      onPinnedChanged: onPinnedChanged,
+      onUnfavorited: onUnfavorited,
+      trailing: trailing,
+    );
+  }
+}
+
+class _NoteCardBody extends ConsumerStatefulWidget {
   final NoteModel note;
   final bool navigatable;
   final UserModel? renoteUser;
@@ -67,8 +101,7 @@ class NoteCard extends ConsumerStatefulWidget {
   final VoidCallback? onPinnedChanged;
   final VoidCallback? onUnfavorited;
   final Widget? trailing;
-  const NoteCard({
-    super.key,
+  const _NoteCardBody({
     required this.note,
     this.navigatable = true,
     this.renoteUser,
@@ -82,10 +115,10 @@ class NoteCard extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<NoteCard> createState() => _NoteCardState();
+  ConsumerState<_NoteCardBody> createState() => _NoteCardState();
 }
 
-class _NoteCardState extends ConsumerState<NoteCard> {
+class _NoteCardState extends ConsumerState<_NoteCardBody> {
   late Map<String, int> _localReactions;
   String? _myReaction;
   bool _cwExpanded = false;
@@ -300,7 +333,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
   }
 
   @override
-  void didUpdateWidget(NoteCard oldWidget) {
+  void didUpdateWidget(_NoteCardBody oldWidget) {
     super.didUpdateWidget(oldWidget);
     // タイムライン更新でnoteが差し替わった場合に同期
     if (oldWidget.note.id != widget.note.id) {
@@ -336,6 +369,18 @@ class _NoteCardState extends ConsumerState<NoteCard> {
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
 
+    final emojiResolver = EmojiResolver(
+      reactionEmojis: widget.note.reactionEmojis,
+      noteEmojis: widget.note.emojis,
+      instanceEmojis: ref.read(customEmojiUrlMapProvider),
+    );
+    // future をビルダー内で作るとリビルドのたびに再リクエストされるため、
+    // シートを開く前に1度だけ生成しておく。
+    final usersFuture = api.getNoteReactions(
+      widget.note.id,
+      reaction: reactionKey,
+    );
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -351,67 +396,22 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                   children: [
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Builder(
-                        builder: (ctx) {
-                          final localEmojiMap = ref.read(_emojiUrlMapProvider);
-                          final emojiUrlMap = {
-                            ...localEmojiMap,
-                            ...widget.note.emojis,
-                            ...widget.note.reactionEmojis,
-                          };
-
-                          final inner = _ReactionChip._inner(reactionKey);
-                          String? imageUrl;
-                          if (inner != null) {
-                            imageUrl = emojiUrlMap[inner];
-                            if (imageUrl == null) {
-                              final atIdx = inner.indexOf('@');
-                              final nameOnly = atIdx >= 0
-                                  ? inner.substring(0, atIdx)
-                                  : inner;
-                              imageUrl = emojiUrlMap[nameOnly];
-                            }
-                          }
-
-                          Widget iconWidget;
-                          if (imageUrl != null) {
-                            iconWidget = CachedNetworkImage(
-                              cacheManager: AppCacheManager(),
-                              imageUrl: imageUrl,
-                              height: 22,
-                              width: 22,
-                              fit: BoxFit.contain,
-                              errorWidget: (_, _, _) => Text(
-                                reactionKey,
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                            );
-                          } else {
-                            final twUrl = twemojiUrl(reactionKey);
-                            iconWidget = CachedNetworkImage(
-                              cacheManager: AppCacheManager(),
-                              imageUrl: twUrl,
-                              height: 22,
-                              width: 22,
-                              fit: BoxFit.contain,
-                              errorWidget: (_, _, _) => Text(
-                                reactionKey,
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                            );
-                          }
-
-                          return Row(
-                            children: [
-                              Text(
-                                'リアクション:',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                              const SizedBox(width: 8),
-                              iconWidget,
-                            ],
-                          );
-                        },
+                      child: Row(
+                        children: [
+                          Text(
+                            'リアクション:',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(width: 8),
+                          _ReactionEmojiImage(
+                            reactionKey: reactionKey,
+                            emojiResolver: emojiResolver,
+                            size: 22,
+                            fallbackStyle: Theme.of(
+                              context,
+                            ).textTheme.titleMedium,
+                          ),
+                        ],
                       ),
                     ),
                     TextButton(
@@ -422,10 +422,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                 ),
               ),
               FutureBuilder<List<UserModel>>(
-                future: api.getNoteReactions(
-                  widget.note.id,
-                  reaction: reactionKey,
-                ),
+                future: usersFuture,
                 builder: (ctx, snap) {
                   if (snap.connectionState != ConnectionState.done) {
                     return const SizedBox(
@@ -495,27 +492,18 @@ class _NoteCardState extends ConsumerState<NoteCard> {
     final note = widget.note;
     final theme = Theme.of(context);
     final settings = ref.watch(settingsProvider);
-    // ローカル絵文字マップにノート固有の絵文字（リモート含む）をマージする
-    final localEmojiMap = ref.watch(_emojiUrlMapProvider);
-    final emojiUrlMap = {
-      ...localEmojiMap,
-      ...note.emojis,
-      ...note.reactionEmojis,
-    };
+    // インスタンスの絵文字マップとノート固有の絵文字を参照だけで束ねる。
+    // マージした Map を作るとノート1枚の描画ごとに全カスタム絵文字を
+    // 複製することになるため、リゾルバ経由で引く。
+    final emojiResolver = EmojiResolver(
+      reactionEmojis: note.reactionEmojis,
+      noteEmojis: note.emojis,
+      instanceEmojis: ref.watch(customEmojiUrlMapProvider),
+    );
 
-    // リノート（引用なし）の場合
-    if (note.text == null && note.renote != null) {
-      final activeAccount = ref.read(activeAccountProvider);
-      final isMyRenote = activeAccount?.userId == note.user.id;
-      return NoteCard(
-        note: note.renote!,
-        navigatable: widget.navigatable,
-        renoteUser: note.user,
-        isMyRenote: isMyRenote,
-        renoteWrapperNoteId: note.id,
-        renoteVisibility: note.visibility,
-      );
-    }
+    // 投票の合計票数は選択肢ごとに変わらないため、ループの外で1度だけ求める
+    final pollTotalVotes =
+        _localPoll?.choices.fold<int>(0, (p, e) => p + e.votes) ?? 0;
 
     final card = Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -747,7 +735,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                         contentId: note.text!,
                         child: MfmContent(
                           text: note.text!,
-                          emojiUrlMap: emojiUrlMap,
+                          emojiResolver: emojiResolver,
                           style: TextStyle(fontSize: settings.fontSize),
                           enableAnimations: settings.mfmAnimation,
                           onMentionTap: _onMentionTap,
@@ -755,7 +743,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                       )
                     : MfmContent(
                         text: note.text!,
-                        emojiUrlMap: emojiUrlMap,
+                        emojiResolver: emojiResolver,
                         style: TextStyle(fontSize: settings.fontSize),
                         enableAnimations: settings.mfmAnimation,
                         onMentionTap: _onMentionTap,
@@ -768,7 +756,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                 padding: const EdgeInsets.only(top: 8),
                 child: _QuotedNote(
                   note: note.renote!,
-                  emojiUrlMap: emojiUrlMap,
+                  emojiResolver: emojiResolver,
                   fontSize: settings.fontSize,
                   onMentionTap: _onMentionTap,
                 ),
@@ -802,11 +790,9 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: List.generate(_localPoll!.choices.length, (i) {
                     final choice = _localPoll!.choices[i];
-                    final total = _localPoll!.choices.fold<int>(
-                      0,
-                      (p, e) => p + e.votes,
-                    );
-                    final pct = total > 0 ? (choice.votes / total) : 0.0;
+                    final pct = pollTotalVotes > 0
+                        ? (choice.votes / pollTotalVotes)
+                        : 0.0;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 6),
                       child: InkWell(
@@ -887,7 +873,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
                       count: e.value,
                       isSelected: isSelected,
                       isRemote: isRemote,
-                      emojiUrlMap: emojiUrlMap,
+                      emojiResolver: emojiResolver,
                       onTap: isRemote ? null : () => _handleReaction(e.key),
                       onLongPress: () => _showReactionUsers(e.key),
                     );
@@ -944,13 +930,13 @@ class _NoteCardState extends ConsumerState<NoteCard> {
 // ---- 引用ノート埋め込みウィジェット ----
 class _QuotedNote extends StatelessWidget {
   final NoteModel note;
-  final Map<String, String> emojiUrlMap;
+  final EmojiResolver emojiResolver;
   final double fontSize;
   final void Function(String username, String? host)? onMentionTap;
 
   const _QuotedNote({
     required this.note,
-    this.emojiUrlMap = const {},
+    this.emojiResolver = EmojiResolver.empty,
     this.fontSize = 14.0,
     this.onMentionTap,
   });
@@ -1016,7 +1002,7 @@ class _QuotedNote extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 6),
                 child: MfmContent(
                   text: displayNote.text!,
-                  emojiUrlMap: emojiUrlMap,
+                  emojiResolver: emojiResolver,
                   style: TextStyle(fontSize: fontSize * 0.95),
                   enableAnimations: false,
                   onMentionTap: onMentionTap,
@@ -1040,7 +1026,7 @@ class _ReactionChip extends StatelessWidget {
   final int count;
   final bool isSelected;
   final bool isRemote;
-  final Map<String, String> emojiUrlMap;
+  final EmojiResolver emojiResolver;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
@@ -1048,7 +1034,7 @@ class _ReactionChip extends StatelessWidget {
     required this.reactionKey,
     required this.count,
     required this.isSelected,
-    required this.emojiUrlMap,
+    required this.emojiResolver,
     required this.onTap,
     this.onLongPress,
     this.isRemote = false,
@@ -1075,17 +1061,6 @@ class _ReactionChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final inner = _inner(reactionKey); // e.g., "name@." or "name" or null
-    // リモート対応: フル形式（name@.）で検索し、なければ名前部分のみでフォールバック
-    String? imageUrl;
-    if (inner != null) {
-      imageUrl = emojiUrlMap[inner];
-      if (imageUrl == null) {
-        final atIdx = inner.indexOf('@');
-        final nameOnly = atIdx >= 0 ? inner.substring(0, atIdx) : inner;
-        imageUrl = emojiUrlMap[nameOnly];
-      }
-    }
 
     final chipWidget = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -1103,32 +1078,15 @@ class _ReactionChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (imageUrl != null)
-            Opacity(
-              opacity: isRemote ? 0.5 : 1.0,
-              child: CachedNetworkImage(
-                cacheManager: AppCacheManager(),
-                imageUrl: imageUrl,
-                height: 18,
-                width: 18,
-                fit: BoxFit.contain,
-                errorWidget: (context, url, error) =>
-                    Text(reactionKey, style: const TextStyle(fontSize: 12)),
-              ),
-            )
-          else
-            Opacity(
-              opacity: isRemote ? 0.5 : 1.0,
-              child: CachedNetworkImage(
-                cacheManager: AppCacheManager(),
-                imageUrl: twemojiUrl(reactionKey),
-                height: 18,
-                width: 18,
-                fit: BoxFit.contain,
-                errorWidget: (context, url, error) =>
-                    Text(reactionKey, style: const TextStyle(fontSize: 14)),
-              ),
+          Opacity(
+            opacity: isRemote ? 0.5 : 1.0,
+            child: _ReactionEmojiImage(
+              reactionKey: reactionKey,
+              emojiResolver: emojiResolver,
+              size: 18,
+              fallbackStyle: const TextStyle(fontSize: 14),
             ),
+          ),
           const SizedBox(width: 3),
           Text(
             '$count',
@@ -1150,6 +1108,41 @@ class _ReactionChip extends StatelessWidget {
       onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(12),
       child: chipWidget,
+    );
+  }
+}
+
+/// リアクションキーに対応する絵文字画像。
+///
+/// カスタム絵文字（`:name:` / `:name@host:`）はリゾルバで解決した URL を、
+/// 解決できない場合は Unicode 絵文字として Twemoji の URL を表示する。
+class _ReactionEmojiImage extends StatelessWidget {
+  final String reactionKey;
+  final EmojiResolver emojiResolver;
+  final double size;
+  final TextStyle? fallbackStyle;
+
+  const _ReactionEmojiImage({
+    required this.reactionKey,
+    required this.emojiResolver,
+    required this.size,
+    this.fallbackStyle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final inner = _ReactionChip._inner(reactionKey);
+    final imageUrl = inner != null
+        ? emojiResolver.resolve(inner)
+        : null; // カスタム絵文字でなければ Unicode 絵文字として扱う
+
+    return CachedNetworkImage(
+      cacheManager: AppCacheManager(),
+      imageUrl: imageUrl ?? twemojiUrl(reactionKey),
+      height: size,
+      width: size,
+      fit: BoxFit.contain,
+      errorWidget: (_, _, _) => Text(reactionKey, style: fallbackStyle),
     );
   }
 }
@@ -1249,6 +1242,9 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     }
 
     final isFavorited = _isFavorited ?? false;
+    // ピン留め状態の判定に使う。ビルダー内で生成するとシートの再構築ごとに
+    // リクエストが飛ぶため、開く前に1度だけ生成して表示と操作で共有する。
+    final meFuture = isOwn ? api?.getMe() : null;
 
     // ノートURLの構築
     final host = activeAccount?.host ?? '';
@@ -1366,7 +1362,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
             if (isOwn) ...[
               // ピン留め（追加/解除）
               FutureBuilder<UserModel?>(
-                future: api?.getMe(),
+                future: meFuture,
                 builder: (ctx, snap) {
                   final loading = snap.connectionState != ConnectionState.done;
                   final me = snap.data;
@@ -1377,14 +1373,15 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                     title: Text(
                       loading ? 'ピン留め...' : (isPinned ? 'ピン留め解除' : 'ピン留めに追加'),
                     ),
-                    onTap: loading || api == null
+                    onTap: loading || api == null || me == null
                         ? null
                         : () async {
                             Navigator.pop(sheetCtx);
                             try {
-                              final me2 = await api.getMe();
-                              final currentlyPinned = me2.pinnedNoteIds
-                                  .contains(widget.note.id);
+                              // 表示に使った結果をそのまま使う（getMe の二重呼び出しを避ける）
+                              final currentlyPinned = me.pinnedNoteIds.contains(
+                                widget.note.id,
+                              );
                               if (!context.mounted) return;
                               if (currentlyPinned) {
                                 final settings = ref.read(settingsProvider);
@@ -1733,6 +1730,10 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
 
+    // future をビルダー内で作るとリビルドのたびに再リクエストされるため、
+    // シートを開く前に1度だけ生成しておく。
+    final usersFuture = api.getNoteRenotes(widget.note.id);
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1763,7 +1764,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                 ),
               ),
               FutureBuilder<List<UserModel>>(
-                future: api.getNoteRenotes(widget.note.id),
+                future: usersFuture,
                 builder: (ctx, snap) {
                   if (snap.connectionState != ConnectionState.done) {
                     return const SizedBox(

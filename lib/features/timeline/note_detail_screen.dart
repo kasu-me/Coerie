@@ -5,42 +5,38 @@ import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
 import 'widgets/note_card.dart';
 
-// 先祖ノートチェーン（古い順）を再帰的に取得する
-final _ancestorsProvider = FutureProvider.family<List<NoteModel>, NoteModel>((
-  ref,
-  note,
-) async {
-  final api = ref.read(misskeyApiProvider);
-  if (api == null) return [];
+/// 指定した返信先IDから親を辿り、先祖ノートチェーン（古い順）を取得する。
+///
+/// family のキーは必ず ID（値の等価性が成立するもの）にすること。
+/// NoteModel は == を実装していないため、キーにするとインスタンスが変わるたび
+/// 別プロバイダーとして生成され、再取得と無制限のキャッシュ蓄積を招く。
+final _ancestorsProvider = FutureProvider.autoDispose
+    .family<List<NoteModel>, String>((ref, replyId) async {
+      final api = ref.read(misskeyApiProvider);
+      if (api == null) return [];
 
-  final ancestors = <NoteModel>[];
-  NoteModel? current = note;
+      final ancestors = <NoteModel>[];
+      String? currentReplyId = replyId;
 
-  while (true) {
-    // reply フィールドがある場合はそこから replyId を取得
-    final replyId = current?.reply?.id;
-    if (replyId == null) break;
+      while (currentReplyId != null) {
+        try {
+          final parent = await api.getNote(currentReplyId);
+          ancestors.insert(0, parent);
+          currentReplyId = parent.reply?.id;
+        } catch (_) {
+          break;
+        }
+      }
 
-    try {
-      final parent = await api.getNote(replyId);
-      ancestors.insert(0, parent);
-      current = parent;
-    } catch (_) {
-      break;
-    }
-  }
+      return ancestors;
+    });
 
-  return ancestors;
-});
-
-final _noteRepliesProvider = FutureProvider.family<List<NoteModel>, String>((
-  ref,
-  noteId,
-) async {
-  final api = ref.read(misskeyApiProvider);
-  if (api == null) return [];
-  return api.getNoteReplies(noteId);
-});
+final _noteRepliesProvider = FutureProvider.autoDispose
+    .family<List<NoteModel>, String>((ref, noteId) async {
+      final api = ref.read(misskeyApiProvider);
+      if (api == null) return [];
+      return api.getNoteReplies(noteId);
+    });
 
 class NoteDetailScreen extends ConsumerStatefulWidget {
   final NoteModel note;
@@ -62,7 +58,11 @@ class _NoteDetailScreenState extends ConsumerState<NoteDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final note = widget.note;
-    final ancestorsAsync = ref.watch(_ancestorsProvider(note));
+    // 返信でないノートは先祖を辿る必要がないため、プロバイダーを生成しない
+    final rootReplyId = note.reply?.id;
+    final ancestorsAsync = rootReplyId == null
+        ? const AsyncValue<List<NoteModel>>.data([])
+        : ref.watch(_ancestorsProvider(rootReplyId));
     final repliesAsync = ref.watch(_noteRepliesProvider(note.id));
     final theme = Theme.of(context);
 

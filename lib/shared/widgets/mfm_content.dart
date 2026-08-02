@@ -11,13 +11,32 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:go_router/go_router.dart';
 import '../utils/emoji_utils.dart';
 
+/// MFM 中のリンクを開く。
+///
+/// クリップURL（`https://host/clips/<id>`）はアプリ内画面へ遷移させ、
+/// それ以外は外部ブラウザで開く。
+Future<void> openMfmUrl(BuildContext ctx, String url) async {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return;
+
+  if (uri.pathSegments.length >= 2 && uri.pathSegments[0] == 'clips') {
+    final clipId = uri.pathSegments[1];
+    final host = uri.host;
+    final query = host.isNotEmpty ? '?host=${Uri.encodeComponent(host)}' : '';
+    ctx.push('/clips/$clipId$query');
+    return;
+  }
+
+  await launchUrl(uri, mode: LaunchMode.externalApplication);
+}
+
 /// MFM (Markup language For Misskey) テキストをレンダリングするウィジェット。
 ///
 /// [text] に MFM 記法を含む文字列を渡すと、太字・斜体・引用・コードブロック・
 /// カスタム絵文字・URL リンクなどを適切に描画します。
-class MfmContent extends StatelessWidget {
+class MfmContent extends StatefulWidget {
   final String text;
-  final Map<String, String> emojiUrlMap;
+  final EmojiResolver emojiResolver;
   final TextStyle? style;
   final bool enableAnimations;
   final void Function(String username, String? host)? onMentionTap;
@@ -28,22 +47,56 @@ class MfmContent extends StatelessWidget {
   const MfmContent({
     super.key,
     required this.text,
-    this.emojiUrlMap = const {},
+    this.emojiResolver = EmojiResolver.empty,
     this.style,
     this.enableAnimations = false,
     this.onMentionTap,
   });
 
+  @override
+  State<MfmContent> createState() => _MfmContentState();
+
+  // ---- パース結果キャッシュ ----
+
+  /// パース済みノードツリーのキャッシュ（本文テキスト → ノード、パース失敗時は null）。
+  ///
+  /// [MfmContent] は再ビルドのたびに本文をパースし直すため、タイムラインの
+  /// スクロールやリアクション操作で同じ本文のフルパースが何度も走る。
+  /// 本文は不変なので内容をキーにキャッシュできる。
+  /// 挿入順を保つ Map の性質を利用した簡易 LRU。
+  static final Map<String, List<mfm.MfmNode>?> _nodeCache = {};
+  static const int _nodeCacheLimit = 200;
+
+  static List<mfm.MfmNode>? _parse(String text) {
+    if (_nodeCache.containsKey(text)) {
+      // 参照されたエントリを末尾へ移して、古いものから追い出されるようにする
+      final cached = _nodeCache.remove(text);
+      _nodeCache[text] = cached;
+      return cached;
+    }
+
+    List<mfm.MfmNode>? nodes;
+    try {
+      nodes = const mfm.MfmParser().parse(text);
+    } catch (_) {
+      // パース失敗もキャッシュして、毎ビルドの再試行を避ける
+      nodes = null;
+    }
+
+    if (_nodeCache.length >= _nodeCacheLimit) {
+      _nodeCache.remove(_nodeCache.keys.first);
+    }
+    _nodeCache[text] = nodes;
+    return nodes;
+  }
+
   // ---- 静的ユーティリティ ----
 
   /// テキストを MFM パースして最初の URL を返す（OGP カード表示用）。
   static String? extractFirstUrl(String text) {
-    try {
-      final nodes = const mfm.MfmParser().parse(text);
-      return _findFirstUrl(nodes);
-    } catch (_) {
-      return null;
-    }
+    final nodes = _parse(text);
+    if (nodes == null) return null;
+    return _findFirstUrl(nodes);
   }
 
   static String? _findFirstUrl(List<mfm.MfmNode> nodes) {
@@ -57,18 +110,32 @@ class MfmContent extends StatelessWidget {
     }
     return null;
   }
+}
+
+class _MfmContentState extends State<MfmContent> {
+  /// このビルドで生成した [TapGestureRecognizer]。
+  ///
+  /// TextSpan に渡した recognizer は明示的に破棄しないと解放されないため、
+  /// ビルドごとに作り直したものを保持し、次のビルドと dispose で破棄する。
+  List<TapGestureRecognizer> _recognizers = [];
+  List<TapGestureRecognizer> _buildingRecognizers = [];
+
+  @override
+  void dispose() {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    super.dispose();
+  }
+
+  /// タップ処理付きの recognizer を生成し、破棄対象として登録する。
+  TapGestureRecognizer _tapRecognizer(VoidCallback onTap) {
+    final recognizer = TapGestureRecognizer()..onTap = onTap;
+    _buildingRecognizers.add(recognizer);
+    return recognizer;
+  }
 
   // ---- インスタンスヘルパー ----
-
-  String? _resolveEmojiUrl(String name) {
-    String? url = emojiUrlMap[name];
-    if (url != null) return url;
-    final atIdx = name.indexOf('@');
-    if (atIdx >= 0) {
-      url = emojiUrlMap[name.substring(0, atIdx)];
-    }
-    return url;
-  }
 
   Color? _parseHexColor(String hex) {
     try {
@@ -350,10 +417,9 @@ class MfmContent extends StatelessWidget {
         TextSpan(
           text: node.acct,
           style: style.copyWith(color: theme.colorScheme.primary),
-          recognizer: TapGestureRecognizer()
-            ..onTap = () {
-              onMentionTap?.call(node.username, node.host);
-            },
+          recognizer: _tapRecognizer(
+            () => widget.onMentionTap?.call(node.username, node.host),
+          ),
         ),
       ];
     }
@@ -363,10 +429,9 @@ class MfmContent extends StatelessWidget {
         TextSpan(
           text: '#${node.hashTag}',
           style: style.copyWith(color: theme.colorScheme.primary),
-          recognizer: TapGestureRecognizer()
-            ..onTap = () {
-              ctx.push('/search', extra: {'tab': 1, 'query': node.hashTag});
-            },
+          recognizer: _tapRecognizer(
+            () => ctx.push('/search', extra: {'tab': 1, 'query': node.hashTag}),
+          ),
         ),
       ];
     }
@@ -385,25 +450,7 @@ class MfmContent extends StatelessWidget {
             decoration: TextDecoration.underline,
             decorationColor: theme.colorScheme.primary,
           ),
-          recognizer: TapGestureRecognizer()
-            ..onTap = () async {
-              final uri = Uri.tryParse(raw);
-              if (uri != null) {
-                // 例: https://host/clips/clipId -> アプリ内遷移
-                if (uri.pathSegments.isNotEmpty &&
-                    uri.pathSegments[0] == 'clips' &&
-                    uri.pathSegments.length >= 2) {
-                  final clipId = uri.pathSegments[1];
-                  final host = uri.host;
-                  final query = host.isNotEmpty
-                      ? '?host=${Uri.encodeComponent(host)}'
-                      : '';
-                  ctx.push('/clips/$clipId$query');
-                  return;
-                }
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            },
+          recognizer: _tapRecognizer(() => openMfmUrl(ctx, raw)),
         ),
       ];
     }
@@ -420,37 +467,20 @@ class MfmContent extends StatelessWidget {
             decoration: TextDecoration.underline,
             decorationColor: theme.colorScheme.primary,
           ),
-          recognizer: TapGestureRecognizer()
-            ..onTap = () async {
-              final uri = Uri.tryParse(node.url);
-              if (uri != null) {
-                if (uri.pathSegments.isNotEmpty &&
-                    uri.pathSegments[0] == 'clips' &&
-                    uri.pathSegments.length >= 2) {
-                  final clipId = uri.pathSegments[1];
-                  final host = uri.host;
-                  final query = host.isNotEmpty
-                      ? '?host=${Uri.encodeComponent(host)}'
-                      : '';
-                  ctx.push('/clips/$clipId$query');
-                  return;
-                }
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            },
+          recognizer: _tapRecognizer(() => openMfmUrl(ctx, node.url)),
         ),
       ];
     }
 
     if (node is mfm.MfmEmojiCode) {
-      final url = _resolveEmojiUrl(node.name);
+      final url = widget.emojiResolver.resolve(node.name);
       final emojiSize = style.fontSize ?? 20.0;
       if (url != null) {
         return [
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
             child: Transform.translate(
-              offset: Offset(0, emojiSize * _emojiOffsetSizeY),
+              offset: Offset(0, emojiSize * MfmContent._emojiOffsetSizeY),
               child: CachedNetworkImage(
                 cacheManager: AppCacheManager(),
                 imageUrl: url,
@@ -475,7 +505,7 @@ class MfmContent extends StatelessWidget {
         WidgetSpan(
           alignment: PlaceholderAlignment.middle,
           child: Transform.translate(
-            offset: Offset(0, emojiSize * _emojiOffsetSizeY),
+            offset: Offset(0, emojiSize * MfmContent._emojiOffsetSizeY),
             child: CachedNetworkImage(
               cacheManager: AppCacheManager(),
               imageUrl: twemojiUrl(node.emoji),
@@ -755,7 +785,7 @@ class MfmContent extends StatelessWidget {
       case 'rainbow':
       case 'fall':
       case 'sparkle':
-        if (!enableAnimations) return _buildSpans(children, style, ctx);
+        if (!widget.enableAnimations) return _buildSpans(children, style, ctx);
         return _buildAnimationSpans(node.name, node.args, children, style, ctx);
 
       // 振り仮名 ($[ruby ベーステキスト ルビ])
@@ -959,7 +989,7 @@ class MfmContent extends StatelessWidget {
         WidgetSpan(
           alignment: PlaceholderAlignment.middle,
           child: Transform.translate(
-            offset: Offset(0, emojiSize * _emojiOffsetSizeY),
+            offset: Offset(0, emojiSize * MfmContent._emojiOffsetSizeY),
             child: CachedNetworkImage(
               cacheManager: AppCacheManager(),
               imageUrl: twemojiUrl(emoji),
@@ -1001,6 +1031,7 @@ class MfmContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final style = widget.style;
     // テーマの bodyMedium を基底として明示的に fontFamily を引き継いだうえで、
     // 呼び出し元から渡された style でフォントサイズ等を上書きする。
     // RichText は DefaultTextStyle を継承しないため、ここで合成しないと
@@ -1010,17 +1041,29 @@ class MfmContent extends StatelessWidget {
         .merge(style)
         .copyWith(color: style?.color ?? theme.colorScheme.onSurface);
 
-    List<mfm.MfmNode> nodes;
-    try {
-      nodes = const mfm.MfmParser().parse(text);
-    } catch (_) {
-      // パースエラー時はプレーンテキストで表示
-      return RichText(
-        text: TextSpan(text: text, style: base),
-      );
+    // 今回のビルドで作る recognizer を集める。前回ぶんはビルド完了後に破棄する。
+    final previous = _recognizers;
+    _buildingRecognizers = [];
+
+    final nodes = MfmContent._parse(widget.text);
+    final result = nodes == null
+        // パースエラー時はプレーンテキストで表示
+        ? RichText(text: TextSpan(text: widget.text, style: base))
+        : _buildNodeList(nodes, base, context);
+
+    _recognizers = _buildingRecognizers;
+    _buildingRecognizers = [];
+    // 直前のフレームで表示中の span がまだ旧 recognizer を参照しているため、
+    // 破棄はフレーム確定後まで遅らせる。
+    if (previous.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        for (final r in previous) {
+          r.dispose();
+        }
+      });
     }
 
-    return _buildNodeList(nodes, base, context);
+    return result;
   }
 }
 

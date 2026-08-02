@@ -27,6 +27,49 @@ bool _isEmojiRune(int r) {
       (r >= 0x3297 && r <= 0x3299); // ㊗ ㊙
 }
 
+/// カスタム絵文字の名前から画像URLを解決する。
+///
+/// 3つの供給元をマージした `Map` を作らず、参照だけ保持して検索時に
+/// 優先順位順で引く。マージすると、インスタンスのカスタム絵文字（大規模
+/// サーバーでは数千件）をノートの描画ごとに丸ごと複製することになるため。
+///
+/// 優先順位はマージ時の上書き順（instance → note → reaction）と等価になるよう、
+/// [reactionEmojis] → [noteEmojis] → [instanceEmojis] の順に検索する。
+class EmojiResolver {
+  /// リアクションで使われている絵文字（リモート絵文字を含む）。
+  final Map<String, String> reactionEmojis;
+
+  /// ノート本文で使われている絵文字。
+  final Map<String, String> noteEmojis;
+
+  /// 接続先インスタンスのカスタム絵文字一覧。
+  final Map<String, String> instanceEmojis;
+
+  const EmojiResolver({
+    this.reactionEmojis = const {},
+    this.noteEmojis = const {},
+    this.instanceEmojis = const {},
+  });
+
+  /// 解決先を持たない空のリゾルバ。
+  static const EmojiResolver empty = EmojiResolver();
+
+  /// `name` または `name@host` 形式の絵文字名に対応する画像URLを返す。
+  ///
+  /// まず完全一致を全供給元から探し、見つからなければホスト部を落とした
+  /// 名前で再検索する（リモート絵文字がホスト付きで届くケースへの対応）。
+  String? resolve(String name) {
+    final direct = _lookup(name);
+    if (direct != null) return direct;
+    final atIdx = name.indexOf('@');
+    if (atIdx < 0) return null;
+    return _lookup(name.substring(0, atIdx));
+  }
+
+  String? _lookup(String key) =>
+      reactionEmojis[key] ?? noteEmojis[key] ?? instanceEmojis[key];
+}
+
 /// Twemoji CDN の URL を返す。
 /// U+FE0F (バリエーションセレクタ-16) はキーキャップシーケンス以外では
 /// Twemoji のファイル名に含まれないため除外する。

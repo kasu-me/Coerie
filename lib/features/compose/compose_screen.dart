@@ -23,6 +23,7 @@ import '../../shared/providers/account_visibility_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../draft/draft_provider.dart';
 import 'emoji_picker_sheet.dart';
+import '../../shared/utils/emoji_utils.dart';
 import '../../shared/widgets/mfm_content.dart';
 
 sealed class _AttachedMedia {}
@@ -1956,16 +1957,6 @@ class _MfmPreviewArea extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final emojisAsync = ref.watch(customEmojisProvider);
-    final emojiUrlMap = emojisAsync.when(
-      data: (list) => {
-        for (final e in list)
-          if (e['name'] != null && e['url'] != null)
-            e['name'] as String: e['url'] as String,
-      },
-      loading: () => <String, String>{},
-      error: (_, _) => <String, String>{},
-    );
 
     if (text.trim().isEmpty) {
       return Padding(
@@ -1983,7 +1974,9 @@ class _MfmPreviewArea extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: MfmContent(
         text: text,
-        emojiUrlMap: emojiUrlMap,
+        emojiResolver: EmojiResolver(
+          instanceEmojis: ref.watch(customEmojiUrlMapProvider),
+        ),
         enableAnimations: true,
       ),
     );

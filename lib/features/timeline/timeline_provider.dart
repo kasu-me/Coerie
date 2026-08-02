@@ -64,6 +64,7 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
     _ref.listen(activeAccountProvider, (prev, next) {
       if (prev?.id != next?.id) {
         // isLoading: true で即座にローディング表示に切り替える
+        _noteIds.clear();
         state = const TimelineState(isLoading: true);
         // アカウント切り替え時は各タイムラインを再取得する。
         // microtask で遅延させることで misskeyApiProvider が新アカウントで
@@ -203,10 +204,10 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
       if (loadMore) {
         state = state.copyWith(
           isLoadingMore: false,
-          notes: [...state.notes, ...notes],
+          notes: _syncNotes([...state.notes, ...notes]),
         );
       } else {
-        state = state.copyWith(isLoading: false, notes: notes);
+        state = state.copyWith(isLoading: false, notes: _syncNotes(notes));
       }
     } catch (e) {
       state = state.copyWith(
@@ -235,7 +236,10 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
         limit: 20,
         extraParams: extraParams,
       );
-      state = state.copyWith(isLoadingMore: false, notes: notes);
+      state = state.copyWith(
+        isLoadingMore: false,
+        notes: _syncNotes(notes),
+      );
       // WebSocket が接続されていない場合は、通知を API から手動取得してバッジ等を更新する
       final status = _ref
           .read(streamingStatusProvider)
@@ -258,10 +262,23 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
     }
   }
 
+  /// 保持中のノートIDの集合。ストリーミング受信ごとの重複チェックを
+  /// リスト全走査（O(n)）にしないために state と同期して保持する。
+  final Set<String> _noteIds = {};
+
+  /// 上限を適用したうえで [_noteIds] を同期し、state に入れるリストを返す。
+  /// state の更新は呼び出し側で1回だけ行うこと（分けると余分な再構築が起きる）。
+  List<NoteModel> _syncNotes(List<NoteModel> notes) {
+    final capped = _capNotes(notes);
+    _noteIds
+      ..clear()
+      ..addAll(capped.map((n) => n.id));
+    return capped;
+  }
+
   void prependNote(NoteModel note) {
-    // 重複チェック
-    if (state.notes.any((n) => n.id == note.id)) return;
-    state = state.copyWith(notes: _capNotes([note, ...state.notes]));
+    if (_noteIds.contains(note.id)) return;
+    state = state.copyWith(notes: _syncNotes([note, ...state.notes]));
   }
 
   Future<List<NoteModel>> fetchNew() async {
@@ -280,12 +297,10 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
       );
       if (newNotes.isNotEmpty) {
         // WebSocket の prependNote と競合した場合の重複を除去
-        final existingIds = state.notes.map((n) => n.id).toSet();
         // sinceId を使うと Misskey API は昇順（古い順）でノートを返すため、
         // 降順（新しい順）に並べ替えてから先頭に挿入する
-        final unique =
-            newNotes.where((n) => !existingIds.contains(n.id)).toList()
-              ..sort((a, b) => b.id.compareTo(a.id));
+        final unique = newNotes.where((n) => !_noteIds.contains(n.id)).toList()
+          ..sort((a, b) => b.id.compareTo(a.id));
         // refresh() と競合した場合、unique に現在の先頭より古いノートが
         // 含まれていると順番が乱れるため、現在の先頭より新しいものだけ挿入する
         final currentTopId = state.notes.first.id;
@@ -294,7 +309,7 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
             .toList();
         if (toInsert.isNotEmpty) {
           state = state.copyWith(
-            notes: _capNotes([...toInsert, ...state.notes]),
+            notes: _syncNotes([...toInsert, ...state.notes]),
           );
         }
       }
@@ -305,8 +320,11 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
   }
 
   void removeNote(String noteId) {
+    // 保持していないノートの削除イベントでは state を差し替えない
+    // （全タイムラインが購読しているため、無関係な再構築を避ける）
+    if (!_noteIds.contains(noteId)) return;
     state = state.copyWith(
-      notes: state.notes.where((n) => n.id != noteId).toList(),
+      notes: _syncNotes(state.notes.where((n) => n.id != noteId).toList()),
     );
   }
 }

@@ -1,10 +1,12 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:coerie/core/services/cache_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:go_router/go_router.dart';
+import '../../shared/widgets/mfm_content.dart';
 
 class OgpData {
   final String title;
@@ -34,24 +36,59 @@ String? _parseOgTag(String html, String property) {
   return r1.firstMatch(html)?.group(1) ?? r2.firstMatch(html)?.group(1);
 }
 
-final ogpProvider = FutureProvider.family<OgpData?, String>((ref, url) async {
+/// OGP 取得用の Dio。リクエストごとに生成すると接続プールを使い回せないため共有する。
+final _ogpDio = Dio(
+  BaseOptions(
+    connectTimeout: const Duration(seconds: 8),
+    receiveTimeout: const Duration(seconds: 8),
+    sendTimeout: const Duration(seconds: 8),
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; Coerie/1.0)',
+      'Accept': 'text/html',
+    },
+  ),
+);
+
+/// 読み込む HTML の上限バイト数。
+/// og: メタタグは `<head>` にあるため先頭だけ読めば足りる。上限を設けないと
+/// 巨大なページで通信量とメモリを浪費する。
+const _maxHtmlBytes = 128 * 1024;
+
+/// ページ先頭の最大 [_maxHtmlBytes] バイトだけをストリームで読み取る。
+Future<String?> _fetchHtmlHead(String url) async {
+  final res = await _ogpDio.get<ResponseBody>(
+    url,
+    options: Options(
+      responseType: ResponseType.stream,
+      followRedirects: true,
+      validateStatus: (s) => s != null && s < 400,
+    ),
+  );
+  final body = res.data;
+  if (body == null) return null;
+
+  final bytes = <int>[];
+  // 上限に達したら break でストリームを解約し、残りの受信を打ち切る
+  await for (final chunk in body.stream) {
+    bytes.addAll(chunk);
+    if (bytes.length >= _maxHtmlBytes) break;
+  }
+  // 文字コードは UTF-8 を前提とし、壊れたバイト列は置換文字で読み飛ばす
+  return utf8.decode(bytes, allowMalformed: true);
+}
+
+final ogpProvider = FutureProvider.autoDispose.family<OgpData?, String>((
+  ref,
+  url,
+) async {
+  // 取得結果は一定時間保持する。autoDispose のみだとカードがスクロールで
+  // 画面外に出るたびに破棄され、戻るたびに再取得が走ってしまう。
+  final link = ref.keepAlive();
+  final timer = Timer(const Duration(minutes: 10), link.close);
+  ref.onDispose(timer.cancel);
+
   try {
-    final dio = Dio();
-    final res = await dio.get<String>(
-      url,
-      options: Options(
-        responseType: ResponseType.plain,
-        followRedirects: true,
-        validateStatus: (s) => s != null && s < 400,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; Coerie/1.0)',
-          'Accept': 'text/html',
-        },
-        receiveTimeout: const Duration(seconds: 8),
-        sendTimeout: const Duration(seconds: 8),
-      ),
-    );
-    final html = res.data;
+    final html = await _fetchHtmlHead(url);
     if (html == null) return null;
 
     final title = _parseOgTag(html, 'og:title');
@@ -95,24 +132,7 @@ class _OgpCardContent extends StatelessWidget {
     final domain = Uri.tryParse(ogp.url)?.host ?? ogp.url;
 
     return GestureDetector(
-      onTap: () async {
-        final uri = Uri.tryParse(ogp.url);
-        if (uri != null) {
-          // 例: https://host/clips/clipId -> アプリ内遷移
-          if (uri.pathSegments.isNotEmpty &&
-              uri.pathSegments[0] == 'clips' &&
-              uri.pathSegments.length >= 2) {
-            final clipId = uri.pathSegments[1];
-            final host = uri.host;
-            final query = host.isNotEmpty
-                ? '?host=${Uri.encodeComponent(host)}'
-                : '';
-            context.push('/clips/$clipId$query');
-            return;
-          }
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        }
-      },
+      onTap: () => openMfmUrl(context, ogp.url),
       child: Container(
         decoration: BoxDecoration(
           border: Border.all(color: theme.colorScheme.outlineVariant, width: 1),

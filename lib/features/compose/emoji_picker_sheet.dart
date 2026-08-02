@@ -14,6 +14,25 @@ final customEmojisProvider = FutureProvider<List<Map<String, dynamic>>>((
   return api.getEmojis();
 });
 
+/// 接続先インスタンスのカスタム絵文字の name→url マップ。
+///
+/// [customEmojisProvider] の生リストから一度だけ構築して以降は使い回す。
+/// 描画側でこのマップを複製しないこと（[EmojiResolver] 経由で参照する）。
+final customEmojiUrlMapProvider = Provider<Map<String, String>>((ref) {
+  return ref
+      .watch(customEmojisProvider)
+      .maybeWhen(
+        data: (list) => {
+          for (final e in list)
+            if (e['name'] != null && e['url'] != null)
+              e['name'] as String: e['url'] as String,
+        },
+        // 未取得・エラー時は空マップ。
+        // 各ノートの emojis/reactionEmojis フィールドで補完される。
+        orElse: () => const <String, String>{},
+      );
+});
+
 // Unicode 絵文字データ（カテゴリ名: [絵文字文字列, ...] — Unicode 17.0 全件）
 const _unicodeEmojiCategories = <String, List<String>>{
   '😀 顔・感情': [
