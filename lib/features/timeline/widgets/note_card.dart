@@ -1797,6 +1797,26 @@ class _MediaGrid extends StatefulWidget {
 class _MediaGridState extends State<_MediaGrid> {
   final Set<int> _revealedSensitiveIndexes = {};
 
+  @override
+  void didUpdateWidget(_MediaGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // ListView のウィジェット再利用で別ノートの添付に差し替わることがあるため、
+    // 添付ファイルが変わったら「表示」状態を持ち越さない
+    if (_revealedSensitiveIndexes.isNotEmpty &&
+        !_hasSameFiles(oldWidget.files, widget.files)) {
+      _revealedSensitiveIndexes.clear();
+    }
+  }
+
+  static bool _hasSameFiles(List<DriveFileModel> a, List<DriveFileModel> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id) return false;
+    }
+    return true;
+  }
+
   Widget _wrapSensitive({
     required DriveFileModel file,
     required int globalIndex,
