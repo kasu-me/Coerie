@@ -7,6 +7,7 @@ class AccountModelAdapter extends TypeAdapter<AccountModel> {
   // フィールドを追加するときは必ず末尾に追記すること。
   // 旧バージョンで保存されたレコードには後続バイトが存在しないため、
   // availableBytes を確認してから読み、無ければ既定値を使う。
+  // avatarUrl は「フラグ＋本体」の2段構えなので、フラグを読んだあとにも確認する。
   // （フィールドの削除・並べ替え・型変更は既存データを読めなくするため不可）
   @override
   AccountModel read(BinaryReader reader) {

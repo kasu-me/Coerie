@@ -130,9 +130,7 @@ void main() {
 
   group('shouldDiscardOnFailure', () {
     test('ファイルI/O・ロック失敗では破棄しない', () {
-      // Hive は初期化時に .lock ファイルを開いてロックする。ストレージが
-      // 一時的に読めない、権限が無い、といった復旧可能なケースなので
-      // トークンを消してはいけない。
+      // 復旧可能なケースなのでトークンを消してはいけない。
       final lockFailure = FileSystemException(
         'lock failed',
         '/data/user/0/app/hive/accounts.lock',

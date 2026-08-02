@@ -256,7 +256,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
     // 保存先がメモリ上のみに落ちている場合、box.put() は成功し一覧にも出るが
     // 再起動で全部消える。保存できたと誤解させないよう明示する。
-    // （経緯は HiveService.consumeStartupIssue() のコメントを参照）
     if (HiveService.isVolatile(AppConstants.draftsBox)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

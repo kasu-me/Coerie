@@ -7,13 +7,13 @@ description: Hiveで永続化しているモデル（AccountModel / DraftModel�
 
 ## なぜ必要か
 
-`accountsBox` にはMisskeyのアクセストークンが入っている。アダプターの読み取りが失敗すると
-`HiveService.init()` が例外を投げ、`main.dart` が `runApp` に到達しない。つまり
-**アプリが起動不能になり、ユーザー側の復旧手段はデータ削除か再インストールしかない。**
+`accountsBox` にはMisskeyのアクセストークンが入っている。かつてはアダプターの読み取りが
+失敗すると `HiveService.init()` の例外が `main.dart` を突き抜けて `runApp` に到達せず、
+**アプリが起動不能になり、ユーザー側の復旧手段はデータ削除か再インストールしかなかった。**
 
-`_openBoxSafely()` の保険（開けなければ破棄して作り直し、それも駄目ならメモリ上で開く）は
-入っているが、**形式不整合が原因で発動した場合はユーザーが全アカウントの再ログインを
-強いられる**。発動させないことが目的。
+現在は `_openBoxSafely()` の保険（開けなければ破棄して作り直し、それも駄目ならメモリ上で
+開く）が入っているため起動自体は通る。ただし**形式不整合が原因で発動した場合はユーザーが
+全アカウントの再ログインを強いられる**。保険は最後の砦であって、発動させないことが目的。
 （ファイルI/O失敗が原因の場合はデータを破棄しないので、次回起動で復帰しうる。
 下記「復旧フォールバックの3段階」を参照）
 
@@ -107,6 +107,10 @@ flutter test test/data
   18ケース）。`consumeStartupIssue()` の対象・優先順位・一度きりの取り出しと、
   `shouldDiscardOnFailure()` の分類を固定している。状態は `@visibleForTesting` の
   `debugSetStartupState()` から注入する。
+- `_openBoxSafely()` の段階遷移そのもの … **未カバー**。`Hive.initFlutter()` が
+  path_provider に依存し、ユニットテストでは常に失敗して全ボックスが step 3 に
+  落ちるため、現状の形では検証できない。保存先パスを注入できる形に切り出せば、
+  壊れた `.hive` ファイルを一時ディレクトリに置いて step 1→2→3 を実地で確認できる。
 - 新しいアダプターを追加したら、上記を雛形に同等のテストも必ず追加すること。
 
 ### 復旧フォールバックの3段階
@@ -121,6 +125,8 @@ flutter test test/data
 | step 3 | メモリ上のみで開いた（`volatileBoxNames`） | **保存は成功して見えるが再起動で消える** |
 
 2つの集合は排他（step 3 に落ちる際に step 2 の記録を取り消す）。
+なお step 2 の削除に成功した直後に再オープンが失敗した場合、破棄済みなのに
+`resetBoxNames` から外れてしまう既知の不具合がある（`hive_service.dart` の TODO）。
 
 **step 2 は失敗の原因を選ぶ。** 破棄はアクセストークンの消去を意味するため、
 `shouldDiscardOnFailure()` が false を返す失敗では step 2 を飛ばして step 3 へ直行する。
@@ -136,25 +142,29 @@ flutter test test/data
 CRC 破損は `crashRecovery: true` により末尾切り詰めで自動復旧されるので、
 そもそもここには到達しない。
 
-> **未検証事項**: Hive は初期化時に `.lock` ファイルをロックするため、複数 isolate から
-> 同じボックスを開くとロック競合が起きうる。ただし**その構成は本アプリでは未検証**で、
-> 現状バックグラウンド isolate は存在しない。上記の分類は競合時にデータを消さないだけで、
-> 多重オープンを成立させるものではない。プッシュ通知ハンドラや WorkManager を
-> 追加する際は、Hive の多重オープン可否を別途検証すること。
+> **未検証事項**: Hive は `StorageBackendVm.initialize()` で `.lock` ファイルを
+> 排他ロックする。`RandomAccessFile.lock()` は既定でロック取得を**待つ**ため、競合しても
+> 例外にはならず起動がハングする可能性がある（＝上記の分類には乗らない）。
+> **その構成は本アプリでは未検証**で、現状バックグラウンド isolate は存在しない。
+> プッシュ通知ハンドラや WorkManager を追加する際は、Hive の多重オープン可否を
+> 別途検証すること。
 
 ### 意図的に見送っているもの
 
 `draftsBox` の問題は**起動時には**通知されない。ログイン状態が維持されるため
 ログイン画面を通らず、過去の下書きが黙って消える（step 2）。発生確率はむしろ
-accountsBox より高い（draft 側の方が変更頻度が高いため）が、失われるのは未送信の
+accountsBox より高い（`DraftModelAdapter` は files / cw / isSensitive と3回拡張された
+実績があり、次に触られて壊れる可能性が高いのは draft 側）が、失われるのは未送信の
 下書き数件で影響が軽く、ホーム画面に通知経路を新設するコストに見合わないと判断した。
-代わりに上記テストで発生確率自体を下げている。
+「壊れたことを事後に伝える」代わりに、上記テストで壊れる確率自体を下げている。
 
 一方 step 3 は「消える」ではなく「保存できたと嘘をつく」ため見送っていない。
-下書き保存時に `HiveService.isVolatile()` を見て、この起動中しか保持されない旨を
-通知している（`compose_screen.dart` の `_saveDraft`）。
+`StorageBackendMemory.writeFrames` は no-op なので `box.put()` は成功し同一起動中は
+一覧にも出るが、再起動すると全部消える。下書き保存時に `HiveService.isVolatile()` を
+見て、この起動中しか保持されない旨を通知している（`compose_screen.dart` の `_saveDraft`）。
 
-詳細な経緯は `HiveService.consumeStartupIssue()` のコメントに記載。
+方針を変えてホーム画面でも通知する場合、破棄・非永続の事実は `resetBoxNames` /
+`volatileBoxNames` に残り続けるので、そちらを参照すればよい。
 
 テストは `BinaryWriterImpl` / `BinaryReaderImpl` を直接使うため `hive` を
 dev_dependencies に直接入れてある（`hive_flutter` 経由の推移的依存だけだと

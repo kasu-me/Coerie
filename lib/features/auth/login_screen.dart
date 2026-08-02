@@ -36,10 +36,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // 起動時にローカルデータの復旧が走っていた場合、ユーザーから見ると
     // 「理由もなくログアウトしていた」状態になるため、必ず理由を提示する。
     // アカウント追加でこの画面を開いた場合は無関係なので出さない。
-    //
-    // consumeStartupIssue() は accountsBox 専用。下書き側の問題はこの画面の
-    // 文言と対象がずれるため対象外で、意図的な見送りの経緯と
-    // step 2 / step 3 の違いは HiveService.consumeStartupIssue() のコメントに記載。
     if (!widget.addAccount) {
       _startupIssue = HiveService.consumeStartupIssue();
     }
