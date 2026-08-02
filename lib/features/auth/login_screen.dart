@@ -10,6 +10,7 @@ import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/account_visibility_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../../core/auth/miauth_service.dart';
+import '../../data/local/hive_service.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/app_settings_model.dart';
 
@@ -27,6 +28,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _hostController = TextEditingController();
   bool _isLoading = false;
   String? _errorMessage;
+  HiveStartupIssue? _startupIssue;
+
+  @override
+  void initState() {
+    super.initState();
+    // 起動時にローカルデータの復旧が走っていた場合、ユーザーから見ると
+    // 「理由もなくログアウトしていた」状態になるため、必ず理由を提示する。
+    // アカウント追加でこの画面を開いた場合は無関係なので出さない。
+    //
+    // consumeStartupIssue() は accountsBox 専用。下書き側の問題はこの画面の
+    // 文言と対象がずれるため対象外で、意図的な見送りの経緯と
+    // step 2 / step 3 の違いは HiveService.consumeStartupIssue() のコメントに記載。
+    if (!widget.addAccount) {
+      _startupIssue = HiveService.consumeStartupIssue();
+    }
+  }
 
   @override
   void dispose() {
@@ -217,6 +234,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Widget _buildStartupIssueNotice(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isReset = _startupIssue == HiveStartupIssue.accountsReset;
+    final icon = isReset
+        ? Icons.restore_page_outlined
+        : Icons.sd_card_alert_outlined;
+    final message = isReset
+        ? '保存データが壊れていたため初期化しました。お手数ですが、もう一度ログインしてください。'
+        : 'データの保存領域を利用できませんでした。ログインはできますが、この起動中の変更は保存されません。アプリを再起動すると復帰する場合があります。';
+
+    // 実際にデータが失われた（または失われる）通知なので errorContainer を使う。
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: scheme.onErrorContainer),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: scheme.onErrorContainer),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close),
+            iconSize: 18,
+            color: scheme.onErrorContainer,
+            tooltip: '閉じる',
+            onPressed: () => setState(() => _startupIssue = null),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -241,6 +298,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 48),
+              if (_startupIssue != null) ...[
+                _buildStartupIssueNotice(context),
+                const SizedBox(height: 24),
+              ],
               Form(
                 key: _formKey,
                 child: TextFormField(

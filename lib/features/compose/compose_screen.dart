@@ -11,6 +11,7 @@ import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/constants/image_compression_level.dart';
 import '../../core/services/image_compression_service.dart';
+import '../../data/local/hive_service.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/note_model.dart';
 import '../../data/remote/misskey_api.dart';
@@ -251,7 +252,20 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               : null,
           isSensitive: false,
         );
-    if (mounted) context.pop();
+    if (!mounted) return;
+
+    // 保存先がメモリ上のみに落ちている場合、box.put() は成功し一覧にも出るが
+    // 再起動で全部消える。保存できたと誤解させないよう明示する。
+    // （経緯は HiveService.consumeStartupIssue() のコメントを参照）
+    if (HiveService.isVolatile(AppConstants.draftsBox)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('保存領域を利用できないため、この下書きはアプリを終了すると失われます。'),
+          duration: Duration(seconds: 5),
+        ),
+      );
+    }
+    context.pop();
   }
 
   Future<void> _pickMedia() async {
