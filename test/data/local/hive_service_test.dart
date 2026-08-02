@@ -31,6 +31,21 @@ void main() {
       );
     });
 
+    test('accountsBox の一部が自動復旧で失われたら accountsPartiallyLost', () {
+      HiveService.debugSetStartupState(recovered: const {accounts});
+
+      expect(
+        HiveService.consumeStartupIssue(),
+        HiveStartupIssue.accountsPartiallyLost,
+      );
+    });
+
+    test('draftsBox だけが自動復旧で失われた場合は通知しない', () {
+      HiveService.debugSetStartupState(recovered: const {drafts});
+
+      expect(HiveService.consumeStartupIssue(), isNull);
+    });
+
     test('draftsBox だけを破棄した場合は通知しない', () {
       HiveService.debugSetStartupState(reset: const {drafts});
 
@@ -79,6 +94,20 @@ void main() {
       );
     });
 
+    test('破棄はレコード欠落より優先される', () {
+      // step 1 が成功しないと recovered は立たないので本来同時には起きないが、
+      // 「まだ読めていた」より「全部消した」の方が重い、という順序を固定する。
+      HiveService.debugSetStartupState(
+        reset: const {accounts},
+        recovered: const {accounts},
+      );
+
+      expect(
+        HiveService.consumeStartupIssue(),
+        HiveStartupIssue.accountsReset,
+      );
+    });
+
     test('accountsBox が破棄のみなら draftsBox の非永続より優先される', () {
       HiveService.debugSetStartupState(
         reset: const {accounts},
@@ -110,12 +139,14 @@ void main() {
       HiveService.debugSetStartupState(
         reset: const {accounts},
         volatile: const {drafts},
+        recovered: const {drafts},
       );
 
       HiveService.consumeStartupIssue();
 
       expect(HiveService.resetBoxNames, contains(accounts));
       expect(HiveService.volatileBoxNames, contains(drafts));
+      expect(HiveService.recoveredBoxNames, contains(drafts));
       expect(HiveService.isVolatile(drafts), isTrue);
     });
   });
@@ -204,10 +235,11 @@ void main() {
   });
 
   group('公開している集合は変更できない', () {
-    test('resetBoxNames / volatileBoxNames は変更不可', () {
+    test('resetBoxNames / volatileBoxNames / recoveredBoxNames は変更不可', () {
       HiveService.debugSetStartupState(
         reset: const {accounts},
         volatile: const {drafts},
+        recovered: const {drafts},
       );
 
       expect(
@@ -216,6 +248,10 @@ void main() {
       );
       expect(
         () => HiveService.volatileBoxNames.add('x'),
+        throwsUnsupportedError,
+      );
+      expect(
+        () => HiveService.recoveredBoxNames.add('x'),
         throwsUnsupportedError,
       );
     });

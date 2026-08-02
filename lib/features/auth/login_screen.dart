@@ -238,6 +238,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         Icons.restore_page_outlined,
         '保存データが壊れていたため初期化しました。お手数ですが、もう一度ログインしてください。',
       ),
+      HiveStartupIssue.accountsPartiallyLost => (
+        Icons.warning_amber_rounded,
+        '保存データの一部が壊れていたため読み込めませんでした。お手数ですが、もう一度ログインしてください。',
+      ),
       HiveStartupIssue.storageUnavailable => (
         Icons.sd_card_alert_outlined,
         'データの保存領域を利用できませんでした。ログインはできますが、この起動中の変更は保存されません。アプリを再起動すると復帰する場合があります。',
