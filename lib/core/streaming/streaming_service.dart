@@ -46,8 +46,7 @@ class StreamingService {
   final _notificationController =
       StreamController<NotificationModel>.broadcast();
   final _noteUpdateController = StreamController<NoteUpdateEvent>.broadcast();
-  final _chatMessageController =
-      StreamController<ChatMessageModel>.broadcast();
+  final _chatMessageController = StreamController<ChatMessageModel>.broadcast();
   final _statusController = StreamController<StreamingStatus>.broadcast();
   // 再接続が完了したときに発火する（切断中に取りこぼした状態の再取得トリガー用）
   final _reconnectedController = StreamController<void>.broadcast();

@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:coerie/core/services/cache_service.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/providers/account_provider.dart';
 import '../../../data/models/account_model.dart';
@@ -10,6 +8,7 @@ import '../../../shared/providers/announcements_badge_provider.dart';
 import '../../../shared/providers/dm_badge_provider.dart';
 import '../../../shared/providers/is_locked_provider.dart';
 import '../../profile/follow_requests_sheet.dart';
+import '../../../shared/widgets/user_avatar.dart';
 
 class HomeDrawer extends ConsumerWidget {
   const HomeDrawer({super.key});
@@ -253,18 +252,11 @@ class _ProfileHeader extends StatelessWidget {
                   Navigator.of(context).pop();
                   context.push('/profile/${account!.userId}');
                 },
-                child: account!.avatarUrl != null
-                    ? CircleAvatar(
-                        radius: 28,
-                        backgroundImage: CachedNetworkImageProvider(
-                          account!.avatarUrl!,
-                          cacheManager: AppCacheManager(),
-                        ),
-                      )
-                    : const CircleAvatar(
-                        radius: 28,
-                        child: Icon(Icons.person, size: 28),
-                      ),
+                child: UserAvatar(
+                  avatarUrl: account!.avatarUrl,
+                  radius: 28,
+                  iconSize: 28,
+                ),
               ),
               const Spacer(),
               IconButton(
@@ -320,14 +312,7 @@ class _ProfileHeader extends StatelessWidget {
             ),
             ...accounts.map(
               (a) => ListTile(
-                leading: a.avatarUrl != null
-                    ? CircleAvatar(
-                        backgroundImage: CachedNetworkImageProvider(
-                          a.avatarUrl!,
-                          cacheManager: AppCacheManager(),
-                        ),
-                      )
-                    : const CircleAvatar(child: Icon(Icons.person)),
+                leading: UserAvatar(avatarUrl: a.avatarUrl),
                 title: Text(a.name),
                 subtitle: Text(a.acct),
                 trailing: a.isActive

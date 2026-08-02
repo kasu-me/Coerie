@@ -27,6 +27,9 @@ import '../../compose/emoji_picker_sheet.dart';
 import '../../../shared/utils/emoji_utils.dart';
 import '../ogp_provider.dart';
 import '../timeline_provider.dart';
+import '../../../shared/utils/format_utils.dart';
+import '../../../shared/widgets/confirm_dialog.dart';
+import '../../../shared/widgets/user_avatar.dart';
 
 // ---- NoteCard ----
 
@@ -445,16 +448,10 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                       itemBuilder: (c, i) {
                         final u = users[i];
                         return ListTile(
-                          leading: u.avatarUrl != null
-                              ? CircleAvatar(
-                                  backgroundImage: CachedNetworkImageProvider(
-                                    u.avatarUrl!,
-                                    cacheManager: AppCacheManager(),
-                                  ),
-                                )
-                              : const CircleAvatar(
-                                  child: Icon(Icons.person, size: 20),
-                                ),
+                          leading: UserAvatar(
+                            avatarUrl: u.avatarUrl,
+                            iconSize: 20,
+                          ),
                           title: Text(u.name),
                           subtitle: Text(u.acct),
                           onTap: () {
@@ -613,21 +610,11 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
               children: [
                 GestureDetector(
                   onTap: () => context.push('/profile/${note.user.id}'),
-                  child: note.user.avatarUrl != null
-                      ? CircleAvatar(
-                          radius: settings.avatarRadius,
-                          backgroundImage: CachedNetworkImageProvider(
-                            note.user.avatarUrl!,
-                            cacheManager: AppCacheManager(),
-                          ),
-                        )
-                      : CircleAvatar(
-                          radius: settings.avatarRadius,
-                          child: Icon(
-                            Icons.person,
-                            size: settings.avatarRadius,
-                          ),
-                        ),
+                  child: UserAvatar(
+                    avatarUrl: note.user.avatarUrl,
+                    radius: settings.avatarRadius,
+                    iconSize: settings.avatarRadius,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -651,10 +638,10 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                   ),
                 ),
                 Text(
-                  _formatDateTime(
+                  formatNoteDateTime(
                     note.createdAt,
-                    settings.dateTimeRelative,
-                    settings.timezoneOffsetHours,
+                    relative: settings.dateTimeRelative,
+                    timezoneOffsetHours: settings.timezoneOffsetHours,
                   ),
                   style: theme.textTheme.bodySmall,
                 ),
@@ -900,23 +887,6 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
     );
   }
 
-  String _formatDateTime(DateTime dt, bool relative, int? tzOffset) {
-    if (relative) {
-      final now = DateTime.now();
-      final diff = now.difference(dt);
-      if (diff.inSeconds < 60) return '${diff.inSeconds}秒前';
-      if (diff.inMinutes < 60) return '${diff.inMinutes}分前';
-      if (diff.inHours < 24) return '${diff.inHours}時間前';
-      return '${dt.toLocal().month}/${dt.toLocal().day}';
-    } else {
-      final d = tzOffset != null
-          ? dt.toUtc().add(Duration(hours: tzOffset))
-          : dt.toLocal();
-      return '${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')} '
-          '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}:${d.second.toString().padLeft(2, '0')}';
-    }
-  }
-
   IconData _visibilityIcon(String visibility) {
     return switch (visibility) {
       AppConstants.visibilityHome => Icons.home_outlined,
@@ -963,18 +933,11 @@ class _QuotedNote extends StatelessWidget {
           children: [
             Row(
               children: [
-                displayNote.user.avatarUrl != null
-                    ? CircleAvatar(
-                        radius: 12,
-                        backgroundImage: CachedNetworkImageProvider(
-                          displayNote.user.avatarUrl!,
-                          cacheManager: AppCacheManager(),
-                        ),
-                      )
-                    : const CircleAvatar(
-                        radius: 12,
-                        child: Icon(Icons.person, size: 12),
-                      ),
+                UserAvatar(
+                  avatarUrl: displayNote.user.avatarUrl,
+                  radius: 12,
+                  iconSize: 12,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(
@@ -1384,38 +1347,14 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                               );
                               if (!context.mounted) return;
                               if (currentlyPinned) {
-                                final settings = ref.read(settingsProvider);
-                                if (settings.confirmDestructive) {
-                                  final confirmed =
-                                      await showDialog<bool>(
-                                        context: context,
-                                        builder: (_) => AlertDialog(
-                                          title: const Text('ピン留めを解除'),
-                                          content: const Text(
-                                            'ピン留めを解除してもよろしいですか？',
-                                          ),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(context, false),
-                                              child: const Text('キャンセル'),
-                                            ),
-                                            FilledButton(
-                                              style: FilledButton.styleFrom(
-                                                backgroundColor: Theme.of(
-                                                  context,
-                                                ).colorScheme.error,
-                                              ),
-                                              onPressed: () =>
-                                                  Navigator.pop(context, true),
-                                              child: const Text('解除'),
-                                            ),
-                                          ],
-                                        ),
-                                      ) ??
-                                      false;
-                                  if (!confirmed) return;
-                                }
+                                final confirmed = await confirmAction(
+                                  context,
+                                  ref,
+                                  title: 'ピン留めを解除',
+                                  message: 'ピン留めを解除してもよろしいですか？',
+                                  confirmLabel: '解除',
+                                );
+                                if (!confirmed) return;
 
                                 await api.unpinNote(widget.note.id);
                                 if (context.mounted) {
@@ -1516,32 +1455,15 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
   }
 
   Future<void> _deleteNote(BuildContext context) async {
-    final settings = ref.read(settingsProvider);
-    if (settings.confirmDestructive) {
-      final confirmed =
-          await showDialog<bool>(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text('ノートを削除'),
-              content: const Text('このノートを削除しますか？この操作は取り消せません。'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('キャンセル'),
-                ),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.error,
-                  ),
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('削除'),
-                ),
-              ],
-            ),
-          ) ??
-          false;
-      if (!confirmed) return;
-    }
+    final confirmed = await confirmAction(
+      context,
+      ref,
+      title: 'ノートを削除',
+      message: 'このノートを削除しますか？この操作は取り消せません。',
+      confirmLabel: '削除',
+    );
+    if (!confirmed) return;
+
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
     try {
@@ -1577,32 +1499,15 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
     final note = widget.note;
-    final settings = ref.read(settingsProvider);
-    if (settings.confirmDestructive) {
-      final confirmed =
-          await showDialog<bool>(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text('削除して再編集'),
-              content: const Text('このノートを削除して再編集しますか？元のノートは削除され、この操作は取り消せません。'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('キャンセル'),
-                ),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.error,
-                  ),
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('削除して再編集'),
-                ),
-              ],
-            ),
-          ) ??
-          false;
-      if (!confirmed) return;
-    }
+    final confirmed = await confirmAction(
+      context,
+      ref,
+      title: '削除して再編集',
+      message: 'このノートを削除して再編集しますか？元のノートは削除され、この操作は取り消せません。',
+      confirmLabel: '削除して再編集',
+    );
+    if (!confirmed) return;
+
     final router = ref.read(routerProvider);
     try {
       await api.deleteNote(note.id);
@@ -1660,34 +1565,22 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     final api = ref.read(misskeyApiProvider);
     if (api == null || _isRenoting) return;
 
-    final settings = ref.read(settingsProvider);
-    if (settings.confirmDestructive) {
-      final confirmed =
-          await showDialog<bool>(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text('リノート'),
-              content: const Text('このノートをリノートしますか？'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('キャンセル'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('リノート'),
-                ),
-              ],
-            ),
-          ) ??
-          false;
-      if (!mounted || !confirmed) return;
-    }
+    final confirmed = await confirmAction(
+      context,
+      ref,
+      title: 'リノート',
+      message: 'このノートをリノートしますか？',
+      confirmLabel: 'リノート',
+      destructive: false,
+    );
+    if (!mounted || !confirmed) return;
 
     setState(() => _isRenoting = true);
     try {
       // 設定からリノートの公開範囲を決定する
-      final renoteVisibilitySetting = settings.renoteVisibility;
+      final renoteVisibilitySetting = ref
+          .read(settingsProvider)
+          .renoteVisibility;
       final String renoteVisibility;
       if (renoteVisibilitySetting ==
           AppConstants.renoteVisibilitySameAsLastPost) {
@@ -1787,16 +1680,10 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                       itemBuilder: (c, i) {
                         final u = users[i];
                         return ListTile(
-                          leading: u.avatarUrl != null
-                              ? CircleAvatar(
-                                  backgroundImage: CachedNetworkImageProvider(
-                                    u.avatarUrl!,
-                                    cacheManager: AppCacheManager(),
-                                  ),
-                                )
-                              : const CircleAvatar(
-                                  child: Icon(Icons.person, size: 20),
-                                ),
+                          leading: UserAvatar(
+                            avatarUrl: u.avatarUrl,
+                            iconSize: 20,
+                          ),
                           title: Text(u.name),
                           subtitle: Text(u.acct),
                           onTap: () {
@@ -2429,32 +2316,14 @@ class _UnrenoteButtonState extends ConsumerState<_UnrenoteButton> {
     final api = ref.read(misskeyApiProvider);
     if (api == null || _isLoading) return;
 
-    final settings = ref.read(settingsProvider);
-    if (settings.confirmDestructive) {
-      final confirmed =
-          await showDialog<bool>(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text('リノートを解除'),
-              content: const Text('このリノートを解除しますか？'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('キャンセル'),
-                ),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.error,
-                  ),
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('解除'),
-                ),
-              ],
-            ),
-          ) ??
-          false;
-      if (!mounted || !confirmed) return;
-    }
+    final confirmed = await confirmAction(
+      context,
+      ref,
+      title: 'リノートを解除',
+      message: 'このリノートを解除しますか？',
+      confirmLabel: '解除',
+    );
+    if (!mounted || !confirmed) return;
 
     setState(() => _isLoading = true);
     try {

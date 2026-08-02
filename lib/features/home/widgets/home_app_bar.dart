@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:coerie/core/services/cache_service.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/providers/account_provider.dart';
 import '../../../shared/providers/notifications_badge_provider.dart';
 import '../../../shared/providers/announcements_badge_provider.dart';
 import '../../../shared/providers/dm_badge_provider.dart';
+import '../../../shared/widgets/user_avatar.dart';
 
 class HomeAppBar extends ConsumerWidget implements PreferredSizeWidget {
   final GlobalKey<ScaffoldState> scaffoldKey;
@@ -24,14 +23,7 @@ class HomeAppBar extends ConsumerWidget implements PreferredSizeWidget {
     final annUnread = ref.watch(announcementsBadgeProvider(accountId));
     final dmUnread = ref.watch(dmBadgeProvider(accountId));
 
-    final avatar = account?.avatarUrl != null
-        ? CircleAvatar(
-            backgroundImage: CachedNetworkImageProvider(
-              account!.avatarUrl!,
-              cacheManager: AppCacheManager(),
-            ),
-          )
-        : const CircleAvatar(child: Icon(Icons.person, size: 20));
+    final avatar = UserAvatar(avatarUrl: account?.avatarUrl, iconSize: 20);
 
     return AppBar(
       automaticallyImplyLeading: false,
@@ -40,10 +32,7 @@ class HomeAppBar extends ConsumerWidget implements PreferredSizeWidget {
         child: Padding(
           padding: const EdgeInsets.all(8.0),
           child: dmUnread > 0
-              ? Badge(
-                  label: Text('$dmUnread'),
-                  child: avatar,
-                )
+              ? Badge(label: Text('$dmUnread'), child: avatar)
               : avatar,
         ),
       ),

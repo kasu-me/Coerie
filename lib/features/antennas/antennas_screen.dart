@@ -8,7 +8,8 @@ import '../../data/models/user_model.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
-import '../../shared/providers/settings_provider.dart';
+import '../../shared/widgets/confirm_dialog.dart';
+import '../../shared/widgets/user_avatar.dart';
 
 class AntennasScreen extends ConsumerStatefulWidget {
   const AntennasScreen({super.key});
@@ -64,30 +65,14 @@ class _AntennasScreenState extends ConsumerState<AntennasScreen> {
   }
 
   Future<void> _deleteAntenna(Map<String, dynamic> antenna) async {
-    final settings = ref.read(settingsProvider);
-    if (settings.confirmDestructive) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('アンテナを削除'),
-          content: Text('「${antenna['name']}」を削除しますか？この操作は取り消せません。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('キャンセル'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error,
-              ),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('削除'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !mounted) return;
-    }
+    final confirmed = await confirmAction(
+      context,
+      ref,
+      title: 'アンテナを削除',
+      message: '「${antenna['name']}」を削除しますか？この操作は取り消せません。',
+      confirmLabel: '削除',
+    );
+    if (!confirmed || !mounted) return;
 
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
@@ -557,17 +542,11 @@ class _AntennaEditSheetState extends ConsumerState<_AntennaEditSheet> {
                         final user = results[i];
                         return ListTile(
                           dense: true,
-                          leading: user.avatarUrl != null
-                              ? CircleAvatar(
-                                  backgroundImage: NetworkImage(
-                                    user.avatarUrl!,
-                                  ),
-                                  radius: 16,
-                                )
-                              : const CircleAvatar(
-                                  radius: 16,
-                                  child: Icon(Icons.person, size: 16),
-                                ),
+                          leading: UserAvatar(
+                            avatarUrl: user.avatarUrl,
+                            radius: 16,
+                            iconSize: 16,
+                          ),
                           title: Text(user.name),
                           subtitle: Text(
                             user.acct,
@@ -718,15 +697,11 @@ class _AntennaEditSheetState extends ConsumerState<_AntennaEditSheet> {
                       return ListTile(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        leading: avatarUrl != null
-                            ? CircleAvatar(
-                                backgroundImage: NetworkImage(avatarUrl),
-                                radius: 16,
-                              )
-                            : const CircleAvatar(
-                                radius: 16,
-                                child: Icon(Icons.person, size: 16),
-                              ),
+                        leading: UserAvatar(
+                          avatarUrl: avatarUrl,
+                          radius: 16,
+                          iconSize: 16,
+                        ),
                         title: Text(name),
                         subtitle: Text(
                           acct,

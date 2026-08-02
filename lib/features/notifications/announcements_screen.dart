@@ -10,92 +10,57 @@ import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/announcements_badge_provider.dart';
 import '../../shared/widgets/mfm_content.dart';
+import '../../shared/utils/format_utils.dart';
+import '../../shared/providers/paged_notifier.dart';
 
 // Provider
 final _announcementsProvider = StateNotifierProvider.autoDispose
-    .family<_AnnouncementsNotifier, _AnnouncementsState, String>(
+    .family<_AnnouncementsNotifier, PagedState<AnnouncementModel>, String>(
       (ref, accountId) => _AnnouncementsNotifier(ref),
     );
 
-class _AnnouncementsState {
-  final List<AnnouncementModel> items;
-  final bool isLoading;
-  final bool hasMore;
-  final String? error;
-
-  const _AnnouncementsState({
-    this.items = const [],
-    this.isLoading = false,
-    this.hasMore = true,
-    this.error,
-  });
-
-  _AnnouncementsState copyWith({
-    List<AnnouncementModel>? items,
-    bool? isLoading,
-    bool? hasMore,
-    String? error,
-  }) => _AnnouncementsState(
-    items: items ?? this.items,
-    isLoading: isLoading ?? this.isLoading,
-    hasMore: hasMore ?? this.hasMore,
-    error: error,
-  );
-}
-
-class _AnnouncementsNotifier extends StateNotifier<_AnnouncementsState> {
+class _AnnouncementsNotifier extends PagedNotifier<AnnouncementModel> {
   final Ref _ref;
 
-  _AnnouncementsNotifier(this._ref) : super(const _AnnouncementsState()) {
+  _AnnouncementsNotifier(this._ref) {
     fetch();
   }
 
-  /// Mark an announcement read locally in the cached list.
-  void markReadLocally(String announcementId) {
-    final updated = state.items.map((a) {
-      if (a.id == announcementId && !a.isRead) {
-        return a.copyWith(isRead: true);
-      }
-      return a;
-    }).toList();
-    state = state.copyWith(items: updated);
-  }
+  @override
+  String cursorOf(AnnouncementModel item) => item.id;
 
-  Future<void> fetch({bool loadMore = false}) async {
-    if (state.isLoading) return;
-    if (loadMore && !state.hasMore) return;
-
+  @override
+  Future<List<AnnouncementModel>> fetchPage({String? untilId}) async {
     final api = _ref.read(misskeyApiProvider);
-    if (api == null) return;
-
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      final untilId = loadMore && state.items.isNotEmpty
-          ? state.items.last.id
-          : null;
-      final items = await api.getAnnouncements(untilId: untilId);
-      // Preserve any locally-marked-as-read flags across refreshes by
-      // merging with the newly-fetched items.
-      final locallyMarked = state.items
-          .where((e) => e.isRead)
-          .map((e) => e.id)
-          .toSet();
-      final merged = items.map((f) {
-        return f.copyWith(isRead: f.isRead || locallyMarked.contains(f.id));
-      }).toList();
-      state = state.copyWith(
-        isLoading: false,
-        items: loadMore ? [...state.items, ...merged] : merged,
-        hasMore: items.length >= 20,
-      );
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-    }
+    if (api == null) return [];
+    return api.getAnnouncements(untilId: untilId);
   }
 
-  Future<void> refresh() async {
-    state = const _AnnouncementsState();
-    await fetch();
+  /// ローカルで既読にしたフラグを再取得後も引き継ぐ。
+  @override
+  List<AnnouncementModel> mergeItems(List<AnnouncementModel> fetched) {
+    final locallyMarked = state.items
+        .where((e) => e.isRead)
+        .map((e) => e.id)
+        .toSet();
+    return fetched
+        .map(
+          (f) => f.copyWith(isRead: f.isRead || locallyMarked.contains(f.id)),
+        )
+        .toList();
+  }
+
+  /// キャッシュ済みの一覧で該当のお知らせを既読にする。
+  void markReadLocally(String announcementId) {
+    state = state.copyWith(
+      items: state.items
+          .map(
+            (a) => a.id == announcementId && !a.isRead
+                ? a.copyWith(isRead: true)
+                : a,
+          )
+          .toList(),
+    );
   }
 }
 
@@ -168,7 +133,7 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen>
 
   Widget _buildBody(
     BuildContext context,
-    _AnnouncementsState state,
+    PagedState<AnnouncementModel> state,
     String accountId,
   ) {
     if (state.isLoading && state.items.isEmpty) {
@@ -233,7 +198,7 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen>
                     ),
                   ),
                 Text(
-                  _formatTime(a.createdAt),
+                  formatRelativeTime(a.createdAt),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.outline,
                   ),
@@ -258,15 +223,6 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen>
         },
       ),
     );
-  }
-
-  static String _formatTime(DateTime dt) {
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inSeconds < 60) return '${diff.inSeconds}秒前';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}分前';
-    if (diff.inHours < 24) return '${diff.inHours}時間前';
-    return '${dt.month}/${dt.day}';
   }
 }
 
@@ -357,7 +313,7 @@ class _AnnouncementDetailScreenState
               ),
             const SizedBox(height: 8),
             Text(
-              _AnnouncementsScreenState._formatTime(a.createdAt),
+              formatRelativeTime(a.createdAt),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.outline,
               ),

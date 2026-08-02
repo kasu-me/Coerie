@@ -959,7 +959,9 @@ class MisskeyApi {
     final res = await _dio.post('notes/search', data: _body(params));
     final list = res.data as List<dynamic>;
     return list
-        .map((n) => NoteModel.fromJson(n as Map<String, dynamic>, host: this.host))
+        .map(
+          (n) => NoteModel.fromJson(n as Map<String, dynamic>, host: this.host),
+        )
         .toList();
   }
 

@@ -9,6 +9,7 @@ import '../../data/models/user_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/dm_badge_provider.dart';
+import '../../shared/widgets/user_avatar.dart';
 
 // ─── State ─────────────────────────────────────────────────────────────────
 
@@ -252,7 +253,10 @@ class _DmListTab extends ConsumerWidget {
             children: [
               const Icon(Icons.error_outline, size: 48),
               const SizedBox(height: 16),
-              Text('読み込みに失敗しました', style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                '読み込みに失敗しました',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               const SizedBox(height: 8),
               Text(
                 state.error!,
@@ -261,8 +265,9 @@ class _DmListTab extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               FilledButton.icon(
-                onPressed: () =>
-                    ref.read(_dmDirectHistoryProvider(accountId).notifier).fetch(),
+                onPressed: () => ref
+                    .read(_dmDirectHistoryProvider(accountId).notifier)
+                    .fetch(),
                 icon: const Icon(Icons.refresh),
                 label: const Text('再試行'),
               ),
@@ -303,14 +308,13 @@ class _DmListTab extends ConsumerWidget {
           final isMe = myUserId.isNotEmpty && msg.fromUserId == myUserId;
           // 会話相手（自分が送信者なら toUser、相手が送信者なら fromUser）
           final partnerData = isMe ? msg.toUser : msg.fromUser;
-          final partnerId =
-              (isMe ? msg.toUserId : msg.fromUserId) ?? '';
-          final partnerName = partnerData?['name'] as String? ??
+          final partnerId = (isMe ? msg.toUserId : msg.fromUserId) ?? '';
+          final partnerName =
+              partnerData?['name'] as String? ??
               partnerData?['username'] as String? ??
               (partnerId.isNotEmpty ? partnerId : 'ユーザー');
           final partnerAvatar = partnerData?['avatarUrl'] as String?;
-          final previewText =
-              msg.text ?? (msg.file != null ? '[添付ファイル]' : '');
+          final previewText = msg.text ?? (msg.file != null ? '[添付ファイル]' : '');
 
           return _ConversationTile(
             name: partnerName,
@@ -355,7 +359,10 @@ class _RoomListTab extends ConsumerWidget {
             children: [
               const Icon(Icons.error_outline, size: 48),
               const SizedBox(height: 16),
-              Text('読み込みに失敗しました', style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                '読み込みに失敗しました',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               const SizedBox(height: 8),
               Text(
                 state.error!,
@@ -402,8 +409,7 @@ class _RoomListTab extends ConsumerWidget {
     }
 
     return RefreshIndicator(
-      onRefresh: () =>
-          ref.read(_roomListProvider(accountId).notifier).fetch(),
+      onRefresh: () => ref.read(_roomListProvider(accountId).notifier).fetch(),
       child: ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: state.items.length,
@@ -420,7 +426,8 @@ class _RoomListTab extends ConsumerWidget {
           if (msg == null) {
             previewText = 'まだメッセージはありません';
           } else {
-            final senderName = msg.fromUser?['name'] as String? ??
+            final senderName =
+                msg.fromUser?['name'] as String? ??
                 msg.fromUser?['username'] as String? ??
                 '不明';
             previewText = msg.text != null
@@ -435,10 +442,8 @@ class _RoomListTab extends ConsumerWidget {
             lastMessage: previewText,
             createdAt: msg?.createdAt ?? room.createdAt,
             isRead: msg?.isRead ?? true,
-            onTap: () => context.push(
-              '/dm/room/${room.id}',
-              extra: {'name': roomName},
-            ),
+            onTap: () =>
+                context.push('/dm/room/${room.id}', extra: {'name': roomName}),
           );
         },
       ),
@@ -488,9 +493,9 @@ class _RoomListTab extends ConsumerWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('作成失敗: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('作成失敗: $e')));
       }
     }
   }
@@ -684,14 +689,9 @@ class _NewDmSheetState extends ConsumerState<_NewDmSheet> {
                 itemBuilder: (context, i) {
                   final user = _results[i];
                   return ListTile(
-                    leading: CircleAvatar(
-                      foregroundImage: user.avatarUrl != null
-                          ? CachedNetworkImageProvider(
-                              user.avatarUrl!,
-                              cacheManager: AppCacheManager(),
-                            )
-                          : null,
-                      child: const Icon(Icons.person),
+                    leading: UserAvatar(
+                      avatarUrl: user.avatarUrl,
+                      foreground: true,
                     ),
                     title: Text(user.name),
                     subtitle: Text(user.acct),
@@ -699,10 +699,7 @@ class _NewDmSheetState extends ConsumerState<_NewDmSheet> {
                       Navigator.of(context).pop();
                       context.push(
                         '/dm/user/${user.id}',
-                        extra: {
-                          'name': user.name,
-                          'avatarUrl': user.avatarUrl,
-                        },
+                        extra: {'name': user.name, 'avatarUrl': user.avatarUrl},
                       );
                     },
                   );

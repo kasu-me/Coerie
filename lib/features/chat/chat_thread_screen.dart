@@ -8,6 +8,7 @@ import '../../data/models/user_model.dart';
 import '../../data/remote/misskey_api.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
+import '../../shared/utils/format_utils.dart';
 
 // ─── State ─────────────────────────────────────────────────────────────────
 
@@ -52,11 +53,7 @@ class _ThreadParams {
   final String? roomId;
   final String accountId;
 
-  const _ThreadParams({
-    this.userId,
-    this.roomId,
-    required this.accountId,
-  });
+  const _ThreadParams({this.userId, this.roomId, required this.accountId});
 
   @override
   bool operator ==(Object other) =>
@@ -314,8 +311,9 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
               else
                 CircleAvatar(
                   radius: 16,
-                  backgroundColor:
-                      Theme.of(context).colorScheme.surfaceContainerHighest,
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest,
                   child: Icon(
                     isRoom ? Icons.group : Icons.person,
                     size: 18,
@@ -358,8 +356,9 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                   myUserId: myUserId,
                   scrollController: _scrollController,
                   fallbackAvatarUrl: widget.partnerAvatarUrl,
-                  onDeleteMessage: (id) =>
-                      ref.read(_threadProvider(params).notifier).deleteMessage(id),
+                  onDeleteMessage: (id) => ref
+                      .read(_threadProvider(params).notifier)
+                      .deleteMessage(id),
                 ),
                 if (_showScrollToBottom)
                   Positioned(
@@ -488,8 +487,9 @@ class _MessageList extends StatelessWidget {
                         FilledButton(
                           onPressed: () => Navigator.pop(ctx, true),
                           style: FilledButton.styleFrom(
-                            backgroundColor:
-                                Theme.of(context).colorScheme.error,
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.error,
                           ),
                           child: const Text('削除'),
                         ),
@@ -534,8 +534,9 @@ class _MessageBubble extends StatelessWidget {
         right: isMe ? 0 : 48,
       ),
       child: Row(
-        mainAxisAlignment:
-            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMe
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           // 相手側アバター（タップで送信者のプロフィールへ）
@@ -546,15 +547,14 @@ class _MessageBubble extends StatelessWidget {
                   ? GestureDetector(
                       onTap: message.fromUserId.isEmpty
                           ? null
-                          : () => context.push(
-                              '/profile/${message.fromUserId}',
-                            ),
+                          : () =>
+                                context.push('/profile/${message.fromUserId}'),
                       child: CircleAvatar(
                         radius: 16,
                         backgroundColor:
                             theme.colorScheme.surfaceContainerHighest,
-                        foregroundImage: (message.senderAvatarUrl ??
-                                    fallbackAvatarUrl) !=
+                        foregroundImage:
+                            (message.senderAvatarUrl ?? fallbackAvatarUrl) !=
                                 null
                             ? CachedNetworkImageProvider(
                                 message.senderAvatarUrl ?? fallbackAvatarUrl!,
@@ -596,7 +596,7 @@ class _MessageBubble extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    _formatTime(message.createdAt),
+                    formatHm(message.createdAt),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                       fontSize: 11,
@@ -609,10 +609,6 @@ class _MessageBubble extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _formatTime(DateTime dt) {
-    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 }
 
@@ -824,8 +820,7 @@ class _RoomMembersSheet extends ConsumerWidget {
             const Divider(height: 1),
             Expanded(
               child: membersAsync.when(
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
+                loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, _) => Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),

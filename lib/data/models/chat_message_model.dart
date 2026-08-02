@@ -51,9 +51,7 @@ class ChatMessageModel {
   bool get isRoomMessage => toRoomId != null;
 
   String get senderName =>
-      fromUser?['name'] as String? ??
-      fromUser?['username'] as String? ??
-      '不明';
+      fromUser?['name'] as String? ?? fromUser?['username'] as String? ?? '不明';
 
   String? get senderAvatarUrl => fromUser?['avatarUrl'] as String?;
 

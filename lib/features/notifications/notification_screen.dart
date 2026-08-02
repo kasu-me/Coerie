@@ -15,46 +15,23 @@ import '../../shared/providers/notifications_tab_visibility_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/utils/emoji_utils.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
+import '../../shared/utils/format_utils.dart';
+import '../../shared/widgets/user_avatar.dart';
+import '../../shared/providers/paged_notifier.dart';
 
 // ---- Provider ----
 
 final _notificationsProvider = StateNotifierProvider.autoDispose
-    .family<_NotificationsNotifier, _NotificationsState, String>(
+    .family<_NotificationsNotifier, PagedState<NotificationModel>, String>(
       (ref, accountId) => _NotificationsNotifier(ref),
     );
 
-class _NotificationsState {
-  final List<NotificationModel> items;
-  final bool isLoading;
-  final bool hasMore;
-  final String? error;
-
-  const _NotificationsState({
-    this.items = const [],
-    this.isLoading = false,
-    this.hasMore = true,
-    this.error,
-  });
-
-  _NotificationsState copyWith({
-    List<NotificationModel>? items,
-    bool? isLoading,
-    bool? hasMore,
-    String? error,
-  }) => _NotificationsState(
-    items: items ?? this.items,
-    isLoading: isLoading ?? this.isLoading,
-    hasMore: hasMore ?? this.hasMore,
-    error: error,
-  );
-}
-
-class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
+class _NotificationsNotifier extends PagedNotifier<NotificationModel> {
   final Ref _ref;
   StreamSubscription<NotificationModel>? _streamSub;
   StreamSubscription<void>? _reconnectSub;
 
-  _NotificationsNotifier(this._ref) : super(const _NotificationsState()) {
+  _NotificationsNotifier(this._ref) {
     fetch();
     _subscribeStream();
     _ref.listen<StreamingService?>(streamingServiceProvider, (prev, next) {
@@ -98,32 +75,14 @@ class _NotificationsNotifier extends StateNotifier<_NotificationsState> {
     }
   }
 
-  Future<void> fetch({bool loadMore = false}) async {
-    if (state.isLoading) return;
-    if (loadMore && !state.hasMore) return;
+  @override
+  String cursorOf(NotificationModel item) => item.id;
 
+  @override
+  Future<List<NotificationModel>> fetchPage({String? untilId}) async {
     final api = _ref.read(misskeyApiProvider);
-    if (api == null) return;
-
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      final untilId = loadMore && state.items.isNotEmpty
-          ? state.items.last.id
-          : null;
-      final items = await api.getNotifications(untilId: untilId);
-      state = state.copyWith(
-        isLoading: false,
-        items: loadMore ? [...state.items, ...items] : items,
-        hasMore: items.length >= 20,
-      );
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-    }
-  }
-
-  Future<void> refresh() async {
-    state = const _NotificationsState();
-    await fetch();
+    if (api == null) return [];
+    return api.getNotifications(untilId: untilId);
   }
 
   @override
@@ -240,7 +199,7 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
 
   Widget _buildBody(
     BuildContext context,
-    _NotificationsState state,
+    PagedState<NotificationModel> state,
     String accountId,
   ) {
     if (state.isLoading && state.items.isEmpty) {
@@ -359,18 +318,11 @@ class _NotificationTile extends StatelessWidget {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  n.user?.avatarUrl != null
-                      ? CircleAvatar(
-                          radius: 22,
-                          backgroundImage: CachedNetworkImageProvider(
-                            n.user!.avatarUrl!,
-                            cacheManager: AppCacheManager(),
-                          ),
-                        )
-                      : const CircleAvatar(
-                          radius: 22,
-                          child: Icon(Icons.person, size: 20),
-                        ),
+                  UserAvatar(
+                    avatarUrl: n.user?.avatarUrl,
+                    radius: 22,
+                    iconSize: 20,
+                  ),
                   Positioned(
                     bottom: -4,
                     right: -4,
@@ -512,7 +464,7 @@ class _NotificationTile extends StatelessWidget {
                   ],
                   const SizedBox(height: 2),
                   Text(
-                    _formatTime(n.createdAt),
+                    formatRelativeTime(n.createdAt),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.outline,
                     ),
@@ -526,10 +478,7 @@ class _NotificationTile extends StatelessWidget {
     );
   }
 
-  Widget _buildImagePreviews(
-    BuildContext context,
-    List<DriveFileModel> files,
-  ) {
+  Widget _buildImagePreviews(BuildContext context, List<DriveFileModel> files) {
     final imageFiles = files.where((f) => f.isImage).take(4).toList();
     if (imageFiles.isEmpty) return const SizedBox.shrink();
     return SingleChildScrollView(
@@ -617,13 +566,4 @@ class _NotificationTile extends StatelessWidget {
     'renote' || 'quote' => theme.colorScheme.tertiary,
     _ => theme.colorScheme.primary,
   };
-
-  static String _formatTime(DateTime dt) {
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inSeconds < 60) return '${diff.inSeconds}秒前';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}分前';
-    if (diff.inHours < 24) return '${diff.inHours}時間前';
-    return '${dt.month}/${dt.day}';
-  }
 }

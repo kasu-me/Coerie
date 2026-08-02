@@ -13,6 +13,7 @@ import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/widgets/media_player_screen.dart';
 import 'file_notes_screen.dart';
+import '../../shared/utils/format_utils.dart';
 
 /// ドライブフォルダの簡易モデル
 class _DriveFolder {
@@ -315,9 +316,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
                     ? Icons.visibility_outlined
                     : Icons.disabled_visible_outlined,
               ),
-              title: Text(
-                file.isSensitive ? 'センシティブ設定を解除' : 'センシティブとして設定',
-              ),
+              title: Text(file.isSensitive ? 'センシティブ設定を解除' : 'センシティブとして設定'),
               onTap: () {
                 Navigator.of(ctx).pop();
                 _toggleFileSensitive(file);
@@ -362,7 +361,9 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('更新に失敗しました: ${e.toString().replaceFirst('Exception: ', '')}'),
+          content: Text(
+            '更新に失敗しました: ${e.toString().replaceFirst('Exception: ', '')}',
+          ),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
@@ -1535,22 +1536,6 @@ class _DriveUsageSheetState extends ConsumerState<_DriveUsageSheet> {
     _future = api?.getDriveInfo();
   }
 
-  /// バイト数を読みやすい単位に変換する。
-  static String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    const units = ['KB', 'MB', 'GB', 'TB', 'PB'];
-    double value = bytes / 1024;
-    int unitIndex = 0;
-    while (value >= 1024 && unitIndex < units.length - 1) {
-      value /= 1024;
-      unitIndex++;
-    }
-    final text = value >= 100
-        ? value.toStringAsFixed(0)
-        : value.toStringAsFixed(1);
-    return '$text ${units[unitIndex]}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1599,10 +1584,7 @@ class _DriveUsageSheetState extends ConsumerState<_DriveUsageSheet> {
     );
   }
 
-  Widget _buildUsage(
-    BuildContext context,
-    ({int capacity, int usage}) info,
-  ) {
+  Widget _buildUsage(BuildContext context, ({int capacity, int usage}) info) {
     final theme = Theme.of(context);
     final capacity = info.capacity;
     final usage = info.usage;
@@ -1662,14 +1644,14 @@ class _DriveUsageSheetState extends ConsumerState<_DriveUsageSheet> {
           context,
           color: usedColor,
           label: '使用量',
-          value: _formatBytes(usage),
+          value: formatBytes(usage),
         ),
         const SizedBox(height: 12),
         _usageRow(
           context,
           color: theme.colorScheme.surfaceContainerHighest,
           label: '空き容量',
-          value: _formatBytes(remaining),
+          value: formatBytes(remaining),
         ),
         const Divider(height: 32),
         Row(
@@ -1682,7 +1664,7 @@ class _DriveUsageSheetState extends ConsumerState<_DriveUsageSheet> {
               ),
             ),
             Text(
-              _formatBytes(capacity),
+              formatBytes(capacity),
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),

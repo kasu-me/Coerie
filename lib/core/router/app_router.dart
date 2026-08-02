@@ -280,10 +280,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
-      GoRoute(
-        path: '/dm',
-        builder: (context, state) => const ChatListScreen(),
-      ),
+      GoRoute(path: '/dm', builder: (context, state) => const ChatListScreen()),
       GoRoute(
         path: '/dm/user/:userId',
         builder: (context, state) {
@@ -304,10 +301,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           final roomId = state.pathParameters['roomId']!;
           final extra = state.extra as Map<String, dynamic>?;
           final name = extra?['name'] as String? ?? 'グループ';
-          return ChatThreadScreen(
-            roomId: roomId,
-            partnerName: name,
-          );
+          return ChatThreadScreen(roomId: roomId, partnerName: name);
         },
       ),
     ],

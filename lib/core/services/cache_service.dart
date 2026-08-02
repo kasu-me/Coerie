@@ -75,13 +75,3 @@ class AppCacheManager extends CacheManager with ImageCacheManager {
     return size;
   }
 }
-
-/// バイト数を人が読みやすい文字列に変換する。
-String formatCacheSize(int bytes) {
-  if (bytes < 1024) return '$bytes B';
-  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  if (bytes < 1024 * 1024 * 1024) {
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-  return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-}

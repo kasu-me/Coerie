@@ -1,10 +1,9 @@
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:coerie/core/services/cache_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/widgets/user_avatar.dart';
 
 // ---- エラーメッセージ変換 ----
 String _apiErrorMessage(Object e) {
@@ -247,14 +246,7 @@ class _UserMuteTab extends ConsumerWidget {
                   final userId = mutee['id'] as String? ?? '';
 
                   return ListTile(
-                    leading: avatarUrl != null
-                        ? CircleAvatar(
-                            backgroundImage: CachedNetworkImageProvider(
-                              avatarUrl,
-                              cacheManager: AppCacheManager(),
-                            ),
-                          )
-                        : const CircleAvatar(child: Icon(Icons.person)),
+                    leading: UserAvatar(avatarUrl: avatarUrl),
                     title: Text(name),
                     subtitle: Text(acct),
                     onTap: () => context.push('/profile/$userId'),
@@ -338,14 +330,7 @@ class _UserBlockTab extends ConsumerWidget {
                   final userId = blockee['id'] as String? ?? '';
 
                   return ListTile(
-                    leading: avatarUrl != null
-                        ? CircleAvatar(
-                            backgroundImage: CachedNetworkImageProvider(
-                              avatarUrl,
-                              cacheManager: AppCacheManager(),
-                            ),
-                          )
-                        : const CircleAvatar(child: Icon(Icons.person)),
+                    leading: UserAvatar(avatarUrl: avatarUrl),
                     title: Text(name),
                     subtitle: Text(acct),
                     onTap: () => context.push('/profile/$userId'),

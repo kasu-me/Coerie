@@ -10,6 +10,7 @@ import 'package:mfm_parser/mfm_parser.dart' as mfm;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:go_router/go_router.dart';
 import '../utils/emoji_utils.dart';
+import '../utils/format_utils.dart';
 
 /// MFM 中のリンクを開く。
 ///
@@ -748,10 +749,7 @@ class _MfmContentState extends State<MfmContent> {
             ts * 1000,
             isUtc: false,
           );
-          final formatted =
-              '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')} '
-              '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}:${dt.second.toString().padLeft(2, '0')}';
-          return [TextSpan(text: formatted, style: style)];
+          return [TextSpan(text: formatYmdHms(dt), style: style)];
         }
 
       // スケール
@@ -894,70 +892,89 @@ class _MfmContentState extends State<MfmContent> {
     );
     final durationMs = _parseSpeedMs(args['speed']);
 
-    Widget animated;
-    switch (name) {
-      case 'spin':
-        final axis = args.containsKey('x')
-            ? _SpinAxis.x
-            : args.containsKey('y')
-            ? _SpinAxis.y
-            : _SpinAxis.z;
-        animated = _SpinWidget(
+    // 各エフェクトは「0→1 を繰り返す進捗 t から Transform 等を組む」形に
+    // 統一できるため、共通の [_MfmAnimation] にビルダーだけを渡す。
+    final Widget animated = switch (name) {
+      'spin' => _MfmAnimation(
+        durationMs: durationMs ?? 1500,
+        // alternate 指定時は往復（0→1→0）させる
+        reverse: args.containsKey('alternate'),
+        builder: (t, child) => _spinTransform(
+          t,
           alternate: args.containsKey('alternate'),
-          axis: axis,
-          durationMs: durationMs ?? 1500,
-          child: childWidget,
-        );
-        break;
-      case 'shake':
-        animated = _ShakeWidget(
-          durationMs: durationMs ?? 500,
-          child: childWidget,
-        );
-        break;
-      case 'jump':
-        animated = _JumpWidget(
-          durationMs: durationMs ?? 750,
-          child: childWidget,
-        );
-        break;
-      case 'fall':
-        animated = _FallWidget(
-          durationMs: durationMs ?? 2000,
-          child: childWidget,
-        );
-        break;
-      case 'bounce':
-        animated = _BounceWidget(
-          durationMs: durationMs ?? 500,
-          child: childWidget,
-        );
-        break;
-      case 'jelly':
-      case 'tada':
-        animated = _JellyWidget(
-          durationMs: durationMs ?? 1000,
-          child: childWidget,
-        );
-        break;
-      case 'twitch':
-        animated = _TwitchWidget(
-          durationMs: durationMs ?? 200,
-          child: childWidget,
-        );
-        break;
-      case 'rainbow':
-        animated = _RainbowWidget(
-          durationMs: durationMs ?? 3000,
-          child: childWidget,
-        );
-        break;
-      case 'sparkle':
-        animated = _SparkleWidget(child: childWidget);
-        break;
-      default:
-        animated = childWidget;
-    }
+          axis: args.containsKey('x')
+              ? _SpinAxis.x
+              : args.containsKey('y')
+              ? _SpinAxis.y
+              : _SpinAxis.z,
+          child: child,
+        ),
+        child: childWidget,
+      ),
+      'shake' => _MfmAnimation(
+        durationMs: durationMs ?? 500,
+        builder: (t, child) => Transform.translate(
+          offset: Offset(3 * math.sin(t * 2 * math.pi * 3), 0),
+          child: child,
+        ),
+        child: childWidget,
+      ),
+      'jump' => _MfmAnimation(
+        durationMs: durationMs ?? 750,
+        builder: (t, child) => Transform.translate(
+          offset: Offset(0, -16 * math.sin(t * math.pi).clamp(0.0, 1.0)),
+          child: child,
+        ),
+        child: childWidget,
+      ),
+      'fall' => _MfmAnimation(
+        durationMs: durationMs ?? 2000,
+        builder: (t, child) => Transform.translate(
+          // 0→1 の Curved で加速しながら落下
+          offset: Offset(0, 60 * Curves.easeIn.transform(t)),
+          child: Opacity(opacity: (1.0 - t).clamp(0.0, 1.0), child: child),
+        ),
+        child: childWidget,
+      ),
+      'bounce' => _MfmAnimation(
+        durationMs: durationMs ?? 500,
+        builder: (t, child) => Transform.translate(
+          offset: Offset(0, -12 * math.sin(t * math.pi)),
+          child: child,
+        ),
+        child: childWidget,
+      ),
+      'jelly' || 'tada' => _MfmAnimation(
+        durationMs: durationMs ?? 1000,
+        builder: (t, child) => Transform.scale(
+          scale: 1.0 + 0.15 * math.sin(t * 2 * math.pi),
+          child: child,
+        ),
+        child: childWidget,
+      ),
+      'twitch' => _MfmAnimation(
+        durationMs: durationMs ?? 200,
+        builder: (t, child) => Transform.translate(
+          offset: Offset(
+            3 * math.sin(t * 2 * math.pi * 7),
+            2 * math.sin(t * 2 * math.pi * 13),
+          ),
+          child: child,
+        ),
+        child: childWidget,
+      ),
+      'rainbow' => _MfmAnimation(
+        durationMs: durationMs ?? 3000,
+        builder: (t, child) => ColorFiltered(
+          colorFilter: ColorFilter.matrix(_hueRotationMatrix(t * 360)),
+          child: child,
+        ),
+        child: childWidget,
+      ),
+      'sparkle' => _SparkleWidget(child: childWidget),
+      _ => childWidget,
+    };
+
     return [
       WidgetSpan(alignment: PlaceholderAlignment.middle, child: animated),
     ];
@@ -1048,7 +1065,9 @@ class _MfmContentState extends State<MfmContent> {
     final nodes = MfmContent._parse(widget.text);
     final result = nodes == null
         // パースエラー時はプレーンテキストで表示
-        ? RichText(text: TextSpan(text: widget.text, style: base))
+        ? RichText(
+            text: TextSpan(text: widget.text, style: base),
+          )
         : _buildNodeList(nodes, base, context);
 
     _recognizers = _buildingRecognizers;
@@ -1071,23 +1090,33 @@ class _MfmContentState extends State<MfmContent> {
 
 enum _SpinAxis { x, y, z }
 
-class _SpinWidget extends StatefulWidget {
+/// 0→1 を繰り返す進捗 [t] から表示を組み立てる、MFM アニメーション共通の土台。
+///
+/// shake / jump / fall / bounce / jelly / twitch / rainbow / spin は
+/// 「AnimationController を repeat して child を変形する」点が共通なので、
+/// 差分となる変形だけを [builder] で受け取る。
+class _MfmAnimation extends StatefulWidget {
   final Widget child;
-  final bool alternate;
-  final _SpinAxis axis;
   final int durationMs;
-  const _SpinWidget({
+
+  /// true なら 0→1→0 と往復する（[AnimationController.repeat] の reverse）。
+  final bool reverse;
+
+  /// 進捗 t（0.0〜1.0）と child から表示するウィジェットを組み立てる。
+  final Widget Function(double t, Widget child) builder;
+
+  const _MfmAnimation({
     required this.child,
-    this.alternate = false,
-    this.axis = _SpinAxis.z,
-    this.durationMs = 1500,
+    required this.durationMs,
+    required this.builder,
+    this.reverse = false,
   });
 
   @override
-  State<_SpinWidget> createState() => _SpinWidgetState();
+  State<_MfmAnimation> createState() => _MfmAnimationState();
 }
 
-class _SpinWidgetState extends State<_SpinWidget>
+class _MfmAnimationState extends State<_MfmAnimation>
     with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
 
@@ -1097,90 +1126,7 @@ class _SpinWidgetState extends State<_SpinWidget>
     _ctrl = AnimationController(
       vsync: this,
       duration: Duration(milliseconds: widget.durationMs),
-    )..repeat(reverse: widget.alternate);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    switch (widget.axis) {
-      case _SpinAxis.x:
-        return AnimatedBuilder(
-          animation: _ctrl,
-          builder: (_, child) {
-            final angle = widget.alternate
-                ? (_ctrl.value - 0.5) * math.pi
-                : _ctrl.value * 2 * math.pi;
-            final matrix = Matrix4.identity()
-              ..setEntry(3, 2, 0.001)
-              ..rotateX(angle);
-            return Transform(
-              transform: matrix,
-              alignment: Alignment.center,
-              child: child,
-            );
-          },
-          child: widget.child,
-        );
-      case _SpinAxis.y:
-        return AnimatedBuilder(
-          animation: _ctrl,
-          builder: (_, child) {
-            final angle = widget.alternate
-                ? (_ctrl.value - 0.5) * math.pi
-                : _ctrl.value * 2 * math.pi;
-            final matrix = Matrix4.identity()
-              ..setEntry(3, 2, 0.001)
-              ..rotateY(angle);
-            return Transform(
-              transform: matrix,
-              alignment: Alignment.center,
-              child: child,
-            );
-          },
-          child: widget.child,
-        );
-      case _SpinAxis.z:
-        if (widget.alternate) {
-          return AnimatedBuilder(
-            animation: _ctrl,
-            builder: (_, child) => Transform.rotate(
-              angle: (_ctrl.value - 0.5) * math.pi,
-              child: child,
-            ),
-            child: widget.child,
-          );
-        }
-        return RotationTransition(turns: _ctrl, child: widget.child);
-    }
-  }
-}
-
-class _ShakeWidget extends StatefulWidget {
-  final Widget child;
-  final int durationMs;
-  const _ShakeWidget({required this.child, this.durationMs = 500});
-
-  @override
-  State<_ShakeWidget> createState() => _ShakeWidgetState();
-}
-
-class _ShakeWidgetState extends State<_ShakeWidget>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: widget.durationMs),
-    )..repeat();
+    )..repeat(reverse: widget.reverse);
   }
 
   @override
@@ -1193,319 +1139,82 @@ class _ShakeWidgetState extends State<_ShakeWidget>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _ctrl,
-      builder: (_, child) => Transform.translate(
-        offset: Offset(3 * math.sin(_ctrl.value * 2 * math.pi * 3), 0),
-        child: child,
-      ),
+      // child は再構築されないよう AnimatedBuilder に預ける
+      builder: (_, child) => widget.builder(_ctrl.value, child!),
       child: widget.child,
     );
   }
 }
 
-class _JumpWidget extends StatefulWidget {
-  final Widget child;
-  final int durationMs;
-  const _JumpWidget({required this.child, this.durationMs = 750});
-
-  @override
-  State<_JumpWidget> createState() => _JumpWidgetState();
+/// $[spin] の回転変形。軸ごとに Matrix4 を組む。
+Widget _spinTransform(
+  double t, {
+  required bool alternate,
+  required _SpinAxis axis,
+  required Widget child,
+}) {
+  // alternate 時は往復再生と組み合わせて -90°〜+90° を行き来する
+  final angle = alternate ? (t - 0.5) * math.pi : t * 2 * math.pi;
+  if (axis == _SpinAxis.z) {
+    return Transform.rotate(angle: angle, child: child);
+  }
+  final matrix = Matrix4.identity()..setEntry(3, 2, 0.001);
+  if (axis == _SpinAxis.x) {
+    matrix.rotateX(angle);
+  } else {
+    matrix.rotateY(angle);
+  }
+  return Transform(
+    transform: matrix,
+    alignment: Alignment.center,
+    child: child,
+  );
 }
 
-class _JumpWidgetState extends State<_JumpWidget>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
+/// $[rainbow] の色相回転行列（[ColorFilter.matrix] 用の 4x5 行列）。
+List<double> _hueRotationMatrix(double degrees) {
+  final rad = degrees * math.pi / 180.0;
+  final cosA = math.cos(rad);
+  final sinA = math.sin(rad);
+  const double lumR = 0.213;
+  const double lumG = 0.715;
+  const double lumB = 0.072;
 
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: widget.durationMs),
-    )..repeat();
-  }
+  final a00 = lumR + (1 - lumR) * cosA + (-lumR) * sinA;
+  final a01 = lumG + (-lumG) * cosA + (-lumG) * sinA;
+  final a02 = lumB + (-lumB) * cosA + (1 - lumB) * sinA;
 
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
+  final a10 = lumR + (-lumR) * cosA + (0.143) * sinA;
+  final a11 = lumG + (1 - lumG) * cosA + (0.140) * sinA;
+  final a12 = lumB + (-lumB) * cosA + (-0.283) * sinA;
 
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, child) => Transform.translate(
-        offset: Offset(
-          0,
-          -16 * math.sin(_ctrl.value * math.pi).clamp(0.0, 1.0),
-        ),
-        child: child,
-      ),
-      child: widget.child,
-    );
-  }
-}
+  final a20 = lumR + (-lumR) * cosA + (-(1 - lumR)) * sinA;
+  final a21 = lumG + (-lumG) * cosA + (lumG) * sinA;
+  final a22 = lumB + (1 - lumB) * cosA + (lumB) * sinA;
 
-/// $[fall ...] — 子ウィジェットを下方向へ落下させるアニメーション。
-class _FallWidget extends StatefulWidget {
-  final Widget child;
-  final int durationMs;
-  const _FallWidget({required this.child, this.durationMs = 2000});
-
-  @override
-  State<_FallWidget> createState() => _FallWidgetState();
-}
-
-class _FallWidgetState extends State<_FallWidget>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: widget.durationMs),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, child) {
-        // 0→1 の Curved で加速しながら落下
-        final t = Curves.easeIn.transform(_ctrl.value);
-        return Transform.translate(
-          offset: Offset(0, 60 * t),
-          child: Opacity(
-            opacity: (1.0 - _ctrl.value).clamp(0.0, 1.0),
-            child: child,
-          ),
-        );
-      },
-      child: widget.child,
-    );
-  }
-}
-
-class _BounceWidget extends StatefulWidget {
-  final Widget child;
-  final int durationMs;
-  const _BounceWidget({required this.child, this.durationMs = 500});
-
-  @override
-  State<_BounceWidget> createState() => _BounceWidgetState();
-}
-
-class _BounceWidgetState extends State<_BounceWidget>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: widget.durationMs),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, child) => Transform.translate(
-        offset: Offset(0, -12 * math.sin(_ctrl.value * math.pi)),
-        child: child,
-      ),
-      child: widget.child,
-    );
-  }
-}
-
-class _JellyWidget extends StatefulWidget {
-  final Widget child;
-  final int durationMs;
-  const _JellyWidget({required this.child, this.durationMs = 1000});
-
-  @override
-  State<_JellyWidget> createState() => _JellyWidgetState();
-}
-
-class _JellyWidgetState extends State<_JellyWidget>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: widget.durationMs),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, child) {
-        final scale = 1.0 + 0.15 * math.sin(_ctrl.value * 2 * math.pi);
-        return Transform.scale(scale: scale, child: child);
-      },
-      child: widget.child,
-    );
-  }
-}
-
-class _TwitchWidget extends StatefulWidget {
-  final Widget child;
-  final int durationMs;
-  const _TwitchWidget({required this.child, this.durationMs = 200});
-
-  @override
-  State<_TwitchWidget> createState() => _TwitchWidgetState();
-}
-
-class _TwitchWidgetState extends State<_TwitchWidget>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: widget.durationMs),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, child) {
-        final t = _ctrl.value;
-        final dx = 3 * math.sin(t * 2 * math.pi * 7);
-        final dy = 2 * math.sin(t * 2 * math.pi * 13);
-        return Transform.translate(offset: Offset(dx, dy), child: child);
-      },
-      child: widget.child,
-    );
-  }
-}
-
-class _RainbowWidget extends StatefulWidget {
-  final Widget child;
-  final int durationMs;
-  const _RainbowWidget({required this.child, this.durationMs = 3000});
-
-  @override
-  State<_RainbowWidget> createState() => _RainbowWidgetState();
-}
-
-class _RainbowWidgetState extends State<_RainbowWidget>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: widget.durationMs),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  List<double> _hueRotationMatrix(double degrees) {
-    final rad = degrees * math.pi / 180.0;
-    final cosA = math.cos(rad);
-    final sinA = math.sin(rad);
-    const double lumR = 0.213;
-    const double lumG = 0.715;
-    const double lumB = 0.072;
-
-    final a00 = lumR + (1 - lumR) * cosA + (-lumR) * sinA;
-    final a01 = lumG + (-lumG) * cosA + (-lumG) * sinA;
-    final a02 = lumB + (-lumB) * cosA + (1 - lumB) * sinA;
-
-    final a10 = lumR + (-lumR) * cosA + (0.143) * sinA;
-    final a11 = lumG + (1 - lumG) * cosA + (0.140) * sinA;
-    final a12 = lumB + (-lumB) * cosA + (-0.283) * sinA;
-
-    final a20 = lumR + (-lumR) * cosA + (-(1 - lumR)) * sinA;
-    final a21 = lumG + (-lumG) * cosA + (lumG) * sinA;
-    final a22 = lumB + (1 - lumB) * cosA + (lumB) * sinA;
-
-    return [
-      a00,
-      a01,
-      a02,
-      0,
-      0,
-      a10,
-      a11,
-      a12,
-      0,
-      0,
-      a20,
-      a21,
-      a22,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0,
-    ];
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, child) {
-        final hue = _ctrl.value * 360;
-        return ColorFiltered(
-          colorFilter: ColorFilter.matrix(_hueRotationMatrix(hue)),
-          child: child,
-        );
-      },
-      child: widget.child,
-    );
-  }
+  // prettier-ignore
+  return [
+    a00,
+    a01,
+    a02,
+    0,
+    0,
+    a10,
+    a11,
+    a12,
+    0,
+    0,
+    a20,
+    a21,
+    a22,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+  ];
 }
 
 // ---- キラキラウィジェット ----

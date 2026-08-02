@@ -13,6 +13,7 @@ import '../../shared/providers/account_visibility_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/app_settings_model.dart';
+import '../../shared/utils/format_utils.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -513,7 +514,7 @@ class _CacheManagementTileState extends State<_CacheManagementTile> {
     final sizeText = _isLoading
         ? '計算中...'
         : _cacheBytes != null
-        ? formatCacheSize(_cacheBytes!)
+        ? formatBytes(_cacheBytes!)
         : '不明';
 
     return ListTile(

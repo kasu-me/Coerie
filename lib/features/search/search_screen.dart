@@ -1,5 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:coerie/core/services/cache_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +5,8 @@ import '../../data/models/note_model.dart';
 import '../../data/models/user_model.dart';
 import '../timeline/widgets/note_card.dart';
 import 'search_provider.dart';
+import '../../shared/utils/format_utils.dart';
+import '../../shared/widgets/user_avatar.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   final int initialTab;
@@ -90,7 +90,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
 
   @override
   Widget build(BuildContext context) {
-    final canSearchNotes = ref.watch(canSearchNotesProvider).valueOrNull ?? true;
+    final canSearchNotes =
+        ref.watch(canSearchNotesProvider).valueOrNull ?? true;
     // ノートタブでのみ、サーバー側でノート検索が無効な場合に検索操作を封じる
     final searchBarEnabled = !(_tabController.index == 0 && !canSearchNotes);
     return Scaffold(
@@ -183,7 +184,10 @@ class _SearchBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          FilledButton(onPressed: enabled ? onSearch : null, child: const Text('検索')),
+          FilledButton(
+            onPressed: enabled ? onSearch : null,
+            child: const Text('検索'),
+          ),
         ],
       ),
     );
@@ -310,7 +314,8 @@ class _NoteSearchTabState extends ConsumerState<_NoteSearchTab>
     super.build(context);
     ref.listen(noteSearchProvider, _handleScrollReset);
     final state = ref.watch(noteSearchProvider);
-    final canSearchNotes = ref.watch(canSearchNotesProvider).valueOrNull ?? true;
+    final canSearchNotes =
+        ref.watch(canSearchNotesProvider).valueOrNull ?? true;
     if (!canSearchNotes) {
       // サーバー側で無効と事前判明している場合は、期間フィルタも含めて
       // 操作しても無意味な要素は表示せず案内のみ表示する
@@ -464,14 +469,6 @@ class _DateRangeFilter extends ConsumerWidget {
 
   const _DateRangeFilter({this.rangeStart, this.rangeEnd});
 
-  /// yyyy/MM/dd 形式に手組みで整形する（intl はプロジェクト直接依存ではないため）
-  String _formatDate(DateTime d) {
-    final y = d.year.toString().padLeft(4, '0');
-    final m = d.month.toString().padLeft(2, '0');
-    final day = d.day.toString().padLeft(2, '0');
-    return '$y/$m/$day';
-  }
-
   /// 期間ピッカーを開き、確定した範囲をプロバイダーへ反映する
   Future<void> _pickRange(BuildContext context, WidgetRef ref) async {
     final now = DateTime.now();
@@ -502,7 +499,7 @@ class _DateRangeFilter extends ConsumerWidget {
             ? InputChip(
                 avatar: const Icon(Icons.date_range, size: 18),
                 label: Text(
-                  '${_formatDate(rangeStart!)} 〜 ${_formatDate(rangeEnd!)}',
+                  '${formatYmd(rangeStart!)} 〜 ${formatYmd(rangeEnd!)}',
                 ),
                 onPressed: () => _pickRange(context, ref),
                 onDeleted: () => ref
@@ -739,15 +736,7 @@ class _UserTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: CircleAvatar(
-        backgroundImage: user.avatarUrl != null
-            ? CachedNetworkImageProvider(
-                user.avatarUrl!,
-                cacheManager: AppCacheManager(),
-              )
-            : null,
-        child: user.avatarUrl == null ? const Icon(Icons.person) : null,
-      ),
+      leading: UserAvatar(avatarUrl: user.avatarUrl),
       title: Text(user.name, overflow: TextOverflow.ellipsis),
       subtitle: Text(user.acct, overflow: TextOverflow.ellipsis),
       onTap: () => context.push('/profile/${user.id}'),

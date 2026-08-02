@@ -238,8 +238,10 @@ class HiveService {
     } catch (e, stackTrace) {
       if (!shouldDiscardOnFailure(e)) {
         // ディスク上のデータは無傷とみなし、破棄せずメモリ上で起動する。
-        debugPrint('Hive: ボックス "$name" に一時的にアクセスできません'
-            '（データは保持したままメモリ上で動作します）: $e');
+        debugPrint(
+          'Hive: ボックス "$name" に一時的にアクセスできません'
+          '（データは保持したままメモリ上で動作します）: $e',
+        );
         debugPrintStack(stackTrace: stackTrace);
         await _openInMemory<T>(name);
         return;
@@ -364,15 +366,19 @@ class HiveService {
     if (actual == null || actual != expected) {
       // hive_flutter の保存先の決め方が変わって予測がずれている。
       // 誤検知するくらいなら検知しない。
-      debugPrint('Hive: ボックス "$name" の想定パスが実際と異なるため'
-          '破損検知を見送ります（想定=$expected 実際=$actual）');
+      debugPrint(
+        'Hive: ボックス "$name" の想定パスが実際と異なるため'
+        '破損検知を見送ります（想定=$expected 実際=$actual）',
+      );
       return;
     }
 
     final sizeAfterOpen = _boxFileSize(name);
     if (sizeAfterOpen < sizeBeforeOpen) {
-      debugPrint('Hive: ボックス "$name" の一部を読めなかったため失われました'
-          '（$sizeBeforeOpen → $sizeAfterOpen バイト）');
+      debugPrint(
+        'Hive: ボックス "$name" の一部を読めなかったため失われました'
+        '（$sizeBeforeOpen → $sizeAfterOpen バイト）',
+      );
       _recoveredBoxes.add(name);
     }
   }

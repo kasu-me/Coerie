@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants/app_constants.dart';
 import '../../shared/providers/settings_provider.dart';
 import 'draft_provider.dart';
+import '../../shared/utils/format_utils.dart';
 
 class DraftScreen extends ConsumerWidget {
   const DraftScreen({super.key});
@@ -86,7 +87,7 @@ class DraftScreen extends ConsumerWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          _formatDate(draft.savedAt),
+                          formatYmdHm(draft.savedAt),
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
@@ -141,11 +142,4 @@ class DraftScreen extends ConsumerWidget {
     AppConstants.visibilitySpecified => Icons.mail_outline,
     _ => Icons.public,
   };
-
-  String _formatDate(DateTime dt) {
-    return '${dt.year}/${dt.month.toString().padLeft(2, '0')}/'
-        '${dt.day.toString().padLeft(2, '0')} '
-        '${dt.hour.toString().padLeft(2, '0')}:'
-        '${dt.minute.toString().padLeft(2, '0')}';
-  }
 }

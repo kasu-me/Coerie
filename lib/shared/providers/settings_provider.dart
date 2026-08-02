@@ -28,99 +28,61 @@ class SettingsNotifier extends StateNotifier<AppSettingsModel> {
     return const AppSettingsModel();
   }
 
-  Future<void> _save() async {
-    await _prefs.setString(AppConstants.settingsKey, state.toJsonString());
+  /// 状態を差し替えて永続化する。各セッターの共通処理。
+  Future<void> _apply(AppSettingsModel next) async {
+    state = next;
+    await _prefs.setString(AppConstants.settingsKey, next.toJsonString());
   }
 
-  Future<void> setTheme(String theme) async {
-    state = state.copyWith(theme: theme);
-    await _save();
-  }
+  Future<void> setTheme(String theme) => _apply(state.copyWith(theme: theme));
 
-  Future<void> setFontSize(double size) async {
-    state = state.copyWith(fontSize: size);
-    await _save();
-  }
+  Future<void> setFontSize(double size) =>
+      _apply(state.copyWith(fontSize: size));
 
-  Future<void> setAvatarRadius(double radius) async {
-    state = state.copyWith(avatarRadius: radius);
-    await _save();
-  }
+  Future<void> setAvatarRadius(double radius) =>
+      _apply(state.copyWith(avatarRadius: radius));
 
-  Future<void> setRealtimeUpdate(bool value) async {
-    state = state.copyWith(realtimeUpdate: value);
-    await _save();
-  }
+  Future<void> setRealtimeUpdate(bool value) =>
+      _apply(state.copyWith(realtimeUpdate: value));
 
-  Future<void> setTabs(List<TabConfigModel> tabs) async {
-    state = state.copyWith(tabs: tabs);
-    await _save();
-  }
+  Future<void> setTabs(List<TabConfigModel> tabs) =>
+      _apply(state.copyWith(tabs: tabs));
 
-  Future<void> setNotificationsEnabled(bool value) async {
-    state = state.copyWith(notificationsEnabled: value);
-    await _save();
-  }
+  Future<void> setNotificationsEnabled(bool value) =>
+      _apply(state.copyWith(notificationsEnabled: value));
 
-  Future<void> setNotifyReply(bool value) async {
-    state = state.copyWith(notifyReply: value);
-    await _save();
-  }
+  Future<void> setNotifyReply(bool value) =>
+      _apply(state.copyWith(notifyReply: value));
 
-  Future<void> setNotifyFollow(bool value) async {
-    state = state.copyWith(notifyFollow: value);
-    await _save();
-  }
+  Future<void> setNotifyFollow(bool value) =>
+      _apply(state.copyWith(notifyFollow: value));
 
-  Future<void> setNotifyReaction(bool value) async {
-    state = state.copyWith(notifyReaction: value);
-    await _save();
-  }
+  Future<void> setNotifyReaction(bool value) =>
+      _apply(state.copyWith(notifyReaction: value));
 
-  Future<void> setDateTimeRelative(bool value) async {
-    state = state.copyWith(dateTimeRelative: value);
-    await _save();
-  }
+  Future<void> setDateTimeRelative(bool value) =>
+      _apply(state.copyWith(dateTimeRelative: value));
 
-  Future<void> setDefaultVisibility(String value) async {
-    state = state.copyWith(defaultVisibility: value);
-    await _save();
-  }
+  Future<void> setDefaultVisibility(String value) =>
+      _apply(state.copyWith(defaultVisibility: value));
 
-  Future<void> setTimezoneOffsetHours(int? value) async {
-    state = state.copyWith(timezoneOffsetHours: value);
-    await _save();
-  }
+  Future<void> setTimezoneOffsetHours(int? value) =>
+      _apply(state.copyWith(timezoneOffsetHours: value));
 
-  Future<void> setConfirmDestructive(bool value) async {
-    state = state.copyWith(confirmDestructive: value);
-    await _save();
-  }
+  Future<void> setConfirmDestructive(bool value) =>
+      _apply(state.copyWith(confirmDestructive: value));
 
-  Future<void> setMfmAnimation(bool value) async {
-    state = state.copyWith(mfmAnimation: value);
-    await _save();
-  }
+  Future<void> setMfmAnimation(bool value) =>
+      _apply(state.copyWith(mfmAnimation: value));
 
-  Future<void> setCollapseNote(bool value) async {
-    state = state.copyWith(collapseNote: value);
-    await _save();
-  }
+  Future<void> setCollapseNote(bool value) =>
+      _apply(state.copyWith(collapseNote: value));
 
-  Future<void> setDefaultImageCompressionLevel(
-    ImageCompressionLevel level,
-  ) async {
-    state = state.copyWith(defaultImageCompressionLevel: level);
-    await _save();
-  }
+  Future<void> setDefaultImageCompressionLevel(ImageCompressionLevel level) =>
+      _apply(state.copyWith(defaultImageCompressionLevel: level));
 
-  Future<void> setRenoteVisibility(String value) async {
-    state = state.copyWith(renoteVisibility: value);
-    await _save();
-  }
+  Future<void> setRenoteVisibility(String value) =>
+      _apply(state.copyWith(renoteVisibility: value));
 
-  Future<void> importSettings(AppSettingsModel settings) async {
-    state = settings;
-    await _save();
-  }
+  Future<void> importSettings(AppSettingsModel settings) => _apply(settings);
 }

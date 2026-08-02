@@ -8,7 +8,8 @@ import '../../data/models/user_model.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
-import '../../shared/providers/settings_provider.dart';
+import '../../shared/widgets/confirm_dialog.dart';
+import '../../shared/widgets/user_avatar.dart';
 
 class ListsScreen extends ConsumerStatefulWidget {
   const ListsScreen({super.key});
@@ -73,30 +74,14 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
   }
 
   Future<void> _deleteList(Map<String, dynamic> list) async {
-    final settings = ref.read(settingsProvider);
-    if (settings.confirmDestructive) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('リストを削除'),
-          content: Text('「${list['name']}」を削除しますか？この操作は取り消せません。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('キャンセル'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error,
-              ),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('削除'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !mounted) return;
-    }
+    final confirmed = await confirmAction(
+      context,
+      ref,
+      title: 'リストを削除',
+      message: '「${list['name']}」を削除しますか？この操作は取り消せません。',
+      confirmLabel: '削除',
+    );
+    if (!confirmed || !mounted) return;
 
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
@@ -571,17 +556,11 @@ class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
                         final user = results[i];
                         return ListTile(
                           dense: true,
-                          leading: user.avatarUrl != null
-                              ? CircleAvatar(
-                                  backgroundImage: NetworkImage(
-                                    user.avatarUrl!,
-                                  ),
-                                  radius: 16,
-                                )
-                              : const CircleAvatar(
-                                  radius: 16,
-                                  child: Icon(Icons.person, size: 16),
-                                ),
+                          leading: UserAvatar(
+                            avatarUrl: user.avatarUrl,
+                            radius: 16,
+                            iconSize: 16,
+                          ),
                           title: Text(user.name),
                           subtitle: Text(
                             user.acct,
@@ -737,12 +716,7 @@ class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
         final acct = userHost != null ? '@$username@$userHost' : '@$username';
         final avatarUrl = user['avatarUrl'] as String?;
         return ListTile(
-          leading: avatarUrl != null
-              ? CircleAvatar(
-                  backgroundImage: NetworkImage(avatarUrl),
-                  radius: 20,
-                )
-              : const CircleAvatar(radius: 20, child: Icon(Icons.person)),
+          leading: UserAvatar(avatarUrl: avatarUrl, radius: 20),
           title: Text(name),
           subtitle: Text(acct, style: Theme.of(ctx).textTheme.bodySmall),
           trailing: IconButton(

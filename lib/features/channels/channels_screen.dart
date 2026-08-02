@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/providers/misskey_api_provider.dart';
-import '../../shared/providers/settings_provider.dart';
+import '../../shared/widgets/confirm_dialog.dart';
 
 class ChannelsScreen extends ConsumerStatefulWidget {
   const ChannelsScreen({super.key});
@@ -17,13 +17,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  static const _tabLabels = [
-    '\u691c\u7d22',
-    '\u30c8\u30ec\u30f3\u30c9',
-    '\u304a\u6c17\u306b\u5165\u308a',
-    '\u30d5\u30a9\u30ed\u30fc\u4e2d',
-    '\u7ba1\u7406\u4e2d',
-  ];
+  static const _tabLabels = ['検索', 'トレンド', 'お気に入り', 'フォロー中', '管理中'];
 
   @override
   void initState() {
@@ -41,7 +35,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('\u30c1\u30e3\u30f3\u30cd\u30eb'),
+        title: const Text('チャンネル'),
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
@@ -122,7 +116,7 @@ class _ChannelTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
-                '\u30a2\u30fc\u30ab\u30a4\u30d6\u6e08',
+                'アーカイブ済',
                 style: Theme.of(context).textTheme.labelSmall,
               ),
             ),
@@ -137,7 +131,7 @@ class _ChannelTile extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall,
             )
           : Text(
-              '\u30e6\u30fc\u30b6\u30fc $usersCount \u30fb \u30ce\u30fc\u30c8 $notesCount',
+              'ユーザー $usersCount ・ ノート $notesCount',
               style: Theme.of(context).textTheme.bodySmall,
             ),
       trailing: menuItems != null
@@ -218,7 +212,7 @@ class _SearchTabState extends ConsumerState<_SearchTab>
           padding: const EdgeInsets.all(12),
           child: SearchBar(
             controller: _searchController,
-            hintText: '\u30c1\u30e3\u30f3\u30cd\u30eb\u3092\u691c\u7d22',
+            hintText: 'チャンネルを検索',
             leading: const Icon(Icons.search),
             trailing: [
               if (_searchController.text.isNotEmpty)
@@ -249,16 +243,13 @@ class _SearchTabState extends ConsumerState<_SearchTab>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              '\u30a8\u30e9\u30fc\u304c\u767a\u751f\u3057\u307e\u3057\u305f',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text('エラーが発生しました', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(_error!, style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 16),
             FilledButton(
               onPressed: () => _search(_searchController.text),
-              child: const Text('\u518d\u8a66\u884c'),
+              child: const Text('再試行'),
             ),
           ],
         ),
@@ -271,19 +262,13 @@ class _SearchTabState extends ConsumerState<_SearchTab>
           children: [
             Icon(Icons.search, size: 64, color: Colors.grey),
             SizedBox(height: 16),
-            Text(
-              '\u30c1\u30e3\u30f3\u30cd\u30eb\u540d\u30fb\u6982\u8981\u3067\u691c\u7d22\u3067\u304d\u307e\u3059',
-            ),
+            Text('チャンネル名・概要で検索できます'),
           ],
         ),
       );
     }
     if (_results.isEmpty) {
-      return const Center(
-        child: Text(
-          '\u30c1\u30e3\u30f3\u30cd\u30eb\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3067\u3057\u305f',
-        ),
-      );
+      return const Center(child: Text('チャンネルが見つかりませんでした'));
     }
     return ListView.separated(
       padding: EdgeInsets.only(
@@ -324,10 +309,7 @@ class _FeaturedTabState extends ConsumerState<_FeaturedTab>
     final api = ref.read(misskeyApiProvider);
     if (api == null) {
       if (mounted) {
-        setState(
-          () =>
-              _error = '\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059',
-        );
+        setState(() => _error = 'ログインが必要です');
       }
       return;
     }
@@ -353,11 +335,7 @@ class _FeaturedTabState extends ConsumerState<_FeaturedTab>
       return _ErrorView(error: _error!, onRetry: _load);
     }
     if (_items.isEmpty) {
-      return const Center(
-        child: Text(
-          '\u30c8\u30ec\u30f3\u30c9\u306e\u30c1\u30e3\u30f3\u30cd\u30eb\u306f\u3042\u308a\u307e\u305b\u3093',
-        ),
-      );
+      return const Center(child: Text('トレンドのチャンネルはありません'));
     }
     return RefreshIndicator(
       onRefresh: _load,
@@ -402,10 +380,7 @@ class _FavoritesTabState extends ConsumerState<_FavoritesTab>
     final api = ref.read(misskeyApiProvider);
     if (api == null) {
       if (mounted) {
-        setState(
-          () =>
-              _error = '\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059',
-        );
+        setState(() => _error = 'ログインが必要です');
       }
       return;
     }
@@ -431,11 +406,7 @@ class _FavoritesTabState extends ConsumerState<_FavoritesTab>
       return _ErrorView(error: _error!, onRetry: _load);
     }
     if (_items.isEmpty) {
-      return const Center(
-        child: Text(
-          '\u304a\u6c17\u306b\u5165\u308a\u306e\u30c1\u30e3\u30f3\u30cd\u30eb\u306f\u3042\u308a\u307e\u305b\u3093',
-        ),
-      );
+      return const Center(child: Text('お気に入りのチャンネルはありません'));
     }
     return RefreshIndicator(
       onRefresh: _load,
@@ -480,10 +451,7 @@ class _FollowedTabState extends ConsumerState<_FollowedTab>
     final api = ref.read(misskeyApiProvider);
     if (api == null) {
       if (mounted) {
-        setState(
-          () =>
-              _error = '\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059',
-        );
+        setState(() => _error = 'ログインが必要です');
       }
       return;
     }
@@ -509,11 +477,7 @@ class _FollowedTabState extends ConsumerState<_FollowedTab>
       return _ErrorView(error: _error!, onRetry: _load);
     }
     if (_items.isEmpty) {
-      return const Center(
-        child: Text(
-          '\u30d5\u30a9\u30ed\u30fc\u4e2d\u306e\u30c1\u30e3\u30f3\u30cd\u30eb\u306f\u3042\u308a\u307e\u305b\u3093',
-        ),
-      );
+      return const Center(child: Text('フォロー中のチャンネルはありません'));
     }
     return RefreshIndicator(
       onRefresh: _load,
@@ -558,10 +522,7 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
     final api = ref.read(misskeyApiProvider);
     if (api == null) {
       if (mounted) {
-        setState(
-          () =>
-              _error = '\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059',
-        );
+        setState(() => _error = 'ログインが必要です');
       }
       return;
     }
@@ -598,34 +559,14 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
   }
 
   Future<void> _archiveChannel(Map<String, dynamic> channel) async {
-    final settings = ref.read(settingsProvider);
-    if (settings.confirmDestructive) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text(
-            '\u30c1\u30e3\u30f3\u30cd\u30eb\u3092\u30a2\u30fc\u30ab\u30a4\u30d6',
-          ),
-          content: Text(
-            '\u300c${channel['name']}\u300d\u3092\u30a2\u30fc\u30ab\u30a4\u30d6\u3057\u307e\u3059\u304b\uff1f\u30a2\u30fc\u30ab\u30a4\u30d6\u3055\u308c\u305f\u30c1\u30e3\u30f3\u30cd\u30eb\u306f\u975e\u516c\u958b\u306b\u306a\u308a\u307e\u3059\u3002',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('\u30ad\u30e3\u30f3\u30bb\u30eb'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error,
-              ),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('\u30a2\u30fc\u30ab\u30a4\u30d6'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !mounted) return;
-    }
+    final confirmed = await confirmAction(
+      context,
+      ref,
+      title: 'チャンネルをアーカイブ',
+      message: '「${channel['name']}」をアーカイブしますか？アーカイブされたチャンネルは非公開になります。',
+      confirmLabel: 'アーカイブ',
+    );
+    if (!confirmed || !mounted) return;
 
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
@@ -634,13 +575,9 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '\u30a2\u30fc\u30ab\u30a4\u30d6\u306b\u5931\u6557\u3057\u307e\u3057\u305f: $e',
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('アーカイブに失敗しました: $e')));
       }
     }
   }
@@ -669,12 +606,10 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
           children: [
             Icon(Icons.tv, size: 64, color: Colors.grey),
             SizedBox(height: 16),
-            Text(
-              '\u7ba1\u7406\u4e2d\u306e\u30c1\u30e3\u30f3\u30cd\u30eb\u306f\u3042\u308a\u307e\u305b\u3093',
-            ),
+            Text('管理中のチャンネルはありません'),
             SizedBox(height: 8),
             Text(
-              '\u53f3\u4e0b\u306e + \u30dc\u30bf\u30f3\u3067\u30c1\u30e3\u30f3\u30cd\u30eb\u3092\u4f5c\u6210\u3067\u304d\u307e\u3059',
+              '右下の + ボタンでチャンネルを作成できます',
               style: TextStyle(color: Colors.grey),
             ),
           ],
@@ -701,7 +636,7 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
                   children: [
                     Icon(Icons.edit_outlined),
                     SizedBox(width: 8),
-                    Text('\u7de8\u96c6'),
+                    Text('編集'),
                   ],
                 ),
               ),
@@ -715,7 +650,7 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '\u30a2\u30fc\u30ab\u30a4\u30d6',
+                      'アーカイブ',
                       style: TextStyle(color: Theme.of(ctx).colorScheme.error),
                     ),
                   ],
@@ -747,17 +682,11 @@ class _ErrorView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            '\u30a8\u30e9\u30fc\u304c\u767a\u751f\u3057\u307e\u3057\u305f',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          Text('エラーが発生しました', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(error, style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 16),
-          FilledButton(
-            onPressed: onRetry,
-            child: const Text('\u518d\u8a66\u884c'),
-          ),
+          FilledButton(onPressed: onRetry, child: const Text('再試行')),
         ],
       ),
     );
@@ -810,13 +739,9 @@ class _ChannelEditSheetState extends ConsumerState<_ChannelEditSheet> {
   Future<void> _save() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            '\u30c1\u30e3\u30f3\u30cd\u30eb\u540d\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('チャンネル名を入力してください')));
       return;
     }
     final api = ref.read(misskeyApiProvider);
@@ -851,13 +776,9 @@ class _ChannelEditSheetState extends ConsumerState<_ChannelEditSheet> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '\u4fdd\u5b58\u306b\u5931\u6557\u3057\u307e\u3057\u305f: $e',
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('保存に失敗しました: $e')));
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);

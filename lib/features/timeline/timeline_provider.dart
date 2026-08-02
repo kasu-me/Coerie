@@ -236,10 +236,7 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
         limit: 20,
         extraParams: extraParams,
       );
-      state = state.copyWith(
-        isLoadingMore: false,
-        notes: _syncNotes(notes),
-      );
+      state = state.copyWith(isLoadingMore: false, notes: _syncNotes(notes));
       // WebSocket が接続されていない場合は、通知を API から手動取得してバッジ等を更新する
       final status = _ref
           .read(streamingStatusProvider)

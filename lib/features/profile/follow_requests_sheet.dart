@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:coerie/core/services/cache_service.dart';
 import '../../data/models/user_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
-import '../../shared/providers/settings_provider.dart';
 import '../../shared/providers/follow_requests_badge_provider.dart';
+import '../../shared/widgets/confirm_dialog.dart';
+import '../../shared/widgets/user_avatar.dart';
 
 class FollowRequestsSheet extends ConsumerStatefulWidget {
   final String profileOwnerId;
@@ -86,32 +85,14 @@ class _FollowRequestsSheetState extends ConsumerState<FollowRequestsSheet> {
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
 
-    final settings = ref.read(settingsProvider);
-    if (settings.confirmDestructive) {
-      final confirmed =
-          await showDialog<bool>(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text('フォローリクエストを拒否'),
-              content: const Text('このフォローリクエストを拒否してもよろしいですか？'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('キャンセル'),
-                ),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.error,
-                  ),
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('拒否'),
-                ),
-              ],
-            ),
-          ) ??
-          false;
-      if (!confirmed) return;
-    }
+    final confirmed = await confirmAction(
+      context,
+      ref,
+      title: 'フォローリクエストを拒否',
+      message: 'このフォローリクエストを拒否してもよろしいですか？',
+      confirmLabel: '拒否',
+    );
+    if (!confirmed) return;
 
     try {
       await api.rejectFollowRequest(u.id);
@@ -163,17 +144,7 @@ class _FollowRequestsSheetState extends ConsumerState<FollowRequestsSheet> {
                       itemBuilder: (context, i) {
                         final u = _requests[i];
                         return ListTile(
-                          leading: CircleAvatar(
-                            backgroundImage: u.avatarUrl != null
-                                ? CachedNetworkImageProvider(
-                                    u.avatarUrl!,
-                                    cacheManager: AppCacheManager(),
-                                  )
-                                : null,
-                            child: u.avatarUrl == null
-                                ? const Icon(Icons.person)
-                                : null,
-                          ),
+                          leading: UserAvatar(avatarUrl: u.avatarUrl),
                           title: Text(
                             u.name,
                             style: const TextStyle(fontWeight: FontWeight.bold),

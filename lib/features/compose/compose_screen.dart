@@ -25,6 +25,7 @@ import '../draft/draft_provider.dart';
 import 'emoji_picker_sheet.dart';
 import '../../shared/utils/emoji_utils.dart';
 import '../../shared/widgets/mfm_content.dart';
+import '../../shared/widgets/user_avatar.dart';
 
 sealed class _AttachedMedia {}
 
@@ -548,9 +549,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
   /// メディア設定シートを表示する（圧縮率 + センシティブ設定）
   Future<void> _showMediaSettings(_AttachedMedia media) async {
-    final _LocalMedia? localMedia =
-        media is _LocalMedia ? media : null;
-    final isCompressible = localMedia != null &&
+    final _LocalMedia? localMedia = media is _LocalMedia ? media : null;
+    final isCompressible =
+        localMedia != null &&
         ImageCompressionService.isCompressible(localMedia.file.path);
 
     await showModalBottomSheet<void>(
@@ -1052,14 +1053,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
             ),
             ...accounts.map(
               (a) => ListTile(
-                leading: a.avatarUrl != null
-                    ? CircleAvatar(
-                        backgroundImage: CachedNetworkImageProvider(
-                          a.avatarUrl!,
-                          cacheManager: AppCacheManager(),
-                        ),
-                      )
-                    : const CircleAvatar(child: Icon(Icons.person)),
+                leading: UserAvatar(avatarUrl: a.avatarUrl),
                 title: Text(a.name),
                 subtitle: Text(a.acct),
                 trailing: a.id == (_selectedAccount?.id)
@@ -1718,18 +1712,11 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                     // アカウントアイコン（タップで切り替え）
                     GestureDetector(
                       onTap: () => _showAccountSwitcher(context, ref),
-                      child: account?.avatarUrl != null
-                          ? CircleAvatar(
-                              radius: 16,
-                              backgroundImage: CachedNetworkImageProvider(
-                                account!.avatarUrl!,
-                                cacheManager: AppCacheManager(),
-                              ),
-                            )
-                          : const CircleAvatar(
-                              radius: 16,
-                              child: Icon(Icons.person, size: 16),
-                            ),
+                      child: UserAvatar(
+                        avatarUrl: account?.avatarUrl,
+                        radius: 16,
+                        iconSize: 16,
+                      ),
                     ),
                     const SizedBox(width: 8),
 

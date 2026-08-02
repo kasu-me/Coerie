@@ -503,7 +503,11 @@ class UserSearchNotifier extends StateNotifier<UserSearchState> {
     if (query.trim().isEmpty) return;
     final reqId = ++_requestId;
     // 検索対象は検索をまたいで保持する
-    state = UserSearchState(isLoading: true, query: query, origin: state.origin);
+    state = UserSearchState(
+      isLoading: true,
+      query: query,
+      origin: state.origin,
+    );
     final api = _ref.read(misskeyApiProvider);
     if (api == null) return;
     try {

@@ -10,12 +10,14 @@ import '../../data/models/user_field_model.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
-import '../../shared/providers/settings_provider.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
 import '../../shared/widgets/report_abuse_sheet.dart';
 import '../timeline/widgets/note_card.dart';
 import 'pinned_notes_provider.dart';
 import 'follow_requests_sheet.dart';
+import '../../shared/widgets/confirm_dialog.dart';
+import '../../shared/widgets/user_avatar.dart';
+import '../../shared/providers/paged_notifier.dart';
 
 class _AppBarIcon extends StatelessWidget {
   final IconData icon;
@@ -56,28 +58,7 @@ final userProfileProvider = FutureProvider.autoDispose
 // (リンク検出は MFM レンダラーに委ねるため、手動判定は削除しました)
 
 // ---- 投稿ページネーション ----
-class _ProfileNotesState {
-  final List<NoteModel> notes;
-  final bool isLoading;
-  final bool hasMore;
-
-  const _ProfileNotesState({
-    this.notes = const [],
-    this.isLoading = false,
-    this.hasMore = true,
-  });
-  _ProfileNotesState copyWith({
-    List<NoteModel>? notes,
-    bool? isLoading,
-    bool? hasMore,
-  }) => _ProfileNotesState(
-    notes: notes ?? this.notes,
-    isLoading: isLoading ?? this.isLoading,
-    hasMore: hasMore ?? this.hasMore,
-  );
-}
-
-class _ProfileNotesNotifier extends StateNotifier<_ProfileNotesState> {
+class _ProfileNotesNotifier extends PagedNotifier<NoteModel> {
   final Ref _ref;
   final String userId;
   final bool withFiles;
@@ -88,48 +69,30 @@ class _ProfileNotesNotifier extends StateNotifier<_ProfileNotesState> {
     this.userId, {
     this.withFiles = false,
     this.withReplies = false,
-  }) : super(const _ProfileNotesState()) {
+  }) {
     fetch();
   }
 
-  Future<void> fetch({bool loadMore = false}) async {
-    if (state.isLoading) return;
-    if (loadMore && !state.hasMore) return;
+  @override
+  String cursorOf(NoteModel item) => item.id;
 
+  @override
+  Future<List<NoteModel>> fetchPage({String? untilId}) async {
     final api = _ref.read(misskeyApiProvider);
-    if (api == null) return;
-
-    state = state.copyWith(isLoading: true);
-    try {
-      final untilId = loadMore && state.notes.isNotEmpty
-          ? state.notes.last.id
-          : null;
-      final notes = await api.getUserNotes(
-        userId: userId,
-        limit: 20,
-        withFiles: withFiles,
-        withReplies: withReplies,
-        untilId: untilId,
-      );
-      state = state.copyWith(
-        isLoading: false,
-        notes: loadMore ? [...state.notes, ...notes] : notes,
-        hasMore: notes.length >= 20,
-      );
-    } catch (_) {
-      state = state.copyWith(isLoading: false);
-    }
-  }
-
-  Future<void> refresh() async {
-    state = const _ProfileNotesState();
-    await fetch();
+    if (api == null) return [];
+    return api.getUserNotes(
+      userId: userId,
+      limit: pageSize,
+      withFiles: withFiles,
+      withReplies: withReplies,
+      untilId: untilId,
+    );
   }
 }
 
 typedef _NotesProviderKey = ({String userId, bool withFiles, bool withReplies});
 final _profileNotesProvider = StateNotifierProvider.autoDispose
-    .family<_ProfileNotesNotifier, _ProfileNotesState, _NotesProviderKey>(
+    .family<_ProfileNotesNotifier, PagedState<NoteModel>, _NotesProviderKey>(
       (ref, p) => _ProfileNotesNotifier(
         ref,
         p.userId,
@@ -146,79 +109,49 @@ _NotesProviderKey _notesKeyForTab(String userId, int tabIndex) =>
       _ => (userId: userId, withFiles: false, withReplies: false),
     };
 
-// ---- フォロー/フォロワー リスト状態 ----
-class _FollowListState {
-  final List<UserModel> users;
-  final bool isLoading;
-  final bool hasMore;
-  const _FollowListState({
-    this.users = const [],
-    this.isLoading = false,
-    this.hasMore = true,
-  });
-  _FollowListState copyWith({
-    List<UserModel>? users,
-    bool? isLoading,
-    bool? hasMore,
-  }) => _FollowListState(
-    users: users ?? this.users,
-    isLoading: isLoading ?? this.isLoading,
-    hasMore: hasMore ?? this.hasMore,
-  );
-}
-
-class _FollowListNotifier extends StateNotifier<_FollowListState> {
+// ---- フォロー/フォロワー リスト ----
+class _FollowListNotifier extends PagedNotifier<UserModel> {
   final Ref _ref;
   final String userId;
   final bool isFollowing; // true=フォロー一覧, false=フォロワー一覧
 
-  _FollowListNotifier(this._ref, this.userId, {required this.isFollowing})
-    : super(const _FollowListState()) {
+  _FollowListNotifier(this._ref, this.userId, {required this.isFollowing}) {
     fetch();
   }
 
-  Future<void> fetch({bool loadMore = false}) async {
-    if (state.isLoading) return;
-    if (loadMore && !state.hasMore) return;
+  @override
+  int get pageSize => 30;
+
+  @override
+  String cursorOf(UserModel item) => item.id;
+
+  @override
+  Future<List<UserModel>> fetchPage({String? untilId}) async {
     final api = _ref.read(misskeyApiProvider);
-    if (api == null) return;
-    state = state.copyWith(isLoading: true);
+    if (api == null) return [];
+    final users = isFollowing
+        ? await api.getFollowing(userId, limit: pageSize, untilId: untilId)
+        : await api.getFollowers(userId, limit: pageSize, untilId: untilId);
+
+    // users/relation で一括取得したリレーション情報を各 UserModel に反映する。
+    // 失敗した場合は元の users をそのまま使う。
     try {
-      final untilId = loadMore && state.users.isNotEmpty
-          ? state.users.last.id
-          : null;
-      var users = isFollowing
-          ? await api.getFollowing(userId, limit: 30, untilId: untilId)
-          : await api.getFollowers(userId, limit: 30, untilId: untilId);
-
-      // users/relation エンドポイントで一括してリレーション情報を取得し、
-      // 各 UserModel のフラグを更新する（効率化）。失敗した場合は元の users を利用。
-      try {
-        final ids = users.map((u) => u.id).toList();
-        final relations = await api.getUsersRelation(ids);
-        if (relations.isNotEmpty) {
-          users = users.map((u) {
-            final rel = relations[u.id];
-            if (rel == null) return u;
-            return u.copyWith(
-              isFollowing: rel['isFollowing'] as bool? ?? u.isFollowing,
-              isFollowed: rel['isFollowed'] as bool? ?? u.isFollowed,
-              isBlocking: rel['isBlocking'] as bool? ?? u.isBlocking,
-              isMuted: rel['isMuted'] as bool? ?? u.isMuted,
-            );
-          }).toList();
-        }
-      } catch (_) {
-        // ignore and fall back to original users
-      }
-
-      state = state.copyWith(
-        isLoading: false,
-        users: loadMore ? [...state.users, ...users] : users,
-        hasMore: users.length >= 30,
+      final relations = await api.getUsersRelation(
+        users.map((u) => u.id).toList(),
       );
+      if (relations.isEmpty) return users;
+      return users.map((u) {
+        final rel = relations[u.id];
+        if (rel == null) return u;
+        return u.copyWith(
+          isFollowing: rel['isFollowing'] as bool? ?? u.isFollowing,
+          isFollowed: rel['isFollowed'] as bool? ?? u.isFollowed,
+          isBlocking: rel['isBlocking'] as bool? ?? u.isBlocking,
+          isMuted: rel['isMuted'] as bool? ?? u.isMuted,
+        );
+      }).toList();
     } catch (_) {
-      state = state.copyWith(isLoading: false);
+      return users;
     }
   }
 }
@@ -226,7 +159,7 @@ class _FollowListNotifier extends StateNotifier<_FollowListState> {
 typedef _FollowListKey = ({String userId, bool isFollowing});
 
 final _followListProvider = StateNotifierProvider.autoDispose
-    .family<_FollowListNotifier, _FollowListState, _FollowListKey>(
+    .family<_FollowListNotifier, PagedState<UserModel>, _FollowListKey>(
       (ref, p) =>
           _FollowListNotifier(ref, p.userId, isFollowing: p.isFollowing),
     );
@@ -601,39 +534,15 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                 if (value == 'invalidate') {
                                   final api = ref.read(misskeyApiProvider);
                                   if (api == null) return;
-                                  final settings = ref.read(settingsProvider);
-                                  if (settings.confirmDestructive) {
-                                    if (!context.mounted) return;
-                                    final confirmed =
-                                        await showDialog<bool>(
-                                          context: context,
-                                          builder: (ctx) => AlertDialog(
-                                            title: const Text('フォロワーを解除'),
-                                            content: const Text(
-                                              'このユーザーをフォロワーから解除しますか？',
-                                            ),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () =>
-                                                    Navigator.pop(ctx, false),
-                                                child: const Text('キャンセル'),
-                                              ),
-                                              FilledButton(
-                                                style: FilledButton.styleFrom(
-                                                  backgroundColor: Theme.of(
-                                                    context,
-                                                  ).colorScheme.error,
-                                                ),
-                                                onPressed: () =>
-                                                    Navigator.pop(ctx, true),
-                                                child: const Text('解除'),
-                                              ),
-                                            ],
-                                          ),
-                                        ) ??
-                                        false;
-                                    if (!confirmed) return;
-                                  }
+                                  if (!context.mounted) return;
+                                  final confirmed = await confirmAction(
+                                    context,
+                                    ref,
+                                    title: 'フォロワーを解除',
+                                    message: 'このユーザーをフォロワーから解除しますか？',
+                                    confirmLabel: '解除',
+                                  );
+                                  if (!confirmed) return;
                                   // 楽観的にバッジを即時非表示にする
                                   final prevFollowed = _isFollowed;
                                   setState(() {
@@ -675,9 +584,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                     }
                                   } finally {
                                     if (mounted) {
-                                      setState(
-                                        () => _isLoadingAction = false,
-                                      );
+                                      setState(() => _isLoadingAction = false);
                                     }
                                   }
                                 }
@@ -840,17 +747,10 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            CircleAvatar(
+                            UserAvatar(
+                              avatarUrl: user.avatarUrl,
                               radius: 36,
-                              backgroundImage: user.avatarUrl != null
-                                  ? CachedNetworkImageProvider(
-                                      user.avatarUrl!,
-                                      cacheManager: AppCacheManager(),
-                                    )
-                                  : null,
-                              child: user.avatarUrl == null
-                                  ? const Icon(Icons.person, size: 36)
-                                  : null,
+                              iconSize: 36,
                             ),
                             const Spacer(),
                             if (!isOwnProfile)
@@ -1083,12 +983,12 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
   }
 
   List<Widget> _buildNotesSlivers(
-    _ProfileNotesState state,
+    PagedState<NoteModel> state,
     String emptyMessage, {
     List<NoteModel> pinnedNotes = const [],
     double bottomInset = 0,
   }) {
-    if (state.isLoading && state.notes.isEmpty && pinnedNotes.isEmpty) {
+    if (state.isLoading && state.items.isEmpty && pinnedNotes.isEmpty) {
       return const [
         SliverFillRemaining(
           hasScrollBody: false,
@@ -1111,15 +1011,15 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
         ),
         const SliverToBoxAdapter(child: Divider(height: 1)),
       ],
-      if (state.notes.isEmpty && !state.isLoading && pinnedNotes.isEmpty)
+      if (state.items.isEmpty && !state.isLoading && pinnedNotes.isEmpty)
         SliverFillRemaining(
           hasScrollBody: false,
           child: Center(child: Text(emptyMessage)),
         ),
-      if (state.notes.isNotEmpty || state.isLoading)
+      if (state.items.isNotEmpty || state.isLoading)
         SliverList(
           delegate: SliverChildBuilderDelegate((context, i) {
-            if (i == state.notes.length) {
+            if (i == state.items.length) {
               return state.isLoading
                   ? const Padding(
                       padding: EdgeInsets.all(16),
@@ -1127,8 +1027,8 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                     )
                   : const SizedBox.shrink();
             }
-            return NoteCard(note: state.notes[i]);
-          }, childCount: state.notes.length + (state.hasMore ? 1 : 0)),
+            return NoteCard(note: state.items[i]);
+          }, childCount: state.items.length + (state.hasMore ? 1 : 0)),
         ),
       // ナビゲーションバー・FAB と最後の投稿が重ならないようにする余白
       SliverToBoxAdapter(child: SizedBox(height: bottomInset)),
@@ -1180,10 +1080,10 @@ class _FollowListSheet extends ConsumerWidget {
             child: ListView.builder(
               controller: scrollController,
               itemCount:
-                  state.users.length +
+                  state.items.length +
                   (state.isLoading || state.hasMore ? 1 : 0),
               itemBuilder: (context, i) {
-                if (i == state.users.length) {
+                if (i == state.items.length) {
                   return state.isLoading
                       ? const Padding(
                           padding: EdgeInsets.all(16),
@@ -1191,7 +1091,7 @@ class _FollowListSheet extends ConsumerWidget {
                         )
                       : const SizedBox.shrink();
                 }
-                final u = state.users[i];
+                final u = state.items[i];
                 return _FollowUserTile(
                   user: u,
                   isFollowersList: !isFollowing,
@@ -1235,32 +1135,14 @@ class _FollowUserTileState extends ConsumerState<_FollowUserTile> {
     if (api == null || _isLoading) return;
 
     if (_isFollowing) {
-      final settings = ref.read(settingsProvider);
-      if (settings.confirmDestructive) {
-        final confirmed =
-            await showDialog<bool>(
-              context: context,
-              builder: (_) => AlertDialog(
-                title: const Text('フォローを解除'),
-                content: const Text('フォローを解除してもよろしいですか？'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('キャンセル'),
-                  ),
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.error,
-                    ),
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('解除'),
-                  ),
-                ],
-              ),
-            ) ??
-            false;
-        if (!confirmed) return;
-      }
+      final confirmed = await confirmAction(
+        context,
+        ref,
+        title: 'フォローを解除',
+        message: 'フォローを解除してもよろしいですか？',
+        confirmLabel: '解除',
+      );
+      if (!confirmed) return;
     }
 
     setState(() => _isLoading = true);
@@ -1286,15 +1168,7 @@ class _FollowUserTileState extends ConsumerState<_FollowUserTile> {
 
     return ListTile(
       onTap: () => Navigator.pop(context, widget.user.id),
-      leading: CircleAvatar(
-        backgroundImage: widget.user.avatarUrl != null
-            ? CachedNetworkImageProvider(
-                widget.user.avatarUrl!,
-                cacheManager: AppCacheManager(),
-              )
-            : null,
-        child: widget.user.avatarUrl == null ? const Icon(Icons.person) : null,
-      ),
+      leading: UserAvatar(avatarUrl: widget.user.avatarUrl),
       title: Row(
         children: [
           Expanded(
@@ -1385,32 +1259,14 @@ class _FollowButtonState extends ConsumerState<_FollowButton> {
     if (api == null || _isLoading) return;
 
     if (_isFollowing) {
-      final settings = ref.read(settingsProvider);
-      if (settings.confirmDestructive) {
-        final confirmed =
-            await showDialog<bool>(
-              context: context,
-              builder: (_) => AlertDialog(
-                title: const Text('フォローを解除'),
-                content: const Text('フォローを解除してもよろしいですか？'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('キャンセル'),
-                  ),
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Theme.of(context).colorScheme.error,
-                    ),
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('解除'),
-                  ),
-                ],
-              ),
-            ) ??
-            false;
-        if (!confirmed) return;
-      }
+      final confirmed = await confirmAction(
+        context,
+        ref,
+        title: 'フォローを解除',
+        message: 'フォローを解除してもよろしいですか？',
+        confirmLabel: '解除',
+      );
+      if (!confirmed) return;
     }
 
     setState(() => _isLoading = true);
