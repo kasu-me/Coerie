@@ -247,7 +247,7 @@ class StreamingService {
       _statusController.add(StreamingStatus.reconnecting);
     }
 
-    // 2秒後に1回だけ再接続を試みる
+    // 2秒後に再接続シーケンスを開始する（_tryReconnect 内でバックオフ再試行する）
     Future.delayed(const Duration(seconds: 2), _tryReconnect);
   }
 

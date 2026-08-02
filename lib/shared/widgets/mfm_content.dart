@@ -21,7 +21,9 @@ class MfmContent extends StatelessWidget {
   final TextStyle? style;
   final bool enableAnimations;
   final void Function(String username, String? host)? onMentionTap;
-  final double emojiOffsetSizeY = 0.05;
+
+  /// 絵文字画像をテキストのベースラインに合わせるための下方向オフセット（フォントサイズ比）。
+  static const double _emojiOffsetSizeY = 0.05;
 
   const MfmContent({
     super.key,
@@ -448,7 +450,7 @@ class MfmContent extends StatelessWidget {
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
             child: Transform.translate(
-              offset: Offset(0, emojiSize * emojiOffsetSizeY),
+              offset: Offset(0, emojiSize * _emojiOffsetSizeY),
               child: CachedNetworkImage(
                 cacheManager: AppCacheManager(),
                 imageUrl: url,
@@ -473,7 +475,7 @@ class MfmContent extends StatelessWidget {
         WidgetSpan(
           alignment: PlaceholderAlignment.middle,
           child: Transform.translate(
-            offset: Offset(0, emojiSize * emojiOffsetSizeY),
+            offset: Offset(0, emojiSize * _emojiOffsetSizeY),
             child: CachedNetworkImage(
               cacheManager: AppCacheManager(),
               imageUrl: twemojiUrl(node.emoji),
@@ -670,22 +672,11 @@ class MfmContent extends StatelessWidget {
               double.tryParse(node.args['width']?.toString() ?? '') ?? 1.0;
           final radiusVal =
               double.tryParse(node.args['radius']?.toString() ?? '') ?? 0.0;
-          BorderStyle bs;
-          switch (styleStr) {
-            case 'hidden':
-              bs = BorderStyle.none;
-              break;
-            case 'dotted':
-            case 'dashed':
-            case 'double':
-            case 'groove':
-            case 'ridge':
-            case 'inset':
-            case 'outset':
-            case 'solid':
-            default:
-              bs = BorderStyle.solid;
-          }
+          // Flutter の Border が持つ線種は solid / none のみ。
+          // dotted・dashed 等の CSS 線種は描画できないため solid で近似する。
+          final bs = styleStr == 'hidden'
+              ? BorderStyle.none
+              : BorderStyle.solid;
           final effectiveBorderColor =
               borderColor ?? Theme.of(ctx).colorScheme.outline;
           return [
@@ -968,7 +959,7 @@ class MfmContent extends StatelessWidget {
         WidgetSpan(
           alignment: PlaceholderAlignment.middle,
           child: Transform.translate(
-            offset: Offset(0, emojiSize * emojiOffsetSizeY),
+            offset: Offset(0, emojiSize * _emojiOffsetSizeY),
             child: CachedNetworkImage(
               cacheManager: AppCacheManager(),
               imageUrl: twemojiUrl(emoji),

@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:coerie/core/services/cache_service.dart';
@@ -89,7 +89,6 @@ class _NoteCardState extends ConsumerState<NoteCard> {
   late Map<String, int> _localReactions;
   String? _myReaction;
   bool _cwExpanded = false;
-  final Set<int> _revealedSensitiveIndexes = {};
   StreamSubscription<NoteUpdateEvent>? _noteUpdateSub;
   StreamSubscription<void>? _reconnectSub;
   // 購読時に取得した StreamingService をキャッシュする。
@@ -208,7 +207,7 @@ class _NoteCardState extends ConsumerState<NoteCard> {
     try {
       await api.votePoll(widget.note.id, idx);
       // optimistic update
-      final updated = _localPoll!.choices.map((c) => c).toList();
+      final updated = _localPoll!.choices.toList();
       final prev = updated[idx];
       updated[idx] = PollChoiceModel(
         text: prev.text,
@@ -308,7 +307,6 @@ class _NoteCardState extends ConsumerState<NoteCard> {
       _localReactions = Map.from(widget.note.reactions);
       _myReaction = widget.note.myReaction;
       _cwExpanded = false;
-      _revealedSensitiveIndexes.clear();
       _localPoll = widget.note.poll;
       // 購読し直し
       final streaming = ref.read(streamingServiceProvider);
@@ -1250,6 +1248,8 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
       if (!mounted) return;
     }
 
+    final isFavorited = _isFavorited ?? false;
+
     // ノートURLの構築
     final host = activeAccount?.host ?? '';
     final localNoteUrl = host.isNotEmpty
@@ -1349,20 +1349,17 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
               },
             ),
             // お気に入り追加/削除（全員）
-            StatefulBuilder(
-              builder: (ctx, setMenuState) {
-                final isFav = _isFavorited ?? false;
-                return ListTile(
-                  leading: Icon(
-                    isFav ? Icons.star : Icons.star_outline,
-                    color: isFav ? Theme.of(context).colorScheme.primary : null,
-                  ),
-                  title: Text(isFav ? 'お気に入りから削除' : 'お気に入りに追加'),
-                  onTap: () async {
-                    Navigator.pop(sheetCtx);
-                    await _toggleFavorite(context);
-                  },
-                );
+            ListTile(
+              leading: Icon(
+                isFavorited ? Icons.star : Icons.star_outline,
+                color: isFavorited
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
+              ),
+              title: Text(isFavorited ? 'お気に入りから削除' : 'お気に入りに追加'),
+              onTap: () async {
+                Navigator.pop(sheetCtx);
+                await _toggleFavorite(context);
               },
             ),
             // 削除 / ピン留め（自分の投稿のみ）
@@ -1552,7 +1549,8 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     if (api == null) return;
     try {
       await api.deleteNote(widget.note.id);
-      // 全タイムラインから该当ノートを削除
+      // 標準タイムライン（ホーム/ローカル/ソーシャル/グローバル）から該当ノートを削除する。
+      // リスト・アンテナ・チャンネルのタブは対象外のため、次回の再取得まで表示が残る。
       for (final type in [
         AppConstants.tabTypeHome,
         AppConstants.tabTypeLocal,
@@ -1915,7 +1913,6 @@ class _MediaGridState extends State<_MediaGrid> {
     required DriveFileModel file,
     required int globalIndex,
     required Widget child,
-    required VoidCallback onRevealTap,
   }) {
     if (!file.isSensitive || _revealedSensitiveIndexes.contains(globalIndex)) {
       return child;
@@ -2015,9 +2012,6 @@ class _MediaGridState extends State<_MediaGrid> {
                     file: file,
                     globalIndex: globalIdx,
                     child: imageWidget,
-                    onRevealTap: () => setState(
-                      () => _revealedSensitiveIndexes.add(globalIdx),
-                    ),
                   );
                 }
                 return GestureDetector(
@@ -2087,7 +2081,6 @@ class _MediaGridState extends State<_MediaGrid> {
                   ),
                 ),
               ),
-              onRevealTap: () {},
             ),
           );
         }),
@@ -2465,7 +2458,8 @@ class _UnrenoteButtonState extends ConsumerState<_UnrenoteButton> {
     setState(() => _isLoading = true);
     try {
       await api.unrenote(widget.originalNoteId);
-      // TLからリノートラッパーを削除
+      // 標準タイムライン（ホーム/ローカル/ソーシャル/グローバル）からリノートラッパーを削除する。
+      // リスト・アンテナ・チャンネルのタブは対象外のため、次回の再取得まで表示が残る。
       for (final type in [
         AppConstants.tabTypeHome,
         AppConstants.tabTypeLocal,
@@ -2664,14 +2658,7 @@ class _ClipPickerSheet extends ConsumerStatefulWidget {
 }
 
 class _ClipPickerSheetState extends ConsumerState<_ClipPickerSheet> {
-  late List<ClipModel> _clips;
   bool _isProcessing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _clips = List.from(widget.clips);
-  }
 
   Future<void> _addToClip(ClipModel clip) async {
     final api = ref.read(misskeyApiProvider);
@@ -2780,16 +2767,16 @@ class _ClipPickerSheetState extends ConsumerState<_ClipPickerSheet> {
             title: const Text('新しいクリップを作成'),
             onTap: _isProcessing ? null : _createAndAdd,
           ),
-          if (_clips.isNotEmpty) const Divider(height: 1),
+          if (widget.clips.isNotEmpty) const Divider(height: 1),
           ConstrainedBox(
             constraints: BoxConstraints(
               maxHeight: MediaQuery.of(context).size.height * 0.4,
             ),
             child: ListView.builder(
               shrinkWrap: true,
-              itemCount: _clips.length,
+              itemCount: widget.clips.length,
               itemBuilder: (ctx, i) {
-                final clip = _clips[i];
+                final clip = widget.clips[i];
                 return ListTile(
                   leading: Icon(
                     clip.isPublic ? Icons.bookmark : Icons.bookmark_outline,

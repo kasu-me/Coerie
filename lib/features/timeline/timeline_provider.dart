@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/note_model.dart';
 import '../../data/models/app_settings_model.dart';

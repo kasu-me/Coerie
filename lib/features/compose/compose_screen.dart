@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:coerie/core/services/cache_service.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+// wechat_assets_picker が内部で package:provider を使うため、その
+// DefaultAssetPickerProvider を読むためだけに import している。
+// 本アプリの状態管理は Riverpod で統一しており、新規用途では使用しないこと。
 import 'package:provider/provider.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import '../../core/constants/app_constants.dart';

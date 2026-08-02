@@ -19,6 +19,11 @@ class MisskeyApi {
   /// キャッシュされたノート検索（notes/search）の利用可否
   bool? _canSearchNotes;
 
+  /// `i` 応答の `policies`（ロールポリシー）。複数の設定値が同じ応答から
+  /// 得られるため、インスタンスごとに1回だけ取得して使い回す。
+  /// 未認証時・取得失敗時は null を返し、各呼び出し元のフォールバックに委ねる。
+  Future<Map<String, dynamic>?>? _policiesFuture;
+
   MisskeyApi({required this.host, this.token})
     : _dio = Dio(
         BaseOptions(
@@ -32,6 +37,21 @@ class MisskeyApi {
   Map<String, dynamic> _body(Map<String, dynamic> params) {
     if (token != null) params['i'] = token;
     return params;
+  }
+
+  /// `i` 応答の `policies` を取得する。取得済みの Future を使い回すため、
+  /// 複数の設定値を参照しても `i` へのリクエストは1回で済む。
+  Future<Map<String, dynamic>?> _fetchPolicies() {
+    if (token == null) return Future.value(null);
+    return _policiesFuture ??= () async {
+      try {
+        final res = await _dio.post('i', data: _body({}));
+        final data = res.data as Map<String, dynamic>;
+        return data['policies'] as Map<String, dynamic>?;
+      } catch (_) {
+        return null;
+      }
+    }();
   }
 
   // ---- アカウント ----
@@ -545,21 +565,12 @@ class MisskeyApi {
     if (_maxFileSize != null) return _maxFileSize!;
     const fallback = 30 * 1024 * 1024;
     // 認証済みならロールポリシーの実効上限を優先して取得する。
-    // 例外（トークン失効・レートリミット等）や値なしの場合は握りつぶし、
+    // 未認証・取得失敗（トークン失効・レートリミット等）や値なしの場合は
     // 後続の meta フォールバックに落ちる。
-    if (token != null) {
-      try {
-        final res = await _dio.post('i', data: _body({}));
-        final data = res.data as Map<String, dynamic>;
-        final policies = data['policies'] as Map<String, dynamic>?;
-        final mb = (policies?['maxFileSizeMb'] as num?)?.toInt();
-        if (mb != null) {
-          _maxFileSize = mb * 1024 * 1024;
-          return _maxFileSize!;
-        }
-      } catch (_) {
-        // i 取得失敗時は meta フォールバックへ
-      }
+    final mb = ((await _fetchPolicies())?['maxFileSizeMb'] as num?)?.toInt();
+    if (mb != null) {
+      _maxFileSize = mb * 1024 * 1024;
+      return _maxFileSize!;
     }
     try {
       // 旧サーバー・未認証・値なしの場合は meta のサーバー設定値にフォールバック。
@@ -579,16 +590,10 @@ class MisskeyApi {
   Future<bool> fetchCanSearchNotes() async {
     if (_canSearchNotes != null) return _canSearchNotes!;
     if (token == null) return true;
-    try {
-      final res = await _dio.post('i', data: _body({}));
-      final data = res.data as Map<String, dynamic>;
-      final policies = data['policies'] as Map<String, dynamic>?;
-      final canSearch = policies?['canSearchNotes'] as bool?;
-      _canSearchNotes = canSearch ?? true;
-    } catch (_) {
-      // 取得失敗時は実行時の事後エラー処理にフォールバックするため true とする
-      _canSearchNotes = true;
-    }
+    // 未認証・取得失敗・キー欠落の場合は、実行時の事後エラー処理に
+    // フォールバックするため true とする。
+    _canSearchNotes =
+        (await _fetchPolicies())?['canSearchNotes'] as bool? ?? true;
     return _canSearchNotes!;
   }
 
