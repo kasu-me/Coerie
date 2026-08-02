@@ -104,7 +104,7 @@ flutter test test/data
 - `DraftModelAdapter` … カバー済み（8ケース）。末尾追加を3回重ねた結果、端末には
   第1〜第4世代のレコードが混在しうるため、世代ごとの読み取りを個別に検証している。
 - `HiveService` の復旧判定 … カバー済み（`test/data/local/hive_service_test.dart`、
-  18ケース）。`consumeStartupIssue()` の対象・優先順位・一度きりの取り出しと、
+  19ケース）。`consumeStartupIssue()` の対象・優先順位・一度きりの取り出しと、
   `shouldDiscardOnFailure()` の分類を固定している。状態は `@visibleForTesting` の
   `debugSetStartupState()` から注入する。
 - `_openBoxSafely()` の段階遷移そのもの … **未カバー**。`Hive.initFlutter()` が
@@ -124,9 +124,14 @@ flutter test test/data
 | step 2 | 中身を破棄して作り直した（`resetBoxNames`） | 保存データが消える |
 | step 3 | メモリ上のみで開いた（`volatileBoxNames`） | **保存は成功して見えるが再起動で消える** |
 
-2つの集合は排他（step 3 に落ちる際に step 2 の記録を取り消す）。
-なお step 2 の削除に成功した直後に再オープンが失敗した場合、破棄済みなのに
-`resetBoxNames` から外れてしまう既知の不具合がある（`hive_service.dart` の TODO）。
+step 2 の破棄が成立しないまま step 3 に落ちた場合は、ディスク上のデータが無傷なので
+step 2 の記録を取り消す。破棄が成立していた場合は両方に記録が残り、
+`consumeStartupIssue()` は `accountsResetAndVolatile`（データが失われ、かつ再ログインも
+この起動中しか保持されない）を返す。
+
+なお step 3 自体が失敗した場合はボックスが開かないまま終わり、`volatileBoxNames` には
+記録されない（`resetBoxNames` は破棄が成立していれば残る）。この状態ではボックスへの
+最初のアクセスで `HiveError` が投げられる。
 
 **step 2 は失敗の原因を選ぶ。** 破棄はアクセストークンの消去を意味するため、
 `shouldDiscardOnFailure()` が false を返す失敗では step 2 を飛ばして step 3 へ直行する。
@@ -139,8 +144,24 @@ flutter test test/data
 - 保存先ディレクトリ未取得（`Hive.initFlutter()` が失敗）… ファイルに触れていないので破棄しない
 - 未知の例外… 破棄側に倒す（取りこぼすとメモリ上で動き続けて復旧手段が無くなるため）
 
-CRC 破損は `crashRecovery: true` により末尾切り詰めで自動復旧されるので、
-そもそもここには到達しない。
+CRC 破損は `crashRecovery: true`（`Hive.openBox` の既定）により末尾切り詰めで自動復旧
+されるので、そもそもここには到達しない。**ただし自動復旧は無害とは限らない。**
+
+`FrameHelper.framesFromBytes()` は最初に読めなかったフレームの位置を返し、
+`StorageBackendVm.initialize()` はそこから先を**すべて**切り捨てる。読めなくなる原因は
+2つあるが、外からは区別できない。
+
+- **末尾フレームが不完全**（書き込み中にプロセスが kill された）… crashRecovery が
+  想定している正常系。失われるのは書き切れなかった1件だけ
+- **ファイル中間の CRC 破損**… そこ以降の正常なレコードまで巻き添えで消える。
+  step 1 が成功扱いになるためフラグが立たず、**ユーザーには何も通知されない**
+
+**この損失は意図的に検知していない（v0.9.1 時点）。** ファイルサイズの差分でも
+`crashRecovery: false` での事前オープンでも上記2つが同じシグナルになるため、検知すると
+アプリが強制終了されるたびに誤警告が出る。実装するなら、保存済み件数を
+SharedPreferences など別のストアに控えて突き合わせること。件数は `await box.put()` の
+完了後にしか更新されないので、中断された書き込みでは誤検知しない。ただし部分消失は
+ログイン状態が維持されるため、ログイン画面とは別の通知経路が要る。
 
 > **未検証事項**: Hive は `StorageBackendVm.initialize()` で `.lock` ファイルを
 > 排他ロックする。`RandomAccessFile.lock()` は既定でロック取得を**待つ**ため、競合しても

@@ -21,6 +21,10 @@ enum HiveStartupIssue {
   /// 原因が解消すれば次回起動で元のデータに戻る。UI の文言は「データが消えた」と
   /// 断定せず、再起動で復帰しうる旨を伝えること。
   storageUnavailable,
+
+  /// 保存データを破棄したうえでメモリ上に落ちた。アカウントが失われ再ログインが
+  /// 必要で、しかもその再ログインもこの起動中しか保持されない。
+  accountsResetAndVolatile,
 }
 
 class HiveService {
@@ -33,14 +37,16 @@ class HiveService {
 
   /// 中身を破棄して作り直したボックス名（[_openBoxSafely] の step 2）。
   ///
-  /// [volatileBoxNames] とは排他。[consumeStartupIssue] を呼んでもクリアされない。
+  /// 破棄が成立した状態で step 3 に落ちた場合は [volatileBoxNames] にも残る。
+  /// [consumeStartupIssue] を呼んでもクリアされない。
   static Set<String> get resetBoxNames => Set.unmodifiable(_resetBoxes);
 
-  /// メモリ上のみで開いたボックス名（[_openBoxSafely] の step 3）。
+  /// メモリ上のみで開けたボックス名（[_openBoxSafely] の step 3）。開けなかった
+  /// 場合はここに記録されない。
   ///
   /// このボックスへの書き込みは **成功するが一切永続化されない**。
   /// 同一起動中は読み戻せてしまうため、保存できたように見える点に注意。
-  /// [resetBoxNames] とは排他。
+  /// step 2 の破棄を経てここに落ちた場合は [resetBoxNames] にも残る。
   static Set<String> get volatileBoxNames => Set.unmodifiable(_volatileBoxes);
 
   /// [boxName] が永続化されない状態（step 3 に落ちている）か。
@@ -62,12 +68,14 @@ class HiveService {
     if (_startupIssueConsumed) return null;
     _startupIssueConsumed = true;
 
-    if (_volatileBoxes.contains(AppConstants.accountsBox)) {
-      return HiveStartupIssue.storageUnavailable;
+    final wasReset = _resetBoxes.contains(AppConstants.accountsBox);
+    final isVolatile = _volatileBoxes.contains(AppConstants.accountsBox);
+
+    if (wasReset && isVolatile) {
+      return HiveStartupIssue.accountsResetAndVolatile;
     }
-    if (_resetBoxes.contains(AppConstants.accountsBox)) {
-      return HiveStartupIssue.accountsReset;
-    }
+    if (isVolatile) return HiveStartupIssue.storageUnavailable;
+    if (wasReset) return HiveStartupIssue.accountsReset;
     return null;
   }
 
@@ -151,7 +159,8 @@ class HiveService {
   /// **契約の限界**: step 3 まで失敗した場合はボックスが開かないまま return する。
   /// この関数自体は投げないが、代わりに [draftsBox] / [accountsBox] の
   /// `Hive.box<T>()` が後から `HiveError` を投げる。メモリバックエンドはほぼ
-  /// 失敗要因が無いため到達確率は極めて低いが、完全に潰せてはいない。
+  /// 失敗要因が無いため到達確率は極めて低いが、完全に潰せてはいない。この場合
+  /// [volatileBoxNames] にも記録されず、[isVolatile] は false を返す。
   static Future<void> _openBoxSafely<T>(String name) async {
     try {
       await Hive.openBox<T>(name);
@@ -170,8 +179,10 @@ class HiveService {
     }
 
     _resetBoxes.add(name);
+    var discarded = false;
     try {
       await Hive.deleteBoxFromDisk(name);
+      discarded = true;
       await Hive.openBox<T>(name);
       return;
     } catch (e, stackTrace) {
@@ -180,21 +191,17 @@ class HiveService {
     }
 
     // 最後の手段。永続化は諦め、起動だけは通す。
-    // [resetBoxNames] と [volatileBoxNames] は排他なので step 2 の記録を取り消す。
-    //
-    // TODO: deleteBoxFromDisk が成功した直後に openBox が失敗した場合、実際には
-    // 破棄済みなのにその事実まで消えてしまう。結果 storageUnavailable として
-    // 「再起動で復帰しうる」と案内するが、データは戻らない。削除の成否を持って
-    // 分岐すること。
-    _resetBoxes.remove(name);
+    // 破棄が成立していなければディスク上のデータは無傷なので step 2 の記録を
+    // 取り消す。成立していた場合は両方に記録が残る。
+    if (!discarded) _resetBoxes.remove(name);
     await _openInMemory<T>(name);
   }
 
   /// メモリ上だけでボックスを開く（step 3）。永続化は行われない。
   static Future<void> _openInMemory<T>(String name) async {
-    _volatileBoxes.add(name);
     try {
       await Hive.openBox<T>(name, bytes: Uint8List(0));
+      _volatileBoxes.add(name);
     } catch (e, stackTrace) {
       debugPrint('Hive: ボックス "$name" をメモリ上でも開けませんでした: $e');
       debugPrintStack(stackTrace: stackTrace);

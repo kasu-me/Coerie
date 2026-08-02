@@ -232,13 +232,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Widget _buildStartupIssueNotice(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final isReset = _startupIssue == HiveStartupIssue.accountsReset;
-    final icon = isReset
-        ? Icons.restore_page_outlined
-        : Icons.sd_card_alert_outlined;
-    final message = isReset
-        ? '保存データが壊れていたため初期化しました。お手数ですが、もう一度ログインしてください。'
-        : 'データの保存領域を利用できませんでした。ログインはできますが、この起動中の変更は保存されません。アプリを再起動すると復帰する場合があります。';
+    // build() が _startupIssue != null を確認したうえでのみ呼ぶ。
+    final (IconData icon, String message) = switch (_startupIssue!) {
+      HiveStartupIssue.accountsReset => (
+        Icons.restore_page_outlined,
+        '保存データが壊れていたため初期化しました。お手数ですが、もう一度ログインしてください。',
+      ),
+      HiveStartupIssue.storageUnavailable => (
+        Icons.sd_card_alert_outlined,
+        'データの保存領域を利用できませんでした。ログインはできますが、この起動中の変更は保存されません。アプリを再起動すると復帰する場合があります。',
+      ),
+      HiveStartupIssue.accountsResetAndVolatile => (
+        Icons.sd_card_alert_outlined,
+        '保存データが壊れていたため初期化しました。さらに保存領域も利用できないため、いまログインしても次回起動時には保持されません。',
+      ),
+    };
 
     // 実際にデータが失われた（または失われる）通知なので errorContainer を使う。
     return Container(

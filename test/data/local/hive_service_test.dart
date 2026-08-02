@@ -65,9 +65,9 @@ void main() {
       );
     });
 
-    test('同じボックスが両方に入っていたら storageUnavailable が優先される', () {
-      // _openBoxSafely は step 3 に落ちる際に reset 側の記録を取り消すため
-      // 本来この状態にはならないが、優先順位を固定しておく。
+    test('破棄したうえでメモリ上に落ちた場合は accountsResetAndVolatile', () {
+      // step 2 の deleteBoxFromDisk が成功した直後に openBox が失敗し、
+      // step 3 へ落ちた場合。破棄済みなので reset 側の記録は残る。
       HiveService.debugSetStartupState(
         reset: const {accounts},
         volatile: const {accounts},
@@ -75,7 +75,19 @@ void main() {
 
       expect(
         HiveService.consumeStartupIssue(),
-        HiveStartupIssue.storageUnavailable,
+        HiveStartupIssue.accountsResetAndVolatile,
+      );
+    });
+
+    test('accountsBox が破棄のみなら draftsBox の非永続より優先される', () {
+      HiveService.debugSetStartupState(
+        reset: const {accounts},
+        volatile: const {drafts},
+      );
+
+      expect(
+        HiveService.consumeStartupIssue(),
+        HiveStartupIssue.accountsReset,
       );
     });
   });
