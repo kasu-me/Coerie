@@ -320,7 +320,7 @@ class _NoteSearchTabState extends ConsumerState<_NoteSearchTab>
     // 本文は状態に応じて切り替える
     return Column(
       children: [
-        const _NoteScopeSelector(),
+        _NoteScopeSelector(onSearch: widget.onRetry),
         _DateRangeFilter(
           rangeStart: state.rangeStart,
           rangeEnd: state.rangeEnd,
@@ -357,7 +357,10 @@ class _NoteSearchTabState extends ConsumerState<_NoteSearchTab>
 // ---- 検索対象セレクタ（ノート検索専用）----
 
 class _NoteScopeSelector extends ConsumerStatefulWidget {
-  const _NoteScopeSelector();
+  /// 対象サーバー・対象ユーザーの入力欄で Enter が押された際に検索を実行する
+  final VoidCallback onSearch;
+
+  const _NoteScopeSelector({required this.onSearch});
 
   @override
   ConsumerState<_NoteScopeSelector> createState() => _NoteScopeSelectorState();
@@ -428,6 +431,7 @@ class _NoteScopeSelectorState extends ConsumerState<_NoteScopeSelector> {
                 ),
                 onChanged: notifier.setScopeHost,
                 textInputAction: TextInputAction.search,
+                onSubmitted: (_) => widget.onSearch(),
               ),
             ),
           if (scope == NoteSearchScope.user)
@@ -443,6 +447,7 @@ class _NoteScopeSelectorState extends ConsumerState<_NoteScopeSelector> {
                 ),
                 onChanged: notifier.setScopeUserAcct,
                 textInputAction: TextInputAction.search,
+                onSubmitted: (_) => widget.onSearch(),
               ),
             ),
         ],
