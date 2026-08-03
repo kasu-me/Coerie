@@ -42,6 +42,9 @@ class MiAuthService {
     final sessionId = const Uuid().v4();
     final permStr = miauthPermissions.join(',');
 
+    // 前回の取りこぼし（未処理のバッファ）は今回のセッションと無関係なため破棄する
+    _bufferedUri = null;
+
     // Misskey 公式ドキュメントの例に合わせ、permission値はリテラルの
     // コロン・カンマのまま渡す。Uri.https(queryParameters) は各値を
     // パーセントエンコードするため Uri.parse で手動構築する。
@@ -65,34 +68,29 @@ class MiAuthService {
     await prefs.setString(_prefKeySession, sessionId);
     await prefs.setString(_prefKeyHost, host);
 
-    // ブラウザを開く
-    if (!await launchUrl(authUrl, mode: LaunchMode.externalApplication)) {
-      await prefs.remove(_prefKeySession);
-      await prefs.remove(_prefKeyHost);
-      throw Exception('ブラウザを開けませんでした');
-    }
-
-    // ディープリンクを待つ Completer をセット
-    _pendingCompleter = Completer<Uri>();
+    // ブラウザを開く前に Completer と購読を用意する。
+    // ブラウザ側の処理が即座に完了した場合でもコールバックを取りこぼさない。
+    final completer = Completer<Uri>();
+    _pendingCompleter = completer;
 
     // アプリがバックグラウンドで生きている場合は uriLinkStream で受信
     final appLinks = AppLinks();
-    late StreamSubscription<Uri> sub;
-    sub = appLinks.uriLinkStream.listen((uri) {
-      handleDeepLink(uri);
-      sub.cancel();
-    });
+    final sub = appLinks.uriLinkStream.listen(handleDeepLink);
 
     try {
-      await _pendingCompleter!.future.timeout(
+      if (!await launchUrl(authUrl, mode: LaunchMode.externalApplication)) {
+        await prefs.remove(_prefKeySession);
+        await prefs.remove(_prefKeyHost);
+        throw Exception('ブラウザを開けませんでした');
+      }
+
+      await completer.future.timeout(
         const Duration(minutes: 5),
-        onTimeout: () {
-          sub.cancel();
-          throw TimeoutException('認証がタイムアウトしました');
-        },
+        onTimeout: () => throw TimeoutException('認証がタイムアウトしました'),
       );
     } finally {
-      _pendingCompleter = null;
+      await sub.cancel();
+      if (identical(_pendingCompleter, completer)) _pendingCompleter = null;
     }
 
     return _checkSession(host, sessionId, prefs);

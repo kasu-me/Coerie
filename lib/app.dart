@@ -3,11 +3,18 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:uuid/uuid.dart';
+import 'core/auth/miauth_service.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'data/models/account_model.dart';
 import 'features/compose/emoji_picker_sheet.dart';
+import 'shared/providers/account_provider.dart';
 import 'shared/providers/settings_provider.dart';
 import 'shared/providers/is_locked_provider.dart';
+
+/// 画面に紐付かない箇所からスナックバーを表示するためのキー
+final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 class App extends ConsumerStatefulWidget {
   const App({super.key});
@@ -27,6 +34,10 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
 
     // isLockedProvider を早期初期化してキャッシュ値を即座に反映させる
     ref.read(isLockedProvider);
+
+    // ブラウザ復帰時にアプリのプロセスが破棄されていた場合、
+    // 起動時に受け取ったコールバックURIから認証を再開する
+    WidgetsBinding.instance.addPostFrameCallback((_) => _resumePendingAuth());
 
     // 初期起動時の共有データをAndroidネイティブから取得
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -78,6 +89,53 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  /// MiAuth のコールバックで起動された場合にトークン取得を完了させる。
+  /// 認証を開始した画面（ログイン／アカウント設定）はプロセスごと消えているため、
+  /// ここで既存アカウントの更新か新規追加かを判断して反映する。
+  Future<void> _resumePendingAuth() async {
+    if (!MiAuthService.hasPendingCallback) return;
+
+    final result = await MiAuthService.tryResumeAuth();
+    if (result == null) {
+      scaffoldMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('認証を完了できませんでした。もう一度お試しください')),
+      );
+      return;
+    }
+
+    final notifier = ref.read(accountProvider.notifier);
+    AccountModel? existing;
+    for (final a in ref.read(accountProvider)) {
+      if (a.host == result.host && a.userId == result.user.id) {
+        existing = a;
+        break;
+      }
+    }
+
+    if (existing != null) {
+      await notifier.updateToken(existing.id, result.token);
+      scaffoldMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('トークンを更新しました')),
+      );
+    } else {
+      await notifier.addAccount(
+        AccountModel(
+          id: const Uuid().v4(),
+          host: result.host,
+          token: result.token,
+          userId: result.user.id,
+          username: result.user.username,
+          name: result.user.name,
+          avatarUrl: result.user.avatarUrl,
+          isActive: true,
+        ),
+      );
+      scaffoldMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text('@${result.user.username} でログインしました')),
+      );
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // バックグラウンドからの復帰時のみカスタム絵文字キャッシュを無効化する。
@@ -105,6 +163,7 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
 
     return MaterialApp.router(
       title: 'Coerie',
+      scaffoldMessengerKey: scaffoldMessengerKey,
       locale: const Locale('ja', 'JP'),
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,

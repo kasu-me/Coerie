@@ -28,6 +28,14 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- Flutter 標準のディープリンク処理を無効化する。
+                 有効なままだと coerie://auth が GoRouter に route として渡され、
+                 「no routes for location」エラー画面で画面スタックが破棄される。
+                 コールバックは app_links (MiAuthService) 側で受け取る。 -->
+            <meta-data
+              android:name="flutter_deeplinking_enabled"
+              android:value="false"
+              />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
