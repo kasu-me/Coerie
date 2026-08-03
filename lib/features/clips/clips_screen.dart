@@ -451,6 +451,17 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen>
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (clip.notesCount != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Text(
+                      '${clip.notesCount}件',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                    ),
+                  ),
+                // 星と件数が離れると別々の数字に見えるため、間隔を詰めて隣接させる
                 IconButton(
                   icon: Icon(
                     isFavorited ? Icons.star : Icons.star_border,
@@ -460,20 +471,18 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen>
                   ),
                   tooltip: isFavorited ? 'お気に入りから削除' : 'お気に入りに追加',
                   visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 40,
+                  ),
                   onPressed: () => _toggleFavorite(clip),
                 ),
                 if ((clip.favoritedCount ?? 0) > 0)
-                  Text(
-                    '${clip.favoritedCount}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.outline,
-                    ),
-                  ),
-                if (clip.notesCount != null)
                   Padding(
-                    padding: const EdgeInsets.only(left: 8),
+                    padding: const EdgeInsets.only(right: 4),
                     child: Text(
-                      '${clip.notesCount}件',
+                      '${clip.favoritedCount}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.outline,
                       ),
