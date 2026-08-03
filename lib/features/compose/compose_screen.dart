@@ -1982,16 +1982,7 @@ class _EmojiSuggestBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     // 絵文字URLマップ
-    final emojisAsync = ref.watch(customEmojisProvider);
-    final urlMap = emojisAsync.when(
-      data: (list) => {
-        for (final e in list)
-          if (e['name'] != null && e['url'] != null)
-            e['name'] as String: e['url'] as String,
-      },
-      loading: () => <String, String>{},
-      error: (_, _) => <String, String>{},
-    );
+    final urlMap = ref.watch(customEmojiUrlMapProvider);
 
     return Container(
       height: 52,

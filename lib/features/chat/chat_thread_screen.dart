@@ -9,6 +9,7 @@ import '../../data/remote/misskey_api.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/utils/format_utils.dart';
+import '../../shared/widgets/user_avatar.dart';
 
 // ─── State ─────────────────────────────────────────────────────────────────
 
@@ -300,26 +301,17 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
           child: Row(
             children: [
               const SizedBox(width: 4),
-              if (widget.partnerAvatarUrl != null)
-                CircleAvatar(
-                  radius: 16,
-                  backgroundImage: CachedNetworkImageProvider(
-                    widget.partnerAvatarUrl!,
-                    cacheManager: AppCacheManager(),
-                  ),
-                )
-              else
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: Theme.of(
-                    context,
-                  ).colorScheme.surfaceContainerHighest,
-                  child: Icon(
-                    isRoom ? Icons.group : Icons.person,
-                    size: 18,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
+              UserAvatar(
+                avatarUrl: widget.partnerAvatarUrl,
+                radius: 16,
+                foreground: true,
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
+                icon: isRoom ? Icons.group : Icons.person,
+                iconSize: 18,
+                iconColor: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -549,23 +541,14 @@ class _MessageBubble extends StatelessWidget {
                           ? null
                           : () =>
                                 context.push('/profile/${message.fromUserId}'),
-                      child: CircleAvatar(
+                      child: UserAvatar(
+                        avatarUrl: message.senderAvatarUrl ?? fallbackAvatarUrl,
                         radius: 16,
+                        foreground: true,
                         backgroundColor:
                             theme.colorScheme.surfaceContainerHighest,
-                        foregroundImage:
-                            (message.senderAvatarUrl ?? fallbackAvatarUrl) !=
-                                null
-                            ? CachedNetworkImageProvider(
-                                message.senderAvatarUrl ?? fallbackAvatarUrl!,
-                                cacheManager: AppCacheManager(),
-                              )
-                            : null,
-                        child: Icon(
-                          Icons.person,
-                          size: 16,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+                        iconSize: 16,
+                        iconColor: theme.colorScheme.onSurfaceVariant,
                       ),
                     )
                   : null,
@@ -851,16 +834,11 @@ class _RoomMembersSheet extends ConsumerWidget {
                     itemBuilder: (context, i) {
                       final u = members[i];
                       return ListTile(
-                        leading: CircleAvatar(
+                        leading: UserAvatar(
+                          avatarUrl: u.avatarUrl,
+                          foreground: true,
                           backgroundColor:
                               theme.colorScheme.surfaceContainerHighest,
-                          foregroundImage: u.avatarUrl != null
-                              ? CachedNetworkImageProvider(
-                                  u.avatarUrl!,
-                                  cacheManager: AppCacheManager(),
-                                )
-                              : null,
-                          child: const Icon(Icons.person),
                         ),
                         title: Text(
                           u.name.isNotEmpty ? u.name : u.username,

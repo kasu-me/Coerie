@@ -1,5 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:coerie/core/services/cache_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -528,19 +526,13 @@ class _ConversationTile extends StatelessWidget {
     final unread = !isRead;
 
     return ListTile(
-      leading: CircleAvatar(
+      leading: UserAvatar(
+        avatarUrl: avatarUrl,
         radius: 24,
+        foreground: true,
         backgroundColor: theme.colorScheme.surfaceContainerHighest,
-        foregroundImage: avatarUrl != null
-            ? CachedNetworkImageProvider(
-                avatarUrl!,
-                cacheManager: AppCacheManager(),
-              )
-            : null,
-        child: Icon(
-          isRoom ? Icons.group : Icons.person,
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
+        icon: isRoom ? Icons.group : Icons.person,
+        iconColor: theme.colorScheme.onSurfaceVariant,
       ),
       title: Text(
         name,

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_constants.dart';
-import '../../shared/providers/settings_provider.dart';
+import '../../shared/widgets/confirm_dialog.dart';
 import 'draft_provider.dart';
 import '../../shared/utils/format_utils.dart';
 
@@ -43,28 +43,13 @@ class DraftScreen extends ConsumerWidget {
                     padding: const EdgeInsets.only(right: 16),
                     child: const Icon(Icons.delete, color: Colors.white),
                   ),
-                  confirmDismiss: (_) async {
-                    final settings = ref.read(settingsProvider);
-                    if (!settings.confirmDestructive) return true;
-                    return await showDialog<bool>(
-                          context: context,
-                          builder: (_) => AlertDialog(
-                            title: const Text('下書きを削除'),
-                            content: const Text('この下書きを削除しますか？'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, false),
-                                child: const Text('キャンセル'),
-                              ),
-                              FilledButton(
-                                onPressed: () => Navigator.pop(context, true),
-                                child: const Text('削除'),
-                              ),
-                            ],
-                          ),
-                        ) ??
-                        false;
-                  },
+                  confirmDismiss: (_) => confirmAction(
+                    context,
+                    ref,
+                    title: '下書きを削除',
+                    message: 'この下書きを削除しますか？',
+                    confirmLabel: '削除',
+                  ),
                   onDismissed: (_) =>
                       ref.read(draftProvider.notifier).deleteDraft(draft.id),
                   child: ListTile(
@@ -99,29 +84,13 @@ class DraftScreen extends ConsumerWidget {
                     trailing: IconButton(
                       icon: const Icon(Icons.delete_outline),
                       onPressed: () async {
-                        final settings = ref.read(settingsProvider);
-                        final confirmed =
-                            !settings.confirmDestructive ||
-                            await showDialog<bool>(
-                                  context: context,
-                                  builder: (_) => AlertDialog(
-                                    title: const Text('下書きを削除'),
-                                    content: const Text('この下書きを削除しますか？'),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(context, false),
-                                        child: const Text('キャンセル'),
-                                      ),
-                                      FilledButton(
-                                        onPressed: () =>
-                                            Navigator.pop(context, true),
-                                        child: const Text('削除'),
-                                      ),
-                                    ],
-                                  ),
-                                ) ==
-                                true;
+                        final confirmed = await confirmAction(
+                          context,
+                          ref,
+                          title: '下書きを削除',
+                          message: 'この下書きを削除しますか？',
+                          confirmLabel: '削除',
+                        );
                         if (confirmed) {
                           ref
                               .read(draftProvider.notifier)

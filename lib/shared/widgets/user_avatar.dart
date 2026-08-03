@@ -17,12 +17,24 @@ class UserAvatar extends StatelessWidget {
   /// false（既定）は backgroundImage で、読み込めない場合は背景色のみになる。
   final bool foreground;
 
+  /// 代替アイコン。既定は人型アイコン。
+  final IconData icon;
+
+  /// 代替アイコンの色。null なら指定なし。
+  final Color? iconColor;
+
+  /// [CircleAvatar] の背景色。null なら指定なし。
+  final Color? backgroundColor;
+
   const UserAvatar({
     super.key,
     required this.avatarUrl,
     this.radius,
     this.iconSize,
     this.foreground = false,
+    this.icon = Icons.person,
+    this.iconColor,
+    this.backgroundColor,
   });
 
   @override
@@ -33,12 +45,17 @@ class UserAvatar extends StatelessWidget {
         : null;
 
     if (image != null && !foreground) {
-      return CircleAvatar(radius: radius, backgroundImage: image);
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: backgroundColor,
+        backgroundImage: image,
+      );
     }
     return CircleAvatar(
       radius: radius,
+      backgroundColor: backgroundColor,
       foregroundImage: image,
-      child: Icon(Icons.person, size: iconSize),
+      child: Icon(icon, size: iconSize, color: iconColor),
     );
   }
 }
