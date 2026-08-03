@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/services.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../data/models/clip_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
@@ -16,21 +17,56 @@ class ClipsScreen extends ConsumerStatefulWidget {
   ConsumerState<ClipsScreen> createState() => _ClipsScreenState();
 }
 
-class _ClipsScreenState extends ConsumerState<ClipsScreen> {
+class _ClipsScreenState extends ConsumerState<ClipsScreen>
+    with SingleTickerProviderStateMixin {
   List<ClipModel> _clips = [];
   bool _isLoading = false;
   String? _error;
+
+  // お気に入りタブ（自分のクリップを表示している場合のみ使用）
+  List<ClipModel> _favorites = [];
+  bool _favoritesLoading = false;
+  String? _favoritesError;
+  bool _favoritesLoaded = false;
+
   // false: newest first (降順), true: oldest first (昇順)
   bool _ascending = false;
+
+  /// 自分のクリップを表示しているか。お気に入りタブはこの場合のみ出す。
+  late final bool _isOwn;
+  TabController? _tabController;
 
   @override
   void initState() {
     super.initState();
+    final active = ref.read(activeAccountProvider);
+    _isOwn = widget.ownerUserId == null || widget.ownerUserId == active?.userId;
+    if (_isOwn) {
+      _tabController = TabController(length: 2, vsync: this)
+        ..addListener(_onTabChanged);
+    }
     _load();
   }
 
-  void _sortClips() {
-    _clips.sort((a, b) {
+  @override
+  void dispose() {
+    _tabController?.dispose();
+    super.dispose();
+  }
+
+  /// お気に入りタブは初めて開いたときにだけ読み込む。
+  /// タブ切り替えで FAB とアクションの対象が変わるため再ビルドも行う。
+  void _onTabChanged() {
+    if (_tabController!.index == 1 && !_favoritesLoaded) {
+      _loadFavorites();
+    }
+    setState(() {});
+  }
+
+  bool get _isFavoritesTabActive => _isOwn && _tabController!.index == 1;
+
+  void _sortList(List<ClipModel> clips) {
+    clips.sort((a, b) {
       return _ascending
           ? a.createdAt.compareTo(b.createdAt)
           : b.createdAt.compareTo(a.createdAt);
@@ -49,18 +85,15 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
     }
     // 自分のクリップを見る場合（ownerUserId が自分のID、または未指定）は
     // clips/list エンドポイントを使用する（users/clips は公開クリップのみ返すため）
-    final active = ref.read(activeAccountProvider);
-    final isOwn =
-        widget.ownerUserId == null || widget.ownerUserId == active?.userId;
     try {
       final clips = await api.getClips(
-        userId: isOwn ? null : widget.ownerUserId,
+        userId: _isOwn ? null : widget.ownerUserId,
         limit: 100,
       );
       if (mounted) {
         setState(() {
           _clips = clips;
-          _sortClips();
+          _sortList(_clips);
         });
       }
     } catch (e) {
@@ -68,6 +101,93 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _loadFavorites() async {
+    setState(() {
+      _favoritesLoading = true;
+      _favoritesError = null;
+    });
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) {
+      if (mounted) setState(() => _favoritesLoading = false);
+      return;
+    }
+    try {
+      final clips = await api.getMyFavoriteClips();
+      if (mounted) {
+        setState(() {
+          _favorites = clips;
+          _sortList(_favorites);
+          _favoritesLoaded = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(
+          () =>
+              _favoritesError = apiErrorMessage(e, fallback: 'お気に入りの取得に失敗しました'),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _favoritesLoading = false);
+    }
+  }
+
+  /// クリップのお気に入り登録・解除を切り替える。
+  /// 成功後は再取得せず、手元の一覧に結果を反映する。
+  Future<void> _toggleFavorite(ClipModel clip) async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null) return;
+    final wasFavorited = clip.isFavorited ?? false;
+
+    try {
+      if (wasFavorited) {
+        await api.unfavoriteClip(clip.id);
+      } else {
+        await api.favoriteClip(clip.id);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              apiErrorMessage(
+                e,
+                fallback: wasFavorited ? 'お気に入りの解除に失敗しました' : 'お気に入りの登録に失敗しました',
+              ),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+
+    final count = (clip.favoritedCount ?? 0) + (wasFavorited ? -1 : 1);
+    final updated = clip.copyWith(
+      isFavorited: !wasFavorited,
+      favoritedCount: count < 0 ? 0 : count,
+    );
+    setState(() {
+      final i = _clips.indexWhere((c) => c.id == clip.id);
+      if (i >= 0) _clips[i] = updated;
+      // 未読込のお気に入り一覧に触ると次回取得まで中途半端な状態になるため、
+      // 読み込み済みのときだけ反映する。
+      if (_favoritesLoaded) {
+        _favorites.removeWhere((c) => c.id == clip.id);
+        if (!wasFavorited) {
+          _favorites.add(updated);
+          _sortList(_favorites);
+        }
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(wasFavorited ? 'お気に入りから削除しました' : 'お気に入りに追加しました'),
+        duration: const Duration(seconds: 1),
+      ),
+    );
   }
 
   void _showCreateSheet() {
@@ -115,6 +235,9 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
     if (api == null) return;
     try {
       await api.deleteClip(clip.id);
+      if (mounted) {
+        setState(() => _favorites.removeWhere((c) => c.id == clip.id));
+      }
       await _load();
     } catch (e) {
       if (mounted) {
@@ -150,10 +273,6 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final active = ref.read(activeAccountProvider);
-    final isOwn =
-        widget.ownerUserId == null || widget.ownerUserId == active?.userId;
-
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -161,6 +280,15 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
               ? '${widget.ownerUserName} のクリップ'
               : 'クリップ',
         ),
+        bottom: _isOwn
+            ? TabBar(
+                controller: _tabController,
+                tabs: const [
+                  Tab(icon: Icon(Icons.bookmark_outline), text: 'マイクリップ'),
+                  Tab(icon: Icon(Icons.star_outline), text: 'お気に入り'),
+                ],
+              )
+            : null,
         actions: [
           IconButton(
             icon: Icon(_ascending ? Icons.arrow_upward : Icons.arrow_downward),
@@ -168,85 +296,145 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
             onPressed: () {
               setState(() {
                 _ascending = !_ascending;
-                _sortClips();
+                _sortList(_clips);
+                _sortList(_favorites);
               });
             },
           ),
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: '再読み込み',
+            onPressed: _isFavoritesTabActive ? _loadFavorites : _load,
+          ),
         ],
       ),
-      floatingActionButton: isOwn
+      floatingActionButton: _isOwn && !_isFavoritesTabActive
           ? FloatingActionButton(
               onPressed: _showCreateSheet,
               child: const Icon(Icons.add),
             )
           : null,
-      body: SafeArea(bottom: true, child: _buildBody(isOwn)),
+      body: SafeArea(
+        bottom: true,
+        child: _isOwn
+            ? TabBarView(
+                controller: _tabController,
+                children: [_buildBody(), _buildFavoritesBody()],
+              )
+            : _buildBody(),
+      ),
     );
   }
 
-  Widget _buildBody(bool isOwn) {
+  Widget _buildBody() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('エラーが発生しました', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(_error!, style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 16),
-            FilledButton(onPressed: _load, child: const Text('再試行')),
-          ],
-        ),
-      );
+      return _buildError(_error!, _load);
     }
     if (_clips.isEmpty) {
-      return RefreshIndicator(
+      return _buildEmpty(
         onRefresh: _load,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: [
-            SizedBox(
-              height: MediaQuery.of(context).size.height * 0.4,
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.bookmark_border,
-                      size: 64,
-                      color: Colors.grey,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(isOwn ? 'クリップがありません' : '公開クリップがありません'),
-                    const SizedBox(height: 8),
-                    Text(
-                      isOwn
-                          ? '右下の + ボタンでクリップを作成できます'
-                          : 'このユーザーは公開クリップを持っていないか、\nサーバーがこの機能に対応していません',
-                      style: const TextStyle(color: Colors.grey),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+        icon: Icons.bookmark_border,
+        title: _isOwn ? 'クリップがありません' : '公開クリップがありません',
+        description: _isOwn
+            ? '右下の + ボタンでクリップを作成できます'
+            : 'このユーザーは公開クリップを持っていないか、\nサーバーがこの機能に対応していません',
       );
     }
+    return _buildClipList(clips: _clips, onRefresh: _load, isFavorites: false);
+  }
+
+  Widget _buildFavoritesBody() {
+    if (_favoritesLoading && _favorites.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_favoritesError != null) {
+      return _buildError(_favoritesError!, _loadFavorites);
+    }
+    if (_favorites.isEmpty) {
+      return _buildEmpty(
+        onRefresh: _loadFavorites,
+        icon: Icons.star_border,
+        title: 'お気に入りのクリップがありません',
+        description: 'クリップの ☆ ボタンでお気に入りに追加できます',
+      );
+    }
+    return _buildClipList(
+      clips: _favorites,
+      onRefresh: _loadFavorites,
+      isFavorites: true,
+    );
+  }
+
+  Widget _buildError(String message, Future<void> Function() onRetry) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text('エラーが発生しました', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Text(message, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 16),
+          FilledButton(onPressed: onRetry, child: const Text('再試行')),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmpty({
+    required Future<void> Function() onRefresh,
+    required IconData icon,
+    required String title,
+    required String description,
+  }) {
     return RefreshIndicator(
-      onRefresh: _load,
+      onRefresh: onRefresh,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.of(context).size.height * 0.4,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 64, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  Text(title),
+                  const SizedBox(height: 8),
+                  Text(
+                    description,
+                    style: const TextStyle(color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClipList({
+    required List<ClipModel> clips,
+    required Future<void> Function() onRefresh,
+    required bool isFavorites,
+  }) {
+    // お気に入りタブには他人のクリップも並ぶため、編集・削除は出さない
+    final canManage = _isOwn && !isFavorites;
+    return RefreshIndicator(
+      onRefresh: onRefresh,
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: _clips.length,
+        itemCount: clips.length,
         separatorBuilder: (context, index) => const Divider(height: 1),
         itemBuilder: (ctx, i) {
-          final clip = _clips[i];
+          final clip = clips[i];
+          final isFavorited = clip.isFavorited ?? false;
           return ListTile(
             leading: Icon(
               clip.isPublic ? Icons.bookmark : Icons.bookmark_outline,
@@ -263,9 +451,27 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                IconButton(
+                  icon: Icon(
+                    isFavorited ? Icons.star : Icons.star_border,
+                    color: isFavorited
+                        ? Theme.of(context).colorScheme.primary
+                        : null,
+                  ),
+                  tooltip: isFavorited ? 'お気に入りから削除' : 'お気に入りに追加',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => _toggleFavorite(clip),
+                ),
+                if ((clip.favoritedCount ?? 0) > 0)
+                  Text(
+                    '${clip.favoritedCount}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
                 if (clip.notesCount != null)
                   Padding(
-                    padding: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.only(left: 8),
                     child: Text(
                       '${clip.notesCount}件',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -290,7 +496,7 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
                         ],
                       ),
                     ),
-                    if (isOwn) ...[
+                    if (canManage) ...[
                       const PopupMenuItem(
                         value: 'edit',
                         child: Row(
@@ -316,11 +522,34 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen> {
                 ),
               ],
             ),
-            onTap: () => context.push('/clips/${clip.id}', extra: clip),
+            onTap: () async {
+              // 詳細画面でお気に入り状態が変わることがあるため戻り値で反映する
+              final result = await context.push(
+                '/clips/${clip.id}',
+                extra: clip,
+              );
+              if (result is ClipModel) _applyClipUpdate(result);
+            },
           );
         },
       ),
     );
+  }
+
+  /// 詳細画面から返ってきたクリップの状態を各一覧に反映する
+  void _applyClipUpdate(ClipModel clip) {
+    if (!mounted) return;
+    setState(() {
+      final i = _clips.indexWhere((c) => c.id == clip.id);
+      if (i >= 0) _clips[i] = clip;
+      if (_favoritesLoaded) {
+        _favorites.removeWhere((c) => c.id == clip.id);
+        if (clip.isFavorited ?? false) {
+          _favorites.add(clip);
+          _sortList(_favorites);
+        }
+      }
+    });
   }
 }
 

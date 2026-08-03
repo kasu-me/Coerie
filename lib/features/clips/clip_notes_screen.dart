@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../data/models/clip_model.dart';
 import '../../data/models/note_model.dart';
@@ -18,6 +19,10 @@ class ClipNotesScreen extends ConsumerStatefulWidget {
 }
 
 class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
+  /// お気に入り状態を含む最新のクリップ。画面を閉じるときに呼び出し元へ返す。
+  late ClipModel _clip = widget.clip;
+  bool _isTogglingFavorite = false;
+
   List<NoteModel> _notes = [];
   bool _isLoading = false;
   bool _hasMore = true;
@@ -195,6 +200,51 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
     }
   }
 
+  /// クリップのお気に入り登録・解除を切り替える
+  Future<void> _toggleFavorite() async {
+    final api = ref.read(misskeyApiProvider);
+    if (api == null || _isTogglingFavorite) return;
+    final wasFavorited = _clip.isFavorited ?? false;
+
+    setState(() => _isTogglingFavorite = true);
+    try {
+      if (wasFavorited) {
+        await api.unfavoriteClip(_clip.id);
+      } else {
+        await api.favoriteClip(_clip.id);
+      }
+      if (!mounted) return;
+      final count = (_clip.favoritedCount ?? 0) + (wasFavorited ? -1 : 1);
+      setState(() {
+        _clip = _clip.copyWith(
+          isFavorited: !wasFavorited,
+          favoritedCount: count < 0 ? 0 : count,
+        );
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(wasFavorited ? 'お気に入りから削除しました' : 'お気に入りに追加しました'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              apiErrorMessage(
+                e,
+                fallback: wasFavorited ? 'お気に入りの解除に失敗しました' : 'お気に入りの登録に失敗しました',
+              ),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isTogglingFavorite = false);
+    }
+  }
+
   Future<void> _openInBrowser() async {
     final active = ref.read(activeAccountProvider);
     final host = widget.host ?? active?.host;
@@ -218,56 +268,72 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.clip.name,
-              style: const TextStyle(fontSize: 16),
-              overflow: TextOverflow.ellipsis,
-            ),
-            if (widget.clip.description != null)
+    final isFavorited = _clip.isFavorited ?? false;
+    // お気に入り状態の変化を一覧画面へ返すため、戻る操作を自前で処理する
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        Navigator.of(context).pop(_clip);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                widget.clip.description!,
-                style: Theme.of(context).textTheme.bodySmall,
+                _clip.name,
+                style: const TextStyle(fontSize: 16),
                 overflow: TextOverflow.ellipsis,
               ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(_ascending ? Icons.arrow_upward : Icons.arrow_downward),
-            tooltip: _ascending ? '古い順（昇順）' : '新しい順（降順）',
-            onPressed: _isLoading
-                ? null
-                : () async {
-                    final toAscending = !_ascending;
-                    setState(() => _ascending = toAscending);
-                    if (toAscending && _hasMore) {
-                      // 未読込の古いノートを全て取得してから昇順表示
-                      await _ensureAllLoaded();
-                    } else {
-                      setState(() => _sortNotes());
-                    }
-                  },
-          ),
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
-          PopupMenuButton<String>(
-            onSelected: (v) {
-              if (v == 'open_browser') _openInBrowser();
-            },
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'open_browser',
-                child: Text('ブラウザで開く'),
-              ),
+              if (_clip.description != null)
+                Text(
+                  _clip.description!,
+                  style: Theme.of(context).textTheme.bodySmall,
+                  overflow: TextOverflow.ellipsis,
+                ),
             ],
           ),
-        ],
+          actions: [
+            IconButton(
+              icon: Icon(isFavorited ? Icons.star : Icons.star_border),
+              tooltip: isFavorited ? 'お気に入りから削除' : 'お気に入りに追加',
+              onPressed: _isTogglingFavorite ? null : _toggleFavorite,
+            ),
+            IconButton(
+              icon: Icon(
+                _ascending ? Icons.arrow_upward : Icons.arrow_downward,
+              ),
+              tooltip: _ascending ? '古い順（昇順）' : '新しい順（降順）',
+              onPressed: _isLoading
+                  ? null
+                  : () async {
+                      final toAscending = !_ascending;
+                      setState(() => _ascending = toAscending);
+                      if (toAscending && _hasMore) {
+                        // 未読込の古いノートを全て取得してから昇順表示
+                        await _ensureAllLoaded();
+                      } else {
+                        setState(() => _sortNotes());
+                      }
+                    },
+            ),
+            IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+            PopupMenuButton<String>(
+              onSelected: (v) {
+                if (v == 'open_browser') _openInBrowser();
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'open_browser',
+                  child: Text('ブラウザで開く'),
+                ),
+              ],
+            ),
+          ],
+        ),
+        body: SafeArea(bottom: true, child: _buildBody()),
       ),
-      body: SafeArea(bottom: true, child: _buildBody()),
     );
   }
 

@@ -17,6 +17,11 @@ const Map<String, String> _messageByCode = {
   'ALREADY_VOTED': 'すでに投票済みです',
   'ALREADY_EXPIRED': '投票は締め切られています',
 
+  // クリップ
+  'NO_SUCH_CLIP': 'クリップが見つかりませんでした',
+  'ALREADY_FAVORITED': 'すでにお気に入りに登録されています',
+  'NOT_FAVORITED': 'お気に入りに登録されていません',
+
   // ノート・ユーザー
   'NO_SUCH_NOTE': 'ノートが見つかりませんでした',
   'NO_SUCH_USER': 'ユーザーが見つかりませんでした',

@@ -1183,6 +1183,26 @@ class MisskeyApi {
     );
   }
 
+  /// お気に入りに登録したクリップ一覧を取得する（clips/my-favorites）
+  /// このエンドポイントはページネーションに対応していないため全件返る。
+  Future<List<ClipModel>> getMyFavoriteClips() async {
+    final res = await _dio.post('clips/my-favorites', data: _body({}));
+    final list = res.data as List<dynamic>;
+    return list
+        .map((e) => ClipModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// クリップをお気に入りに登録する（clips/favorite）
+  Future<void> favoriteClip(String clipId) async {
+    await _dio.post('clips/favorite', data: _body({'clipId': clipId}));
+  }
+
+  /// クリップのお気に入りを解除する（clips/unfavorite）
+  Future<void> unfavoriteClip(String clipId) async {
+    await _dio.post('clips/unfavorite', data: _body({'clipId': clipId}));
+  }
+
   // ---- チャンネル ----
 
   /// チャンネルの詳細情報を取得する（channels/show）
