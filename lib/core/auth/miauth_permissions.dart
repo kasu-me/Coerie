@@ -7,6 +7,7 @@ const List<String> miauthPermissions = [
   'read:reactions',
   'write:reactions',
   'write:notes',
+  'write:votes',
   'read:following',
   'write:following',
   'read:drive',
