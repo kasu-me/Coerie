@@ -14,6 +14,7 @@ import '../../../data/models/poll_model.dart';
 import '../../../data/models/user_model.dart';
 import '../../../shared/widgets/media_player_screen.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/errors/api_error_message.dart';
 import '../../../shared/providers/account_provider.dart';
 import '../../../shared/providers/account_visibility_provider.dart';
 import '../../../shared/providers/misskey_api_provider.dart';
@@ -259,7 +260,11 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('投票に失敗しました: $e')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text(apiErrorMessage(e, fallback: '投票に失敗しました')),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _isVoting = false);
