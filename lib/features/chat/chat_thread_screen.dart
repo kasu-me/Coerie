@@ -10,6 +10,7 @@ import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/utils/format_utils.dart';
 import '../../shared/widgets/user_avatar.dart';
+import '../../shared/widgets/error_view.dart';
 
 // ─── State ─────────────────────────────────────────────────────────────────
 
@@ -804,25 +805,9 @@ class _RoomMembersSheet extends ConsumerWidget {
             Expanded(
               child: membersAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.error_outline, size: 40),
-                        const SizedBox(height: 12),
-                        const Text('メンバーの読み込みに失敗しました'),
-                        const SizedBox(height: 12),
-                        FilledButton.icon(
-                          onPressed: () =>
-                              ref.invalidate(_roomMembersProvider(roomId)),
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('再試行'),
-                        ),
-                      ],
-                    ),
-                  ),
+                error: (e, _) => ErrorView(
+                  message: 'メンバーの読み込みに失敗しました',
+                  onRetry: () => ref.invalidate(_roomMembersProvider(roomId)),
                 ),
                 data: (members) {
                   if (members.isEmpty) {

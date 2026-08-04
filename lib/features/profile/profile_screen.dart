@@ -16,6 +16,7 @@ import '../timeline/widgets/note_card.dart';
 import 'pinned_notes_provider.dart';
 import 'follow_requests_sheet.dart';
 import '../../shared/widgets/confirm_dialog.dart';
+import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/user_avatar.dart';
 import '../../shared/providers/paged_notifier.dart';
 
@@ -176,20 +177,9 @@ class ProfileScreen extends ConsumerWidget {
     return Scaffold(
       body: userAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 48),
-              const SizedBox(height: 12),
-              Text(e.toString().replaceFirst('Exception: ', '')),
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: () => ref.invalidate(userProfileProvider(userId)),
-                child: const Text('再試行'),
-              ),
-            ],
-          ),
+        error: (e, _) => ErrorView(
+          message: e.toString().replaceFirst('Exception: ', ''),
+          onRetry: () => ref.invalidate(userProfileProvider(userId)),
         ),
         data: (user) => _ProfileBody(user: user, userId: userId),
       ),

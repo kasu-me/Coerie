@@ -10,6 +10,7 @@ import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/widgets/confirm_dialog.dart';
+import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/user_avatar.dart';
 
 class ListsScreen extends ConsumerStatefulWidget {
@@ -181,18 +182,7 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
   Widget _buildBody() {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('エラーが発生しました', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(_error!, style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 16),
-            FilledButton(onPressed: _load, child: const Text('再試行')),
-          ],
-        ),
-      );
+      return ErrorView(message: _error!, onRetry: _load);
     }
 
     if (_lists.isEmpty) {
@@ -667,18 +657,7 @@ class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('エラーが発生しました', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(_error!, style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 16),
-            FilledButton(onPressed: _loadMembers, child: const Text('再試行')),
-          ],
-        ),
-      );
+      return ErrorView(message: _error!, onRetry: _loadMembers);
     }
     if (_members.isEmpty) {
       return Center(

@@ -8,6 +8,7 @@ import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/dm_badge_provider.dart';
 import '../../shared/widgets/user_avatar.dart';
+import '../../shared/widgets/error_view.dart';
 
 // ─── State ─────────────────────────────────────────────────────────────────
 
@@ -243,35 +244,10 @@ class _DmListTab extends ConsumerWidget {
     }
 
     if (state.error != null && state.items.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, size: 48),
-              const SizedBox(height: 16),
-              Text(
-                '読み込みに失敗しました',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                state.error!,
-                style: Theme.of(context).textTheme.bodySmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: () => ref
-                    .read(_dmDirectHistoryProvider(accountId).notifier)
-                    .fetch(),
-                icon: const Icon(Icons.refresh),
-                label: const Text('再試行'),
-              ),
-            ],
-          ),
-        ),
+      return ErrorView(
+        message: state.error!,
+        onRetry: () =>
+            ref.read(_dmDirectHistoryProvider(accountId).notifier).fetch(),
       );
     }
 
@@ -347,34 +323,9 @@ class _RoomListTab extends ConsumerWidget {
     }
 
     if (state.error != null && state.items.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, size: 48),
-              const SizedBox(height: 16),
-              Text(
-                '読み込みに失敗しました',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                state.error!,
-                style: Theme.of(context).textTheme.bodySmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: () =>
-                    ref.read(_roomListProvider(accountId).notifier).fetch(),
-                icon: const Icon(Icons.refresh),
-                label: const Text('再試行'),
-              ),
-            ],
-          ),
-        ),
+      return ErrorView(
+        message: state.error!,
+        onRetry: () => ref.read(_roomListProvider(accountId).notifier).fetch(),
       );
     }
 

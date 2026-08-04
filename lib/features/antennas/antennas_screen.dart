@@ -10,6 +10,7 @@ import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/widgets/confirm_dialog.dart';
+import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/user_avatar.dart';
 
 class AntennasScreen extends ConsumerStatefulWidget {
@@ -163,18 +164,7 @@ class _AntennasScreenState extends ConsumerState<AntennasScreen> {
   Widget _buildBody() {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('エラーが発生しました', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(_error!, style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 16),
-            FilledButton(onPressed: _load, child: const Text('再試行')),
-          ],
-        ),
-      );
+      return ErrorView(message: _error!, onRetry: _load);
     }
 
     if (_items.isEmpty) {

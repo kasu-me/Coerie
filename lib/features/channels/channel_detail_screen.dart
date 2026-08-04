@@ -11,6 +11,7 @@ import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/utils/color_utils.dart';
+import '../../shared/widgets/error_view.dart';
 import '../timeline/timeline_screen.dart';
 import '../timeline/timeline_provider.dart';
 
@@ -198,18 +199,7 @@ class _ChannelDetailScreenState extends ConsumerState<ChannelDetailScreen>
       body: _isLoading && _channel == null
           ? const Center(child: CircularProgressIndicator())
           : _error != null && _channel == null
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 48),
-                  const SizedBox(height: 8),
-                  Text(_error!),
-                  const SizedBox(height: 16),
-                  FilledButton(onPressed: _load, child: const Text('再試行')),
-                ],
-              ),
-            )
+          ? ErrorView(message: _error!, onRetry: _load)
           : TabBarView(
               controller: _tabController,
               children: [

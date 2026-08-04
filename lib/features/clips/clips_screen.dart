@@ -6,6 +6,7 @@ import '../../core/errors/api_error_message.dart';
 import '../../data/models/clip_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
+import '../../shared/widgets/error_view.dart';
 
 class ClipsScreen extends ConsumerStatefulWidget {
   final String? ownerUserId;
@@ -331,7 +332,7 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen>
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) {
-      return _buildError(_error!, _load);
+      return ErrorView(message: _error!, onRetry: _load);
     }
     if (_clips.isEmpty) {
       return _buildEmpty(
@@ -351,7 +352,7 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen>
       return const Center(child: CircularProgressIndicator());
     }
     if (_favoritesError != null) {
-      return _buildError(_favoritesError!, _loadFavorites);
+      return ErrorView(message: _favoritesError!, onRetry: _loadFavorites);
     }
     if (_favorites.isEmpty) {
       return _buildEmpty(
@@ -365,21 +366,6 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen>
       clips: _favorites,
       onRefresh: _loadFavorites,
       isFavorites: true,
-    );
-  }
-
-  Widget _buildError(String message, Future<void> Function() onRetry) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text('エラーが発生しました', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Text(message, style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 16),
-          FilledButton(onPressed: onRetry, child: const Text('再試行')),
-        ],
-      ),
     );
   }
 

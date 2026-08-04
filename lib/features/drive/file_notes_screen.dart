@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import '../../data/models/drive_file_model.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/widgets/error_view.dart';
 import '../timeline/widgets/note_card.dart';
 
 class DriveFileNotesScreen extends ConsumerStatefulWidget {
@@ -148,22 +149,7 @@ class _DriveFileNotesScreenState extends ConsumerState<DriveFileNotesScreen> {
 
   Widget _buildBody(BuildContext context) {
     if (_error != null && _notes.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 48,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 12),
-            Text(_error!),
-            const SizedBox(height: 12),
-            FilledButton(onPressed: _fetchNotes, child: const Text('再試行')),
-          ],
-        ),
-      );
+      return ErrorView(message: _error!, onRetry: _fetchNotes);
     }
 
     if (_isLoading && _notes.isEmpty) {

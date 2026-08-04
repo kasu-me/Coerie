@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../timeline/widgets/note_card.dart';
+import '../../shared/widgets/error_view.dart';
 
 class FavoritesScreen extends ConsumerStatefulWidget {
   const FavoritesScreen({super.key});
@@ -120,20 +121,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_error != null && _notes.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('エラーが発生しました: $_error'),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              icon: const Icon(Icons.refresh),
-              label: const Text('再試行'),
-              onPressed: _load,
-            ),
-          ],
-        ),
-      );
+      return ErrorView(message: _error!, onRetry: _load);
     }
     if (_notes.isEmpty) {
       return const Center(child: Text('お気に入りがありません'));
