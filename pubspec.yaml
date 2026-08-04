@@ -33,8 +33,6 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
-  cupertino_icons: ^1.0.8
-
   # HTTP通信
   dio: ^5.7.0
   # WebSocketストリーミング
@@ -71,7 +69,6 @@ dependencies:
   mfm_parser: ^1.0.6
   # ギャラリーピッカー
   wechat_assets_picker: ^9.3.1
-  photo_manager: ^3.6.4
   provider: ^6.0.5
   # 画像圧縮
   flutter_image_compress: ^2.3.0
