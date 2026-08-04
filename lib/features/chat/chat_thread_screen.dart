@@ -826,7 +826,7 @@ class _RoomMembersSheet extends ConsumerWidget {
                               theme.colorScheme.surfaceContainerHighest,
                         ),
                         title: Text(
-                          u.name.isNotEmpty ? u.name : u.username,
+                          u.displayName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),

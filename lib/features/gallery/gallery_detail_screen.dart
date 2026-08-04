@@ -284,9 +284,7 @@ class _GalleryDetailScreenState extends ConsumerState<GalleryDetailScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              post.user?.name.isNotEmpty == true
-                                  ? post.user!.name
-                                  : (post.user?.username ?? ''),
+                              post.user?.displayName ?? '',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),

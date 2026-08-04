@@ -41,6 +41,9 @@ class UserModel {
 
   String get acct => host.isEmpty ? '@$username' : '@$username@$host';
 
+  /// 表示名。未設定（空文字）の場合はユーザー名にフォールバックする
+  String get displayName => name.isEmpty ? username : name;
+
   factory UserModel.fromJson(Map<String, dynamic> json, {String host = ''}) {
     return UserModel(
       id: json['id'] as String,

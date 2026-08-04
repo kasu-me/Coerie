@@ -461,7 +461,7 @@ class _AuthorRow extends StatelessWidget {
             const SizedBox(width: 8),
             Flexible(
               child: Text(
-                user.name.isEmpty ? user.username : user.name,
+                user.displayName,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodyMedium,
               ),
