@@ -27,6 +27,9 @@ class HomeAppBar extends ConsumerWidget implements PreferredSizeWidget {
 
     return AppBar(
       automaticallyImplyLeading: false,
+      // タイムラインは TabBarView 内にあり depth>0 のため元々 scrolledUnder は
+      // 効いていない。誤検知でヘッダに色が付くのを防ぐため常に無効化する。
+      notificationPredicate: (_) => false,
       leading: GestureDetector(
         onTap: () => scaffoldKey.currentState?.openDrawer(),
         child: Padding(

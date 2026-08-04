@@ -19,217 +19,223 @@ class HomeDrawer extends ConsumerWidget {
     final activeAccount = ref.watch(activeAccountProvider);
 
     return Drawer(
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _ProfileHeader(
-              account: activeAccount,
-              accounts: accounts,
-              ref: ref,
-            ),
-            const Divider(),
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.manage_accounts),
-                    title: const Text('アカウント設定'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/account-settings');
-                    },
-                  ),
-                  Consumer(
-                    builder: (ctx, ref, _) {
-                      final isLocked = ref.watch(isLockedProvider);
-                      if (!isLocked) return const SizedBox.shrink();
-                      return ListTile(
-                        leading: Consumer(
-                          builder: (ctx, ref, _) {
-                            final accountId =
-                                ref.watch(activeAccountProvider)?.id ?? '';
-                            final cnt = ref.watch(
-                              followRequestsBadgeProvider(accountId),
-                            );
-                            return cnt > 0
-                                ? Badge(
-                                    label: Text('$cnt'),
-                                    child: const Icon(Icons.person_add),
-                                  )
-                                : const Icon(Icons.person_add);
-                          },
-                        ),
-                        title: const Text('フォローリクエスト'),
-                        onTap: () {
-                          Navigator.of(ctx).pop();
-                          if (activeAccount == null) return;
-                          showModalBottomSheet(
-                            context: ctx,
-                            isScrollControlled: true,
-                            useSafeArea: true,
-                            builder: (sheetCtx) => FollowRequestsSheet(
-                              profileOwnerId: activeAccount.userId,
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.volume_off_outlined),
-                    title: const Text('ミュート・ブロック'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/mute-block');
-                    },
-                  ),
-                  const Divider(),
-                  ListTile(
-                    leading: const Icon(Icons.search),
-                    title: const Text('検索'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/search');
-                    },
-                  ),
-                  ListTile(
-                    leading: Consumer(
-                      builder: (ctx, ref, _) {
-                        final accountId =
-                            ref.watch(activeAccountProvider)?.id ?? '';
-                        final ann = ref.watch(
-                          announcementsBadgeProvider(accountId),
-                        );
-                        return ann > 0
-                            ? Badge(
-                                label: Text('$ann'),
-                                child: const Icon(Icons.campaign_outlined),
-                              )
-                            : const Icon(Icons.campaign_outlined);
-                      },
-                    ),
-                    title: const Text('お知らせ'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/announcements');
-                    },
-                  ),
-                  const Divider(),
-                  ListTile(
-                    leading: Consumer(
-                      builder: (ctx, ref, _) {
-                        final accountId =
-                            ref.watch(activeAccountProvider)?.id ?? '';
-                        final dm = ref.watch(dmBadgeProvider(accountId));
-                        return dm > 0
-                            ? Badge(
-                                label: Text('$dm'),
-                                child: const Icon(Icons.mail_outline),
-                              )
-                            : const Icon(Icons.mail_outline);
-                      },
-                    ),
-                    title: const Text('ダイレクトメッセージ'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/dm');
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.cloud_outlined),
-                    title: const Text('ドライブ'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/drive');
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.edit_note),
-                    title: const Text('下書き'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/drafts');
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.bookmark_outline),
-                    title: const Text('クリップ'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/clips');
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.list),
-                    title: const Text('リスト'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/list');
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.settings_input_antenna),
-                    title: const Text('アンテナ'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/antenna');
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.star_outline),
-                    title: const Text('お気に入り'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/favorites');
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.tv),
-                    title: const Text('チャンネル'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/channels');
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.description_outlined),
-                    title: const Text('ページ'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/pages');
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.collections_outlined),
-                    title: const Text('ギャラリー'),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      context.push('/gallery');
-                    },
-                  ),
-                ],
+      // ドロワー内のスクロール通知を Scaffold まで伝播させない。
+      // 伝播すると depth==0 の通知としてホームの AppBar に届き、
+      // Material3 の scrolledUnder 判定が誤作動してヘッダに色が付いたままになる。
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (_) => true,
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _ProfileHeader(
+                account: activeAccount,
+                accounts: accounts,
+                ref: ref,
               ),
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.settings),
-              title: const Text('アプリ設定'),
-              onTap: () {
-                Navigator.of(context).pop();
-                context.push('/settings');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.info_outline),
-              title: const Text('アプリ情報'),
-              onTap: () {
-                Navigator.of(context).pop();
-                context.push('/app-info');
-              },
-            ),
-          ],
+              const Divider(),
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.manage_accounts),
+                      title: const Text('アカウント設定'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        context.push('/account-settings');
+                      },
+                    ),
+                    Consumer(
+                      builder: (ctx, ref, _) {
+                        final isLocked = ref.watch(isLockedProvider);
+                        if (!isLocked) return const SizedBox.shrink();
+                        return ListTile(
+                          leading: Consumer(
+                            builder: (ctx, ref, _) {
+                              final accountId =
+                                  ref.watch(activeAccountProvider)?.id ?? '';
+                              final cnt = ref.watch(
+                                followRequestsBadgeProvider(accountId),
+                              );
+                              return cnt > 0
+                                  ? Badge(
+                                      label: Text('$cnt'),
+                                      child: const Icon(Icons.person_add),
+                                    )
+                                  : const Icon(Icons.person_add);
+                            },
+                          ),
+                          title: const Text('フォローリクエスト'),
+                          onTap: () {
+                            Navigator.of(ctx).pop();
+                            if (activeAccount == null) return;
+                            showModalBottomSheet(
+                              context: ctx,
+                              isScrollControlled: true,
+                              useSafeArea: true,
+                              builder: (sheetCtx) => FollowRequestsSheet(
+                                profileOwnerId: activeAccount.userId,
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.volume_off_outlined),
+                      title: const Text('ミュート・ブロック'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        context.push('/mute-block');
+                      },
+                    ),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.search),
+                      title: const Text('検索'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        context.push('/search');
+                      },
+                    ),
+                    ListTile(
+                      leading: Consumer(
+                        builder: (ctx, ref, _) {
+                          final accountId =
+                              ref.watch(activeAccountProvider)?.id ?? '';
+                          final ann = ref.watch(
+                            announcementsBadgeProvider(accountId),
+                          );
+                          return ann > 0
+                              ? Badge(
+                                  label: Text('$ann'),
+                                  child: const Icon(Icons.campaign_outlined),
+                                )
+                              : const Icon(Icons.campaign_outlined);
+                        },
+                      ),
+                      title: const Text('お知らせ'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        context.push('/announcements');
+                      },
+                    ),
+                    const Divider(),
+                    ListTile(
+                      leading: Consumer(
+                        builder: (ctx, ref, _) {
+                          final accountId =
+                              ref.watch(activeAccountProvider)?.id ?? '';
+                          final dm = ref.watch(dmBadgeProvider(accountId));
+                          return dm > 0
+                              ? Badge(
+                                  label: Text('$dm'),
+                                  child: const Icon(Icons.mail_outline),
+                                )
+                              : const Icon(Icons.mail_outline);
+                        },
+                      ),
+                      title: const Text('ダイレクトメッセージ'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        context.push('/dm');
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.cloud_outlined),
+                      title: const Text('ドライブ'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        context.push('/drive');
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.edit_note),
+                      title: const Text('下書き'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        context.push('/drafts');
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.bookmark_outline),
+                      title: const Text('クリップ'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        context.push('/clips');
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.list),
+                      title: const Text('リスト'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        context.push('/list');
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.settings_input_antenna),
+                      title: const Text('アンテナ'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        context.push('/antenna');
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.star_outline),
+                      title: const Text('お気に入り'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        context.push('/favorites');
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.tv),
+                      title: const Text('チャンネル'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        context.push('/channels');
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.description_outlined),
+                      title: const Text('ページ'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        context.push('/pages');
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.collections_outlined),
+                      title: const Text('ギャラリー'),
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        context.push('/gallery');
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.settings),
+                title: const Text('アプリ設定'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  context.push('/settings');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.info_outline),
+                title: const Text('アプリ情報'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  context.push('/app-info');
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
