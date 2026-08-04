@@ -26,6 +26,31 @@ const Map<String, String> _messageByCode = {
   'NO_SUCH_NOTE': 'ノートが見つかりませんでした',
   'NO_SUCH_USER': 'ユーザーが見つかりませんでした',
   'YOU_HAVE_BEEN_BLOCKED': '相手にブロックされているため操作できません',
+
+  // ページ
+  'NO_SUCH_PAGE': 'ページが見つかりませんでした',
+  'NAME_ALREADY_EXISTS': 'そのページ名（URL）は既に使われています',
+  'YOUR_PAGE': '自分のページにはいいねできません',
+
+  // ギャラリー
+  'NO_SUCH_POST': '投稿が見つかりませんでした',
+  'YOUR_POST': '自分の投稿にはいいねできません',
+
+  // ページ・ギャラリー共通
+  'ALREADY_LIKED': 'すでにいいねしています',
+  'NOT_LIKED': 'いいねしていません',
+  'NO_SUCH_FILE': 'ファイルが見つかりませんでした',
+  'ACCESS_DENIED': 'この操作は許可されていません',
+};
+
+/// 「拒否」ではあるが権限スコープ不足ではないエラーコード。
+/// 再認証しても解決しないため [isPermissionError] では false にする。
+const Set<String> _nonScopeDenialCodes = {
+  'ACCESS_DENIED',
+  'YOUR_PAGE',
+  'YOUR_POST',
+  'YOU_HAVE_BEEN_BLOCKED',
+  'YOUR_ACCOUNT_SUSPENDED',
 };
 
 /// 権限不足時の案内。アプリが要求する権限は認証時に確定するため、
@@ -57,21 +82,44 @@ String apiErrorMessage(Object error, {required String fallback}) {
   }
 
   final res = error.response;
-  final data = res?.data;
-  final apiError = data is Map<String, dynamic>
-      ? data['error'] as Map<String, dynamic>?
-      : null;
-
-  final code = apiError?['code'] as String?;
+  final code = _apiErrorOf(error)?['code'] as String?;
   final known = _messageByCode[code];
   if (known != null) return known;
 
-  if (apiError?['kind'] == 'permission') return _permissionMessage;
+  if (isPermissionError(error)) return _permissionMessage;
 
   final status = res?.statusCode ?? 0;
-  if (status == 401 || status == 403) return _permissionMessage;
   if (status == 429) return _messageByCode['RATE_LIMIT_EXCEEDED']!;
   if (status >= 500) return 'サーバーでエラーが発生しました。時間をおいて再試行してください';
 
   return fallback;
+}
+
+/// アプリが要求する権限スコープの不足が原因のエラーかを判定する。
+///
+/// アクセストークンの権限は認証時に確定するため、アプリ側で権限を追加しても
+/// 既存ユーザーのトークンは古い権限のままになる。このエラーを検出したら
+/// MiAuth の再認証（アカウント設定 →「トークンを再取得」）を促すこと。
+///
+/// `ACCESS_DENIED`（他人のページ・投稿の編集）や `YOUR_PAGE` のような、
+/// 再認証しても解決しない拒否は false を返す。
+bool isPermissionError(Object error) {
+  if (error is! DioException) return false;
+  if (error.type != DioExceptionType.badResponse) return false;
+
+  final apiError = _apiErrorOf(error);
+  final code = apiError?['code'] as String?;
+  if (code == 'PERMISSION_DENIED' || code == 'CREDENTIAL_REQUIRED') return true;
+  if (code != null && _nonScopeDenialCodes.contains(code)) return false;
+
+  if (apiError?['kind'] == 'permission') return true;
+
+  final status = error.response?.statusCode ?? 0;
+  return status == 401 || status == 403;
+}
+
+Map<String, dynamic>? _apiErrorOf(DioException error) {
+  final data = error.response?.data;
+  if (data is! Map<String, dynamic>) return null;
+  return data['error'] as Map<String, dynamic>?;
 }

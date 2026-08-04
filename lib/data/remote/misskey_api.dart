@@ -3,7 +3,9 @@ import 'package:dio/dio.dart';
 import '../../data/models/chat_message_model.dart';
 import '../../data/models/chat_room_model.dart';
 import '../../data/models/clip_model.dart';
+import '../../data/models/gallery_post_model.dart';
 import '../../data/models/note_model.dart';
+import '../../data/models/page_model.dart';
 import '../../data/models/notification_model.dart';
 import '../../data/models/user_model.dart';
 import '../../data/models/announcement_model.dart';
@@ -1584,5 +1586,358 @@ class MisskeyApi {
       final noteMap = map['note'] as Map<String, dynamic>;
       return NoteModel.fromJson(noteMap, host: host);
     }).toList();
+  }
+
+  // ---- ページ ----
+
+  List<PageModel> _parsePages(dynamic data) => (data as List<dynamic>)
+      .map((e) => PageModel.fromJson(e as Map<String, dynamic>, host: host))
+      .toList();
+
+  /// ページを取得する（pages/show）
+  ///
+  /// [pageId] を指定するか、[name]（URLスラッグ）+ [username] の組を指定する。
+  /// なお `pages/show` は**自インスタンスのページしか返さない**。
+  Future<PageModel> getPage({
+    String? pageId,
+    String? name,
+    String? username,
+  }) async {
+    assert(
+      pageId != null || (name != null && username != null),
+      'pageId、または name + username のいずれかを指定してください',
+    );
+    final params = <String, dynamic>{};
+    if (pageId != null) {
+      params['pageId'] = pageId;
+    } else {
+      params['name'] = name;
+      params['username'] = username;
+    }
+    final res = await _dio.post('pages/show', data: _body(params));
+    return PageModel.fromJson(res.data as Map<String, dynamic>, host: host);
+  }
+
+  /// おすすめのページ一覧を取得する（pages/featured）
+  /// **引数なし・固定10件**（いいね数降順）でページングは無い。
+  Future<List<PageModel>> getFeaturedPages() async {
+    final res = await _dio.post('pages/featured', data: _body({}));
+    return _parsePages(res.data);
+  }
+
+  /// 自分のページ一覧を取得する（i/pages, `read:pages`）
+  Future<List<PageModel>> getMyPages({int limit = 20, String? untilId}) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('i/pages', data: _body(params));
+    return _parsePages(res.data);
+  }
+
+  /// 指定ユーザーのページ一覧を取得する（users/pages）
+  Future<List<PageModel>> getUserPages({
+    required String userId,
+    int limit = 20,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'userId': userId, 'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('users/pages', data: _body(params));
+    return _parsePages(res.data);
+  }
+
+  /// いいねしたページ一覧を取得する（i/page-likes, `read:page-likes`）
+  ///
+  /// 戻り値は Page そのものではなく `{ id, page }` のラッパー配列。
+  /// **ページングの `untilId` には外側の [PageLikeModel.id] を使うこと。**
+  Future<List<PageLikeModel>> getLikedPages({
+    int limit = 20,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('i/page-likes', data: _body(params));
+    return (res.data as List<dynamic>)
+        .map(
+          (e) =>
+              PageLikeModel.fromJson(e as Map<String, dynamic>, host: host),
+        )
+        .toList();
+  }
+
+  /// ページを作成する（pages/create, `write:pages`）
+  ///
+  /// **レート制限が 10回/時**と厳しいため、エディタでは「新規作成は1回だけ、
+  /// 以後は [updatePage]（300回/時）で保存」に統一すること。
+  ///
+  /// `content` / `variables` / `script` はすべてサーバー側で required。
+  /// 廃止済み機能のフィールドだが、送らないと 400 になるため空値を必ず送る。
+  ///
+  /// [name] は同一ユーザー内でユニークで、重複すると `NAME_ALREADY_EXISTS`。
+  Future<PageModel> createPage({
+    required String title,
+    required String name,
+    required List<PageBlock> content,
+    String? summary,
+    String font = 'sans-serif',
+    bool alignCenter = false,
+    bool hideTitleWhenPinned = false,
+    String? eyeCatchingImageId,
+    List<dynamic> variables = const [],
+    String script = '',
+  }) async {
+    final params = <String, dynamic>{
+      'title': title,
+      'name': name,
+      'content': content.map((b) => b.toJson()).toList(),
+      'variables': variables,
+      'script': script,
+      'font': font,
+      'alignCenter': alignCenter,
+      'hideTitleWhenPinned': hideTitleWhenPinned,
+      'summary': summary,
+    };
+    if (eyeCatchingImageId != null) {
+      params['eyeCatchingImageId'] = eyeCatchingImageId;
+    }
+    final res = await _dio.post('pages/create', data: _body(params));
+    return PageModel.fromJson(res.data as Map<String, dynamic>, host: host);
+  }
+
+  /// ページを更新する（pages/update, `write:pages`）
+  ///
+  /// `pageId` 以外は部分更新で、**渡さなかったフィールドはサーバー側の値が維持される**。
+  /// 逆に `summary` / `eyeCatchingImageId` は null を送ると消去されるため、
+  /// 明示的に消したい場合は [clearSummary] / [clearEyeCatchingImage] を使う。
+  ///
+  /// 編集画面で読み込んだ `font` / `alignCenter` / `hideTitleWhenPinned` を
+  /// 保持したまま渡さないと、往復で設定が失われる点に注意。
+  Future<void> updatePage({
+    required String pageId,
+    String? title,
+    String? name,
+    String? summary,
+    bool clearSummary = false,
+    List<PageBlock>? content,
+    String? font,
+    bool? alignCenter,
+    bool? hideTitleWhenPinned,
+    String? eyeCatchingImageId,
+    bool clearEyeCatchingImage = false,
+    List<dynamic>? variables,
+    String? script,
+  }) async {
+    final params = <String, dynamic>{'pageId': pageId};
+    if (title != null) params['title'] = title;
+    if (name != null) params['name'] = name;
+    if (clearSummary) {
+      params['summary'] = null;
+    } else if (summary != null) {
+      params['summary'] = summary;
+    }
+    if (content != null) {
+      params['content'] = content.map((b) => b.toJson()).toList();
+    }
+    if (font != null) params['font'] = font;
+    if (alignCenter != null) params['alignCenter'] = alignCenter;
+    if (hideTitleWhenPinned != null) {
+      params['hideTitleWhenPinned'] = hideTitleWhenPinned;
+    }
+    if (clearEyeCatchingImage) {
+      params['eyeCatchingImageId'] = null;
+    } else if (eyeCatchingImageId != null) {
+      params['eyeCatchingImageId'] = eyeCatchingImageId;
+    }
+    if (variables != null) params['variables'] = variables;
+    if (script != null) params['script'] = script;
+    await _dio.post('pages/update', data: _body(params));
+  }
+
+  /// ページを削除する（pages/delete, `write:pages`）
+  Future<void> deletePage(String pageId) async {
+    await _dio.post('pages/delete', data: _body({'pageId': pageId}));
+  }
+
+  /// ページにいいねする（pages/like, `write:page-likes`）
+  /// 自分のページには `YOUR_PAGE` エラーでいいねできない。
+  Future<void> likePage(String pageId) async {
+    await _dio.post('pages/like', data: _body({'pageId': pageId}));
+  }
+
+  /// ページのいいねを解除する（pages/unlike, `write:page-likes`）
+  Future<void> unlikePage(String pageId) async {
+    await _dio.post('pages/unlike', data: _body({'pageId': pageId}));
+  }
+
+  // ---- ギャラリー ----
+
+  List<GalleryPostModel> _parseGalleryPosts(dynamic data) =>
+      (data as List<dynamic>)
+          .map(
+            (e) => GalleryPostModel.fromJson(
+              e as Map<String, dynamic>,
+              host: host,
+            ),
+          )
+          .toList();
+
+  /// 新着のギャラリー投稿一覧を取得する（gallery/posts）
+  Future<List<GalleryPostModel>> getGalleryPosts({
+    int limit = 20,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('gallery/posts', data: _body(params));
+    return _parseGalleryPosts(res.data);
+  }
+
+  /// おすすめのギャラリー投稿一覧を取得する（gallery/featured）
+  /// このエンドポイントは `untilId` のみ対応（`sinceId` は無い）。
+  Future<List<GalleryPostModel>> getFeaturedGalleryPosts({
+    int limit = 20,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('gallery/featured', data: _body(params));
+    return _parseGalleryPosts(res.data);
+  }
+
+  /// 人気のギャラリー投稿一覧を取得する（gallery/popular）
+  /// **引数なし・固定10件**でページングは無い（読み切り + Pull-to-Refresh 向け）。
+  Future<List<GalleryPostModel>> getPopularGalleryPosts() async {
+    final res = await _dio.post('gallery/popular', data: _body({}));
+    return _parseGalleryPosts(res.data);
+  }
+
+  /// ギャラリー投稿を取得する（gallery/posts/show）
+  Future<GalleryPostModel> getGalleryPost(String postId) async {
+    final res = await _dio.post(
+      'gallery/posts/show',
+      data: _body({'postId': postId}),
+    );
+    return GalleryPostModel.fromJson(
+      res.data as Map<String, dynamic>,
+      host: host,
+    );
+  }
+
+  /// 指定ユーザーのギャラリー投稿一覧を取得する（users/gallery/posts）
+  Future<List<GalleryPostModel>> getUserGalleryPosts({
+    required String userId,
+    int limit = 20,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'userId': userId, 'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('users/gallery/posts', data: _body(params));
+    return _parseGalleryPosts(res.data);
+  }
+
+  /// 自分のギャラリー投稿一覧を取得する（i/gallery/posts, `read:gallery`）
+  Future<List<GalleryPostModel>> getMyGalleryPosts({
+    int limit = 20,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('i/gallery/posts', data: _body(params));
+    return _parseGalleryPosts(res.data);
+  }
+
+  /// いいねしたギャラリー投稿一覧を取得する（i/gallery/likes, `read:gallery-likes`）
+  ///
+  /// 戻り値は `{ id, post }` のラッパー配列。
+  /// **ページングの `untilId` には外側の [GalleryLikeModel.id] を使うこと。**
+  Future<List<GalleryLikeModel>> getLikedGalleryPosts({
+    int limit = 20,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    final res = await _dio.post('i/gallery/likes', data: _body(params));
+    return (res.data as List<dynamic>)
+        .map(
+          (e) => GalleryLikeModel.fromJson(
+            e as Map<String, dynamic>,
+            host: host,
+          ),
+        )
+        .toList();
+  }
+
+  /// ギャラリーに投稿する（gallery/posts/create, `write:gallery`）
+  ///
+  /// **レート制限は 20回/時。** [fileIds] は既にドライブに存在するファイルの ID で、
+  /// 1〜32個・重複不可。端末の画像から投稿する場合は [uploadFile] で
+  /// ドライブへ上げてから ID を渡す。
+  ///
+  /// タグはパラメータに存在せず、サーバーが [description] 内のハッシュタグから
+  /// 自動抽出する。
+  Future<GalleryPostModel> createGalleryPost({
+    required String title,
+    required List<String> fileIds,
+    String? description,
+    bool isSensitive = false,
+  }) async {
+    final params = <String, dynamic>{
+      'title': title,
+      'fileIds': fileIds,
+      'isSensitive': isSensitive,
+    };
+    if (description != null && description.isNotEmpty) {
+      params['description'] = description;
+    }
+    final res = await _dio.post('gallery/posts/create', data: _body(params));
+    return GalleryPostModel.fromJson(
+      res.data as Map<String, dynamic>,
+      host: host,
+    );
+  }
+
+  /// ギャラリー投稿を更新する（gallery/posts/update, `write:gallery`）
+  ///
+  /// 部分更新（300回/時）。編集画面からは [title] / [fileIds] も含めて
+  /// 現在値を渡すこと（サーバー実装によっては必須扱いになる）。
+  /// [description] は null を送ると消去されるため、明示的に消す場合は
+  /// [clearDescription] を使う。
+  Future<GalleryPostModel> updateGalleryPost({
+    required String postId,
+    String? title,
+    List<String>? fileIds,
+    String? description,
+    bool clearDescription = false,
+    bool? isSensitive,
+  }) async {
+    final params = <String, dynamic>{'postId': postId};
+    if (title != null) params['title'] = title;
+    if (fileIds != null) params['fileIds'] = fileIds;
+    if (clearDescription) {
+      params['description'] = null;
+    } else if (description != null) {
+      params['description'] = description;
+    }
+    if (isSensitive != null) params['isSensitive'] = isSensitive;
+    final res = await _dio.post('gallery/posts/update', data: _body(params));
+    return GalleryPostModel.fromJson(
+      res.data as Map<String, dynamic>,
+      host: host,
+    );
+  }
+
+  /// ギャラリー投稿を削除する（gallery/posts/delete, `write:gallery`）
+  Future<void> deleteGalleryPost(String postId) async {
+    await _dio.post('gallery/posts/delete', data: _body({'postId': postId}));
+  }
+
+  /// ギャラリー投稿にいいねする（gallery/posts/like, `write:gallery-likes`）
+  /// 自分の投稿には `YOUR_POST` エラーでいいねできない。
+  Future<void> likeGalleryPost(String postId) async {
+    await _dio.post('gallery/posts/like', data: _body({'postId': postId}));
+  }
+
+  /// ギャラリー投稿のいいねを解除する（gallery/posts/unlike, `write:gallery-likes`）
+  Future<void> unlikeGalleryPost(String postId) async {
+    await _dio.post('gallery/posts/unlike', data: _body({'postId': postId}));
   }
 }
