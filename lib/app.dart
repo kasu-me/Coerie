@@ -131,7 +131,7 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
         ),
       );
       scaffoldMessengerKey.currentState?.showSnackBar(
-        SnackBar(content: Text('@${result.user.username} でログインしました')),
+        SnackBar(content: Text('${result.user.acct} でログインしました')),
       );
     }
   }

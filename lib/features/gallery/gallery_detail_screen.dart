@@ -295,7 +295,7 @@ class _GalleryDetailScreenState extends ConsumerState<GalleryDetailScreen> {
                             ),
                             if (post.user != null)
                               Text(
-                                '@${post.user!.username}',
+                                post.user!.acct,
                                 style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(
                                       color: Theme.of(

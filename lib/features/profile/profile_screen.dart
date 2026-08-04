@@ -282,7 +282,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
         builder: (ctx) => AlertDialog(
           title: const Text('ユーザーをブロック'),
           content: Text(
-            '@${widget.user.username} をブロックしますか？\n'
+            '${widget.user.acct} をブロックしますか？\n'
             'ブロックすると相手からもフォロー解除されます。',
           ),
           actions: [
