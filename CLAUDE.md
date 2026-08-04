@@ -31,7 +31,7 @@ dart run build_runner build
 
 # リリースAPKビルド
 $commitCount = (git rev-list --count HEAD).Trim();
-flutter build apk --release --build-number=$commitCount;
+flutter build apk --release --split-per-abi --build-number=$commitCount;
 ```
 
 > **重要**: 実装が終わった後は必ず `flutter analyze` を実行し、エラーが完全になくなるまで修正を繰り返してください。
