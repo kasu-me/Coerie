@@ -43,6 +43,16 @@ import '../../features/channels/channels_screen.dart';
 import '../../features/channels/channel_detail_screen.dart';
 import '../../features/chat/chat_list_screen.dart';
 import '../../features/chat/chat_thread_screen.dart';
+import '../../features/pages/pages_screen.dart';
+import '../../features/pages/page_view_screen.dart';
+import '../../features/pages/page_editor_screen.dart';
+import '../../features/pages/user_pages_screen.dart';
+import '../../data/models/page_model.dart';
+import '../../features/gallery/gallery_screen.dart';
+import '../../features/gallery/gallery_detail_screen.dart';
+import '../../features/gallery/gallery_form_screen.dart';
+import '../../features/gallery/user_gallery_screen.dart';
+import '../../data/models/gallery_post_model.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final accountState = ref.watch(accountProvider);
@@ -160,6 +170,86 @@ final routerProvider = Provider<GoRouter>((ref) {
           return ClipsScreen(ownerUserId: userId, ownerUserName: userName);
         },
       ),
+      // ---- ページ ----
+      GoRoute(path: '/pages', builder: (context, state) => const PagesScreen()),
+      // '/pages/new' は '/pages/:pageId' より前に置く。
+      // go_router は宣言順にマッチするため、後ろだと 'new' が pageId として食われる。
+      GoRoute(
+        path: '/pages/new',
+        builder: (context, state) => const PageEditorScreen(),
+      ),
+      GoRoute(
+        path: '/pages/:pageId/edit',
+        builder: (context, state) {
+          final extra = state.extra;
+          return PageEditorScreen(
+            pageId: state.pathParameters['pageId']!,
+            initialPage: extra is PageModel ? extra : null,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/pages/:pageId',
+        builder: (context, state) {
+          final extra = state.extra;
+          return PageViewScreen(
+            pageId: state.pathParameters['pageId']!,
+            initialPage: extra is PageModel ? extra : null,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/users/:userId/pages',
+        builder: (context, state) {
+          final extra = state.extra;
+          return UserPagesScreen(
+            userId: state.pathParameters['userId']!,
+            userName: extra is UserModel ? extra.name : null,
+          );
+        },
+      ),
+
+      // ---- ギャラリー ----
+      GoRoute(
+        path: '/gallery',
+        builder: (context, state) => const GalleryScreen(),
+      ),
+      // '/gallery/new' は '/gallery/:postId' より前に置く（理由は /pages/new と同じ）
+      GoRoute(
+        path: '/gallery/new',
+        builder: (context, state) => const GalleryFormScreen(),
+      ),
+      GoRoute(
+        path: '/gallery/:postId/edit',
+        builder: (context, state) {
+          final extra = state.extra;
+          return GalleryFormScreen(
+            postId: state.pathParameters['postId']!,
+            post: extra is GalleryPostModel ? extra : null,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/gallery/:postId',
+        builder: (context, state) {
+          final extra = state.extra;
+          return GalleryDetailScreen(
+            postId: state.pathParameters['postId']!,
+            initialPost: extra is GalleryPostModel ? extra : null,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/users/:userId/gallery',
+        builder: (context, state) {
+          final extra = state.extra;
+          return UserGalleryScreen(
+            userId: state.pathParameters['userId']!,
+            userName: extra is UserModel ? extra.name : null,
+          );
+        },
+      ),
+
       GoRoute(
         path: '/antenna',
         builder: (context, state) => const AntennasScreen(),

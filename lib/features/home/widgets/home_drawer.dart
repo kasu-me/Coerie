@@ -193,6 +193,22 @@ class HomeDrawer extends ConsumerWidget {
                       context.push('/channels');
                     },
                   ),
+                  ListTile(
+                    leading: const Icon(Icons.description_outlined),
+                    title: const Text('ページ'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.push('/pages');
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.collections_outlined),
+                    title: const Text('ギャラリー'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      context.push('/gallery');
+                    },
+                  ),
                 ],
               ),
             ),

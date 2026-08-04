@@ -442,6 +442,20 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                     extra: user,
                                   );
                                 }
+                                if (value == 'pages') {
+                                  if (!context.mounted) return;
+                                  context.push(
+                                    '/users/${user.id}/pages',
+                                    extra: user,
+                                  );
+                                }
+                                if (value == 'gallery') {
+                                  if (!context.mounted) return;
+                                  context.push(
+                                    '/users/${user.id}/gallery',
+                                    extra: user,
+                                  );
+                                }
                               },
                               itemBuilder: (ctx) => [
                                 PopupMenuItem(
@@ -481,6 +495,26 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                       Icon(Icons.bookmark_outline),
                                       SizedBox(width: 8),
                                       Text('クリップを表示'),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'pages',
+                                  child: Row(
+                                    children: const [
+                                      Icon(Icons.description_outlined),
+                                      SizedBox(width: 8),
+                                      Text('ページを表示'),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'gallery',
+                                  child: Row(
+                                    children: const [
+                                      Icon(Icons.collections_outlined),
+                                      SizedBox(width: 8),
+                                      Text('ギャラリーを表示'),
                                     ],
                                   ),
                                 ),
@@ -528,6 +562,20 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                   if (!context.mounted) return;
                                   context.push(
                                     '/users/${user.id}/clips',
+                                    extra: user,
+                                  );
+                                }
+                                if (value == 'pages') {
+                                  if (!context.mounted) return;
+                                  context.push(
+                                    '/users/${user.id}/pages',
+                                    extra: user,
+                                  );
+                                }
+                                if (value == 'gallery') {
+                                  if (!context.mounted) return;
+                                  context.push(
+                                    '/users/${user.id}/gallery',
                                     extra: user,
                                   );
                                 }
@@ -647,6 +695,26 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                       Icon(Icons.bookmark_outline),
                                       SizedBox(width: 8),
                                       Text('クリップを表示'),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'pages',
+                                  child: Row(
+                                    children: const [
+                                      Icon(Icons.description_outlined),
+                                      SizedBox(width: 8),
+                                      Text('ページを表示'),
+                                    ],
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'gallery',
+                                  child: Row(
+                                    children: const [
+                                      Icon(Icons.collections_outlined),
+                                      SizedBox(width: 8),
+                                      Text('ギャラリーを表示'),
                                     ],
                                   ),
                                 ),
