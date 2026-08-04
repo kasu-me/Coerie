@@ -16,6 +16,7 @@ import '../../core/constants/image_compression_level.dart';
 import '../../core/services/image_compression_service.dart';
 import '../../data/local/hive_service.dart';
 import '../../data/models/account_model.dart';
+import '../../data/models/drive_file_model.dart';
 import '../../data/models/note_model.dart';
 import '../../data/remote/misskey_api.dart';
 import '../../shared/providers/account_provider.dart';

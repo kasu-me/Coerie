@@ -11,7 +11,7 @@ import '../../core/constants/image_compression_level.dart';
 import '../../core/services/cache_service.dart';
 import '../../core/services/image_compression_service.dart';
 import '../../data/models/gallery_post_model.dart';
-import '../../data/models/note_model.dart' as note_models;
+import '../../data/models/drive_file_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../../shared/widgets/api_error_snack_bar.dart';
@@ -166,7 +166,7 @@ class _GalleryFormScreenState extends ConsumerState<GalleryFormScreen> {
   Future<void> _pickFromDrive() async {
     final remaining = _maxImages - _images.length;
     if (remaining <= 0 || !mounted) return;
-    final selected = await context.push<List<note_models.DriveFileModel>>(
+    final selected = await context.push<List<DriveFileModel>>(
       '/drive',
       extra: {'selectionMode': true, 'maxSelection': remaining},
     );

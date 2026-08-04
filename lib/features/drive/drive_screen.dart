@@ -9,7 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../shared/utils/download_helper.dart';
 import 'package:file_picker/file_picker.dart';
-import '../../data/models/note_model.dart';
+import '../../data/models/drive_file_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/widgets/media_player_screen.dart';
 import 'file_notes_screen.dart';

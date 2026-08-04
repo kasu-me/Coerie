@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../data/models/draft_model.dart';
-import '../../data/models/note_model.dart';
+import '../../data/models/drive_file_model.dart';
 import '../../data/local/hive_service.dart';
 import '../../core/constants/app_constants.dart';
 

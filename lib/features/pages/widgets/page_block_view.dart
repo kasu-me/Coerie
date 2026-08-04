@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/services/cache_service.dart';
 import '../../../data/models/drive_file_model.dart';
-// note_model.dart にも同名の DriveFileModel があるため、ここでは
-// PageModel が使う drive_file_model.dart 側を採用して衝突を避ける。
-import '../../../data/models/note_model.dart' hide DriveFileModel;
+import '../../../data/models/note_model.dart';
 import '../../../data/models/page_model.dart';
 import '../../../data/remote/misskey_api.dart';
 import '../../../shared/utils/emoji_utils.dart';

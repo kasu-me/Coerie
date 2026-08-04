@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/streaming/streaming_service.dart';
-import '../../data/models/note_model.dart';
+import '../../data/models/drive_file_model.dart';
 import '../../data/models/notification_model.dart';
 import '../compose/emoji_picker_sheet.dart';
 import '../profile/follow_requests_sheet.dart';

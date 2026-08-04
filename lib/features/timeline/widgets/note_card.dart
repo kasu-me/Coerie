@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/utils/download_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/clip_model.dart';
+import '../../../data/models/drive_file_model.dart';
 import '../../../data/models/note_model.dart';
 import '../../../data/models/poll_model.dart';
 import '../../../data/models/user_model.dart';

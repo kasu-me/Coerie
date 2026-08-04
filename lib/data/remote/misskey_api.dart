@@ -4,6 +4,7 @@ import '../../data/models/chat_message_model.dart';
 import '../../data/models/chat_room_model.dart';
 import '../../data/models/clip_model.dart';
 import '../../data/models/gallery_post_model.dart';
+import '../../data/models/drive_file_model.dart';
 import '../../data/models/note_model.dart';
 import '../../data/models/page_model.dart';
 import '../../data/models/notification_model.dart';

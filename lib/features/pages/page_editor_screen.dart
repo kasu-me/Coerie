@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/services/cache_service.dart';
-import '../../data/models/note_model.dart';
+import '../../data/models/drive_file_model.dart';
 import '../../data/models/page_model.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';

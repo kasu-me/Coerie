@@ -11,7 +11,7 @@ import 'package:hive/src/binary/binary_reader_impl.dart';
 import 'package:hive/src/binary/binary_writer_impl.dart';
 
 import 'package:coerie/data/models/draft_model.dart';
-import 'package:coerie/data/models/note_model.dart';
+import 'package:coerie/data/models/drive_file_model.dart';
 
 /// 過去に実際に書き込まれた形式のバイト列を再現する。
 ///
@@ -192,6 +192,38 @@ void main() {
       expect(decoded.files.first.id, file.id);
       expect(decoded.cw, sample.cw);
       expect(decoded.isSensitive, isTrue);
+    });
+
+    test('createdAt を持たない旧形式の添付ファイルJSONも読める', () {
+      // DriveFileModel は drive_file_model.dart 側と統合した際に createdAt が
+      // 増えた。端末に残っている旧下書きの JSON にはこのキーが無いため、
+      // 欠けていても既定値（null）で読めることを固定する。
+      final writer = BinaryWriterImpl(Hive);
+      writer.writeString(sample.id);
+      writer.writeString(sample.text);
+      writer.writeString(sample.visibility);
+      writer.writeInt(sample.savedAt.millisecondsSinceEpoch);
+      writer.writeStringList([
+        jsonEncode({
+          'id': file.id,
+          'name': file.name,
+          'type': file.type,
+          'url': file.url,
+          'thumbnailUrl': file.thumbnailUrl,
+          'size': file.size,
+          'isSensitive': file.isSensitive,
+        }),
+      ]);
+      writer.writeString(sample.cw ?? '');
+      writer.writeInt(sample.isSensitive ? 1 : 0);
+
+      final decoded = readWithCurrentAdapter(writer.toBytes());
+
+      expectSampleCore(decoded);
+      expect(decoded.files, hasLength(1));
+      expect(decoded.files.first.id, file.id);
+      expect(decoded.files.first.isSensitive, isTrue);
+      expect(decoded.files.first.createdAt, isNull);
     });
 
     test('現行アダプター同士の往復で値が保たれる', () {

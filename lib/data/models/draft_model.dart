@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'note_model.dart';
+import 'drive_file_model.dart';
 
 part 'draft_model_adapter.dart';
 
