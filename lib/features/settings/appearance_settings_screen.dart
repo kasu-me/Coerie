@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../shared/providers/settings_provider.dart';
+import '../../shared/widgets/section_header.dart';
 
 class AppearanceSettingsScreen extends ConsumerWidget {
   const AppearanceSettingsScreen({super.key});
@@ -14,7 +15,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
       body: ListView(
         children: [
           // --- テーマ ---
-          _SectionHeader('テーマ'),
+          SectionHeader('テーマ'),
           RadioGroup<String>(
             groupValue: settings.theme,
             onChanged: (v) => ref.read(settingsProvider.notifier).setTheme(v!),
@@ -31,7 +32,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
           ),
 
           // --- フォントサイズ ---
-          _SectionHeader('フォントサイズ'),
+          SectionHeader('フォントサイズ'),
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 8, 16, 0),
             child: Column(
@@ -56,7 +57,7 @@ class AppearanceSettingsScreen extends ConsumerWidget {
           ),
 
           // --- アイコンサイズ ---
-          _SectionHeader('アイコンサイズ'),
+          SectionHeader('アイコンサイズ'),
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 8, 16, 16),
             child: Column(
@@ -85,20 +86,3 @@ class AppearanceSettingsScreen extends ConsumerWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  const _SectionHeader(this.title);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: Theme.of(context).colorScheme.primary,
-        ),
-      ),
-    );
-  }
-}

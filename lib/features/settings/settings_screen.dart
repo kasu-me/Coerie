@@ -14,6 +14,7 @@ import '../../shared/providers/settings_provider.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/app_settings_model.dart';
 import '../../shared/utils/format_utils.dart';
+import '../../shared/widgets/section_header.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -95,7 +96,7 @@ class SettingsScreen extends ConsumerWidget {
           const Divider(indent: 16, endIndent: 16),
 
           // --- 操作 ---
-          _SectionHeader('操作'),
+          SectionHeader('操作'),
           SwitchListTile(
             secondary: const Icon(Icons.warning_amber_outlined),
             title: const Text('破壊的操作の前に確認する'),
@@ -116,7 +117,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
 
           // --- データ管理 ---
-          _SectionHeader('データ管理'),
+          SectionHeader('データ管理'),
           ListTile(
             leading: const Icon(Icons.upload_outlined),
             title: const Text('設定をエクスポート'),
@@ -137,7 +138,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
 
           // --- キャッシュ管理 ---
-          _SectionHeader('キャッシュ管理'),
+          SectionHeader('キャッシュ管理'),
           const _CacheManagementTile(),
         ],
       ),
@@ -547,22 +548,3 @@ class _CacheManagementTileState extends State<_CacheManagementTile> {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  const _SectionHeader(this.title);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.bold,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-      ),
-    );
-  }
-}

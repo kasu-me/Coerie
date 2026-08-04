@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/user_avatar.dart';
 
 // ---- エラーメッセージ変換 ----
@@ -165,7 +166,7 @@ class _WordMuteTabState extends ConsumerState<_WordMuteTab> {
 
     return mutedAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => _ErrorView(
+      error: (e, _) => ErrorView(
         message: _apiErrorMessage(e),
         onRetry: () => ref.invalidate(_mutedWordsProvider),
       ),
@@ -208,7 +209,7 @@ class _UserMuteTab extends ConsumerWidget {
 
     return listAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => _ErrorView(
+      error: (e, _) => ErrorView(
         message: _apiErrorMessage(e),
         onRetry: () => ref.invalidate(_mutingListProvider),
       ),
@@ -292,7 +293,7 @@ class _UserBlockTab extends ConsumerWidget {
 
     return listAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => _ErrorView(
+      error: (e, _) => ErrorView(
         message: _apiErrorMessage(e),
         onRetry: () => ref.invalidate(_blockingListProvider),
       ),
@@ -366,33 +367,3 @@ class _UserBlockTab extends ConsumerWidget {
 }
 // ---- エラー表示ウィジェット ----
 
-class _ErrorView extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-
-  const _ErrorView({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            FilledButton.tonal(onPressed: onRetry, child: const Text('再試行')),
-          ],
-        ),
-      ),
-    );
-  }
-}

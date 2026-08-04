@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/widgets/confirm_dialog.dart';
+import '../../shared/widgets/error_view.dart';
 
 class ChannelsScreen extends ConsumerStatefulWidget {
   const ChannelsScreen({super.key});
@@ -239,20 +240,9 @@ class _SearchTabState extends ConsumerState<_SearchTab>
   Widget _buildBody() {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('エラーが発生しました', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(_error!, style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: () => _search(_searchController.text),
-              child: const Text('再試行'),
-            ),
-          ],
-        ),
+      return ErrorView(
+        message: _error!,
+        onRetry: () => _search(_searchController.text),
       );
     }
     if (!_searched) {
@@ -332,7 +322,7 @@ class _FeaturedTabState extends ConsumerState<_FeaturedTab>
     super.build(context);
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
-      return _ErrorView(error: _error!, onRetry: _load);
+      return ErrorView(message: _error!, onRetry: _load);
     }
     if (_items.isEmpty) {
       return const Center(child: Text('トレンドのチャンネルはありません'));
@@ -403,7 +393,7 @@ class _FavoritesTabState extends ConsumerState<_FavoritesTab>
     super.build(context);
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
-      return _ErrorView(error: _error!, onRetry: _load);
+      return ErrorView(message: _error!, onRetry: _load);
     }
     if (_items.isEmpty) {
       return const Center(child: Text('お気に入りのチャンネルはありません'));
@@ -474,7 +464,7 @@ class _FollowedTabState extends ConsumerState<_FollowedTab>
     super.build(context);
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
-      return _ErrorView(error: _error!, onRetry: _load);
+      return ErrorView(message: _error!, onRetry: _load);
     }
     if (_items.isEmpty) {
       return const Center(child: Text('フォロー中のチャンネルはありません'));
@@ -597,7 +587,7 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
   Widget _buildBody() {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
-      return _ErrorView(error: _error!, onRetry: _load);
+      return ErrorView(message: _error!, onRetry: _load);
     }
     if (_items.isEmpty) {
       return const Center(
@@ -669,29 +659,6 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
 }
 
 // ---- Error view helper ----
-
-class _ErrorView extends StatelessWidget {
-  final String error;
-  final VoidCallback onRetry;
-
-  const _ErrorView({required this.error, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text('エラーが発生しました', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Text(error, style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 16),
-          FilledButton(onPressed: onRetry, child: const Text('再試行')),
-        ],
-      ),
-    );
-  }
-}
 
 // ---- Channel create/edit bottom sheet ----
 
