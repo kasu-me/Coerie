@@ -58,23 +58,32 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
                       _pickAndAddSourceTab(
                         type: AppConstants.tabTypeList,
                         title: 'リストを選択',
-                        loader: () => ref.read(misskeyApiProvider)!.getLists(),
+                        loader: () async =>
+                            (await ref.read(misskeyApiProvider)!.getLists())
+                                .map((l) => (id: l.id, name: l.name))
+                                .toList(),
                         icon: Icons.list,
                       );
                     } else if (e.key == AppConstants.tabTypeAntenna) {
                       _pickAndAddSourceTab(
                         type: AppConstants.tabTypeAntenna,
                         title: 'アンテナを選択',
-                        loader: () =>
-                            ref.read(misskeyApiProvider)!.getAntennas(),
+                        loader: () async =>
+                            (await ref.read(misskeyApiProvider)!.getAntennas())
+                                .map((a) => (id: a.id, name: a.name))
+                                .toList(),
                         icon: Icons.settings_input_antenna,
                       );
                     } else if (e.key == AppConstants.tabTypeChannel) {
                       _pickAndAddSourceTab(
                         type: AppConstants.tabTypeChannel,
                         title: 'チャンネルを選択',
-                        loader: () =>
-                            ref.read(misskeyApiProvider)!.getChannelsFollowed(),
+                        loader: () async =>
+                            (await ref
+                                    .read(misskeyApiProvider)!
+                                    .getChannelsFollowed())
+                                .map((c) => (id: c.id, name: c.name))
+                                .toList(),
                         icon: Icons.tv,
                       );
                     } else {
@@ -131,22 +140,26 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
     );
   }
 
+  /// タブの元になるリスト・アンテナ・チャンネルを選ばせる。
+  ///
+  /// 3種類はそれぞれ別のモデルなので、選択に必要な id と表示名だけの
+  /// レコードに揃えてから受け取る。
   Future<void> _pickAndAddSourceTab({
     required String type,
     required String title,
-    required Future<List<Map<String, dynamic>>> Function() loader,
+    required Future<List<({String id, String name})>> Function() loader,
     required IconData icon,
   }) async {
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
 
     // ignore: use_build_context_synchronously
-    final selected = await showModalBottomSheet<Map<String, dynamic>>(
+    final selected = await showModalBottomSheet<({String id, String name})>(
       context: context,
       useSafeArea: true,
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(ctx).bottom),
-        child: FutureBuilder<List<Map<String, dynamic>>>(
+        child: FutureBuilder<List<({String id, String name})>>(
           future: loader(),
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
@@ -184,7 +197,7 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
                 ...items.map(
                   (item) => ListTile(
                     leading: Icon(icon),
-                    title: Text(item['name'] as String? ?? ''),
+                    title: Text(item.name),
                     onTap: () => Navigator.pop(ctx, item),
                   ),
                 ),
@@ -198,8 +211,8 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
     if (selected == null || !mounted) return;
     _showLabelInput(
       type,
-      selected['name'] as String? ?? AppConstants.tabTypeLabels[type]!,
-      sourceId: selected['id'] as String,
+      selected.name.isEmpty ? AppConstants.tabTypeLabels[type]! : selected.name,
+      sourceId: selected.id,
     );
   }
 

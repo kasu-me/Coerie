@@ -4,10 +4,16 @@ import '../../data/models/chat_message_model.dart';
 import '../../data/models/chat_room_model.dart';
 import '../../data/models/clip_model.dart';
 import '../../data/models/gallery_post_model.dart';
+import '../../data/models/antenna_model.dart';
+import '../../data/models/channel_model.dart';
+import '../../data/models/custom_emoji_model.dart';
 import '../../data/models/drive_file_model.dart';
+import '../../data/models/drive_folder_model.dart';
 import '../../data/models/note_model.dart';
+import '../../data/models/note_state_model.dart';
 import '../../data/models/page_model.dart';
 import '../../data/models/notification_model.dart';
+import '../../data/models/user_list_model.dart';
 import '../../data/models/user_model.dart';
 import '../../data/models/announcement_model.dart';
 
@@ -474,12 +480,13 @@ class MisskeyApi {
   }
 
   /// ドライブのフォルダ一覧を取得する。
-  Future<List<Map<String, dynamic>>> getDriveFolders({String? folderId}) async {
+  Future<List<DriveFolderModel>> getDriveFolders({String? folderId}) async {
     final params = <String, dynamic>{};
     if (folderId != null) params['folderId'] = folderId;
     final res = await _dio.post('drive/folders', data: _body(params));
-    final list = res.data as List<dynamic>;
-    return list.cast<Map<String, dynamic>>();
+    return (res.data as List<dynamic>)
+        .map((e) => DriveFolderModel.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   /// ドライブのファイル一覧を取得する。
@@ -532,14 +539,14 @@ class MisskeyApi {
   }
 
   /// ドライブのフォルダを作成する。parent は null でルート。
-  Future<Map<String, dynamic>> createDriveFolder({
+  Future<DriveFolderModel> createDriveFolder({
     required String name,
     String? parentId,
   }) async {
     final params = <String, dynamic>{'name': name};
     if (parentId != null) params['parentId'] = parentId;
     final res = await _dio.post('drive/folders/create', data: _body(params));
-    return res.data as Map<String, dynamic>;
+    return DriveFolderModel.fromJson(res.data as Map<String, dynamic>);
   }
 
   /// ドライブのフォルダ情報を更新する（名前変更など）。
@@ -657,12 +664,12 @@ class MisskeyApi {
 
   // ---- カスタム絵文字 ----
 
-  Future<List<Map<String, dynamic>>> getEmojis() async {
+  Future<List<CustomEmojiModel>> getEmojis() async {
     final res = await _dio.post('emojis', data: _body({}));
     final data = res.data as Map<String, dynamic>;
-    return List<Map<String, dynamic>>.from(
-      data['emojis'] as List<dynamic>? ?? [],
-    );
+    return (data['emojis'] as List<dynamic>? ?? [])
+        .map((e) => CustomEmojiModel.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   // ---- 通知 ----
@@ -714,20 +721,22 @@ class MisskeyApi {
 
   // ---- リスト ----
 
-  Future<List<Map<String, dynamic>>> getLists() async {
+  Future<List<UserListModel>> getLists() async {
     final res = await _dio.post('users/lists/list', data: _body({}));
-    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+    return (res.data as List<dynamic>)
+        .map((e) => UserListModel.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
-  Future<Map<String, dynamic>> createList({required String name}) async {
+  Future<UserListModel> createList({required String name}) async {
     final res = await _dio.post(
       'users/lists/create',
       data: _body({'name': name}),
     );
-    return res.data as Map<String, dynamic>;
+    return UserListModel.fromJson(res.data as Map<String, dynamic>);
   }
 
-  Future<Map<String, dynamic>> updateList({
+  Future<UserListModel> updateList({
     required String listId,
     String? name,
     bool? isPublic,
@@ -736,14 +745,14 @@ class MisskeyApi {
     if (name != null) params['name'] = name;
     if (isPublic != null) params['isPublic'] = isPublic;
     final res = await _dio.post('users/lists/update', data: _body(params));
-    return res.data as Map<String, dynamic>;
+    return UserListModel.fromJson(res.data as Map<String, dynamic>);
   }
 
   Future<void> deleteList({required String listId}) async {
     await _dio.post('users/lists/delete', data: _body({'listId': listId}));
   }
 
-  Future<List<Map<String, dynamic>>> getListMembers({
+  Future<List<UserListMembershipModel>> getListMembers({
     required String listId,
     int limit = 100,
   }) async {
@@ -751,7 +760,9 @@ class MisskeyApi {
       'users/lists/get-memberships',
       data: _body({'listId': listId, 'forPublic': false, 'limit': limit}),
     );
-    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+    return (res.data as List<dynamic>)
+        .map((e) => UserListMembershipModel.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<void> addListMember({
@@ -776,12 +787,14 @@ class MisskeyApi {
 
   // ---- アンテナ ----
 
-  Future<List<Map<String, dynamic>>> getAntennas() async {
+  Future<List<AntennaModel>> getAntennas() async {
     final res = await _dio.post('antennas/list', data: _body({}));
-    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+    return (res.data as List<dynamic>)
+        .map((e) => AntennaModel.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
-  Future<Map<String, dynamic>> createAntenna({
+  Future<AntennaModel> createAntenna({
     required String name,
     required String src,
     required List<List<String>> keywords,
@@ -810,10 +823,10 @@ class MisskeyApi {
     };
     if (userListId != null) params['userListId'] = userListId;
     final res = await _dio.post('antennas/create', data: _body(params));
-    return res.data as Map<String, dynamic>;
+    return AntennaModel.fromJson(res.data as Map<String, dynamic>);
   }
 
-  Future<Map<String, dynamic>> updateAntenna({
+  Future<AntennaModel> updateAntenna({
     required String antennaId,
     required String name,
     required String src,
@@ -844,7 +857,7 @@ class MisskeyApi {
     };
     if (userListId != null) params['userListId'] = userListId;
     final res = await _dio.post('antennas/update', data: _body(params));
-    return res.data as Map<String, dynamic>;
+    return AntennaModel.fromJson(res.data as Map<String, dynamic>);
   }
 
   Future<void> deleteAntenna({required String antennaId}) async {
@@ -887,14 +900,26 @@ class MisskeyApi {
 
   // ---- ミュート（ユーザー） ----
 
-  Future<List<Map<String, dynamic>>> getMutingList({
+  /// `[{ ..., <key>: User }]` 形式のレスポンスから対象ユーザーだけを取り出す。
+  /// 対象が欠けている要素は捨てる。
+  List<UserModel> _unwrapUsers(dynamic data, String key) => (data as List<dynamic>)
+      .map((e) => (e as Map<String, dynamic>)[key] as Map<String, dynamic>?)
+      .whereType<Map<String, dynamic>>()
+      .map(UserModel.fromJson)
+      .toList();
+
+  /// ミュート中のユーザー一覧（mute/list）。
+  ///
+  /// API は `{ id, muteeId, mutee }` の配列を返すが、画面が使うのは
+  /// 対象ユーザーだけなので `mutee` を取り出して返す。
+  Future<List<UserModel>> getMutingList({
     int limit = 100,
     String? untilId,
   }) async {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
     final res = await _dio.post('mute/list', data: _body(params));
-    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+    return _unwrapUsers(res.data, 'mutee');
   }
 
   Future<void> muteUser(String userId) async {
@@ -907,14 +932,15 @@ class MisskeyApi {
 
   // ---- ブロック（ユーザー） ----
 
-  Future<List<Map<String, dynamic>>> getBlockingList({
+  /// ブロック中のユーザー一覧（blocking/list）。[getMutingList] と同じ構造。
+  Future<List<UserModel>> getBlockingList({
     int limit = 100,
     String? untilId,
   }) async {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
     final res = await _dio.post('blocking/list', data: _body(params));
-    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+    return _unwrapUsers(res.data, 'blockee');
   }
 
   Future<void> blockUser(String userId) async {
@@ -1208,51 +1234,55 @@ class MisskeyApi {
 
   // ---- チャンネル ----
 
+  List<ChannelModel> _toChannels(dynamic data) => (data as List<dynamic>)
+      .map((e) => ChannelModel.fromJson(e as Map<String, dynamic>))
+      .toList();
+
   /// チャンネルの詳細情報を取得する（channels/show）
-  Future<Map<String, dynamic>> getChannel(String channelId) async {
+  Future<ChannelModel> getChannel(String channelId) async {
     final res = await _dio.post(
       'channels/show',
       data: _body({'channelId': channelId}),
     );
-    return res.data as Map<String, dynamic>;
+    return ChannelModel.fromJson(res.data as Map<String, dynamic>);
   }
 
   /// トレンドのチャンネル一覧を取得する（channels/featured）
-  Future<List<Map<String, dynamic>>> getChannelsFeatured() async {
+  Future<List<ChannelModel>> getChannelsFeatured() async {
     final res = await _dio.post('channels/featured', data: _body({}));
-    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+    return _toChannels(res.data);
   }
 
   /// お気に入りのチャンネル一覧を取得する（channels/my-favorites）
-  Future<List<Map<String, dynamic>>> getChannelsMyFavorites() async {
+  Future<List<ChannelModel>> getChannelsMyFavorites() async {
     final res = await _dio.post('channels/my-favorites', data: _body({}));
-    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+    return _toChannels(res.data);
   }
 
   /// フォロー中のチャンネル一覧を取得する（channels/followed）
-  Future<List<Map<String, dynamic>>> getChannelsFollowed({
+  Future<List<ChannelModel>> getChannelsFollowed({
     int limit = 30,
     String? untilId,
   }) async {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
     final res = await _dio.post('channels/followed', data: _body(params));
-    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+    return _toChannels(res.data);
   }
 
   /// 管理中のチャンネル一覧を取得する（channels/owned）
-  Future<List<Map<String, dynamic>>> getChannelsOwned({
+  Future<List<ChannelModel>> getChannelsOwned({
     int limit = 30,
     String? untilId,
   }) async {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
     final res = await _dio.post('channels/owned', data: _body(params));
-    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+    return _toChannels(res.data);
   }
 
   /// チャンネルを検索する（channels/search）
-  Future<List<Map<String, dynamic>>> searchChannels({
+  Future<List<ChannelModel>> searchChannels({
     required String query,
     int limit = 20,
     String? untilId,
@@ -1265,11 +1295,11 @@ class MisskeyApi {
     };
     if (untilId != null) params['untilId'] = untilId;
     final res = await _dio.post('channels/search', data: _body(params));
-    return (res.data as List<dynamic>).cast<Map<String, dynamic>>();
+    return _toChannels(res.data);
   }
 
   /// チャンネルを作成する（channels/create）
-  Future<Map<String, dynamic>> createChannel({
+  Future<ChannelModel> createChannel({
     required String name,
     String? description,
     String? bannerId,
@@ -1287,11 +1317,11 @@ class MisskeyApi {
       params['allowRenoteToExternal'] = allowRenoteToExternal;
     }
     final res = await _dio.post('channels/create', data: _body(params));
-    return res.data as Map<String, dynamic>;
+    return ChannelModel.fromJson(res.data as Map<String, dynamic>);
   }
 
   /// チャンネル情報を更新する（channels/update）
-  Future<Map<String, dynamic>> updateChannel({
+  Future<ChannelModel> updateChannel({
     required String channelId,
     String? name,
     String? description,
@@ -1312,7 +1342,7 @@ class MisskeyApi {
       params['allowRenoteToExternal'] = allowRenoteToExternal;
     }
     final res = await _dio.post('channels/update', data: _body(params));
-    return res.data as Map<String, dynamic>;
+    return ChannelModel.fromJson(res.data as Map<String, dynamic>);
   }
 
   /// チャンネルをアーカイブ（削除相当）する（channels/update で isArchived: true）
@@ -1557,9 +1587,9 @@ class MisskeyApi {
 
   /// ノートの状態を取得する（notes/state）
   /// 戻り値: { isFavorited: bool, isMutedThread: bool }
-  Future<Map<String, dynamic>> getNoteState(String noteId) async {
+  Future<NoteStateModel> getNoteState(String noteId) async {
     final res = await _dio.post('notes/state', data: _body({'noteId': noteId}));
-    return res.data as Map<String, dynamic>;
+    return NoteStateModel.fromJson(res.data as Map<String, dynamic>);
   }
 
   /// ノートをお気に入りに追加する（notes/favorites/create）

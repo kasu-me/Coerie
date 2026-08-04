@@ -16,6 +16,8 @@ import '../../core/constants/image_compression_level.dart';
 import '../../core/services/image_compression_service.dart';
 import '../../data/local/hive_service.dart';
 import '../../data/models/account_model.dart';
+import '../../data/models/channel_model.dart';
+import '../../data/models/custom_emoji_model.dart';
 import '../../data/models/drive_file_model.dart';
 import '../../data/models/note_model.dart';
 import '../../data/remote/misskey_api.dart';
@@ -97,7 +99,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   bool _cwEnabled = false;
   bool _isReplyToDirect = false;
   bool _showPreview = false;
-  List<Map<String, dynamic>> _emojiSuggestions = [];
+  List<CustomEmojiModel> _emojiSuggestions = [];
   AccountModel? _selectedAccount;
   String? _selectedChannelId;
   String? _selectedChannelName;
@@ -176,7 +178,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         try {
           final ch = await api.getChannel(_selectedChannelId!);
           if (mounted) {
-            setState(() => _selectedChannelName = ch['name'] as String?);
+            setState(() => _selectedChannelName = ch.name);
           }
         } catch (_) {}
       });
@@ -667,10 +669,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     final emojis = ref.read(customEmojisProvider).value ?? [];
     final q = partial.toLowerCase();
     final suggestions = emojis
-        .where((e) {
-          final name = (e['name'] as String? ?? '').toLowerCase();
-          return name.contains(q);
-        })
+        .where((e) => e.name.toLowerCase().contains(q))
         .take(20)
         .toList();
     setState(() => _emojiSuggestions = suggestions);
@@ -1082,31 +1081,26 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     );
   }
 
-  Future<List<Map<String, dynamic>>> _fetchChannels(MisskeyApi api) async {
+  Future<List<ChannelModel>> _fetchChannels(MisskeyApi api) async {
     final followed = await api.getChannelsFollowed(limit: 100);
     final owned = await api.getChannelsOwned(limit: 100);
-    final Map<String, Map<String, dynamic>> map = {};
-    for (final c in followed) {
-      final id = c['id'] as String?;
-      if (id != null) map[id] = c;
-    }
-    for (final c in owned) {
-      final id = c['id'] as String?;
-      if (id != null) map[id] = c;
+    final map = <String, ChannelModel>{};
+    for (final c in [...followed, ...owned]) {
+      if (c.id.isNotEmpty) map[c.id] = c;
     }
     final list = map.values.toList();
-    list.sort(
-      (a, b) =>
-          (a['name'] as String? ?? '').compareTo(b['name'] as String? ?? ''),
-    );
+    list.sort((a, b) => a.name.compareTo(b.name));
     return list;
   }
+
+  /// チャンネル選択シートで「なし」を選んだことを表す番兵。
+  static final _noChannel = ChannelModel(id: '', name: '');
 
   Future<void> _showChannelPicker() async {
     final account = _selectedAccount ?? ref.read(activeAccountProvider);
     if (account == null) return;
     final api = MisskeyApi(host: account.host, token: account.token);
-    final selected = await showModalBottomSheet<Map<String, dynamic>>(
+    final selected = await showModalBottomSheet<ChannelModel>(
       context: context,
       isScrollControlled: true,
       builder: (ctx) {
@@ -1131,7 +1125,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                     ),
                   ),
                   Expanded(
-                    child: FutureBuilder<List<Map<String, dynamic>>>(
+                    child: FutureBuilder<List<ChannelModel>>(
                       future: _fetchChannels(api),
                       builder: (c, snap) {
                         if (snap.connectionState == ConnectionState.waiting) {
@@ -1155,13 +1149,12 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                             if (i == 0) {
                               return ListTile(
                                 title: const Text('なし（チャンネル選択を解除）'),
-                                onTap: () =>
-                                    Navigator.pop(ctx, <String, dynamic>{}),
+                                onTap: () => Navigator.pop(ctx, _noChannel),
                               );
                             }
                             final ch = list[i - 1];
-                            final name = ch['name'] as String? ?? '';
-                            final desc = ch['description'] as String?;
+                            final name = ch.name;
+                            final desc = ch.description;
                             return ListTile(
                               title: Text(name),
                               subtitle: desc != null && desc.isNotEmpty
@@ -1186,15 +1179,15 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       },
     );
     if (selected == null) return;
-    if (selected.isEmpty) {
+    if (selected.id.isEmpty) {
       setState(() {
         _selectedChannelId = null;
         _selectedChannelName = null;
       });
     } else {
       setState(() {
-        _selectedChannelId = selected['id'] as String?;
-        _selectedChannelName = selected['name'] as String?;
+        _selectedChannelId = selected.id;
+        _selectedChannelName = selected.name;
       });
     }
   }
@@ -1974,7 +1967,7 @@ class _MfmPreviewArea extends ConsumerWidget {
 // ---- 絵文字サジェストバー ----
 
 class _EmojiSuggestBar extends ConsumerWidget {
-  final List<Map<String, dynamic>> suggestions;
+  final List<CustomEmojiModel> suggestions;
   final void Function(String name) onSelect;
 
   const _EmojiSuggestBar({required this.suggestions, required this.onSelect});
@@ -2001,8 +1994,8 @@ class _EmojiSuggestBar extends ConsumerWidget {
         separatorBuilder: (_, _) => const SizedBox(width: 4),
         itemBuilder: (_, i) {
           final emoji = suggestions[i];
-          final name = emoji['name'] as String? ?? '';
-          final url = urlMap[name] ?? emoji['url'] as String?;
+          final name = emoji.name;
+          final url = urlMap[name] ?? emoji.url;
           return InkWell(
             onTap: () => onSelect(name),
             borderRadius: BorderRadius.circular(8),

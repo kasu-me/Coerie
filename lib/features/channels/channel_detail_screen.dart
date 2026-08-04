@@ -6,15 +6,17 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/constants/app_constants.dart';
 import '../../data/models/app_settings_model.dart';
+import '../../data/models/channel_model.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/utils/color_utils.dart';
 import '../timeline/timeline_screen.dart';
 import '../timeline/timeline_provider.dart';
 
 class ChannelDetailScreen extends ConsumerStatefulWidget {
   final String channelId;
-  final Map<String, dynamic>? initialData;
+  final ChannelModel? initialData;
 
   const ChannelDetailScreen({
     super.key,
@@ -30,7 +32,7 @@ class ChannelDetailScreen extends ConsumerStatefulWidget {
 class _ChannelDetailScreenState extends ConsumerState<ChannelDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  Map<String, dynamic>? _channel;
+  ChannelModel? _channel;
   bool _isLoading = false;
   String? _error;
   bool _isInHomeTab = false;
@@ -68,9 +70,7 @@ class _ChannelDetailScreenState extends ConsumerState<ChannelDetailScreen>
   }
 
   String get _channelName =>
-      _channel?['name'] as String? ??
-      widget.initialData?['name'] as String? ??
-      'チャンネル';
+      _channel?.name ?? widget.initialData?.name ?? 'チャンネル';
 
   void _checkIsInHomeTab() {
     final accountId = ref.read(activeAccountProvider)?.id ?? '';
@@ -214,7 +214,10 @@ class _ChannelDetailScreenState extends ConsumerState<ChannelDetailScreen>
               controller: _tabController,
               children: [
                 _InfoTab(
-                  channel: _channel ?? widget.initialData ?? {},
+                  channel:
+                      _channel ??
+                      widget.initialData ??
+                      ChannelModel(id: widget.channelId, name: ''),
                   onUpdated: _load,
                 ),
                 _TimelineTab(channelId: widget.channelId),
@@ -242,7 +245,7 @@ class _ChannelDetailScreenState extends ConsumerState<ChannelDetailScreen>
 // ---- 情報タブ ----
 
 class _InfoTab extends ConsumerStatefulWidget {
-  final Map<String, dynamic> channel;
+  final ChannelModel channel;
   final VoidCallback onUpdated;
 
   const _InfoTab({required this.channel, required this.onUpdated});
@@ -256,15 +259,15 @@ class _InfoTabState extends ConsumerState<_InfoTab> {
 
   bool get _isOwner {
     final myUserId = ref.read(activeAccountProvider)?.userId;
-    final ownerId = widget.channel['userId'] as String?;
+    final ownerId = widget.channel.userId;
     return myUserId != null && myUserId == ownerId;
   }
 
   Future<void> _toggleFollow() async {
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
-    final channelId = widget.channel['id'] as String;
-    final isFollowing = widget.channel['isFollowing'] as bool? ?? false;
+    final channelId = widget.channel.id;
+    final isFollowing = widget.channel.isFollowing;
     setState(() => _isActionLoading = true);
     try {
       if (isFollowing) {
@@ -287,8 +290,8 @@ class _InfoTabState extends ConsumerState<_InfoTab> {
   Future<void> _toggleFavorite() async {
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
-    final channelId = widget.channel['id'] as String;
-    final isFavorited = widget.channel['isFavorited'] as bool? ?? false;
+    final channelId = widget.channel.id;
+    final isFavorited = widget.channel.isFavorited;
     setState(() => _isActionLoading = true);
     try {
       if (isFavorited) {
@@ -323,27 +326,20 @@ class _InfoTabState extends ConsumerState<_InfoTab> {
   @override
   Widget build(BuildContext context) {
     final ch = widget.channel;
-    final name = ch['name'] as String? ?? '';
-    final description = ch['description'] as String?;
-    final bannerUrl = ch['bannerUrl'] as String?;
-    final color = ch['color'] as String? ?? '#888888';
-    final usersCount = ch['usersCount'] as int? ?? 0;
-    final notesCount = ch['notesCount'] as int? ?? 0;
-    final isArchived = ch['isArchived'] as bool? ?? false;
-    final isSensitive = ch['isSensitive'] as bool? ?? false;
-    final allowRenoteToExternal = ch['allowRenoteToExternal'] as bool? ?? true;
-    final isFollowing = ch['isFollowing'] as bool? ?? false;
-    final isFavorited = ch['isFavorited'] as bool? ?? false;
+    final name = ch.name;
+    final description = ch.description;
+    final bannerUrl = ch.bannerUrl;
+    final usersCount = ch.usersCount;
+    final notesCount = ch.notesCount;
+    final isArchived = ch.isArchived;
+    final isSensitive = ch.isSensitive;
+    final allowRenoteToExternal = ch.allowRenoteToExternal;
+    final isFollowing = ch.isFollowing;
+    final isFavorited = ch.isFavorited;
 
-    Color channelColor;
-    try {
-      final hex = color.replaceAll('#', '');
-      channelColor = Color(
-        int.parse(hex.length == 6 ? 'FF$hex' : hex, radix: 16),
-      );
-    } catch (_) {
-      channelColor = Theme.of(context).colorScheme.primary;
-    }
+    final channelColor =
+        channelColorFromHex(ch.color ?? '#888888') ??
+        Theme.of(context).colorScheme.primary;
 
     return SingleChildScrollView(
       padding: EdgeInsets.only(
@@ -543,7 +539,7 @@ class _InfoTabState extends ConsumerState<_InfoTab> {
 // ---- 情報編集ボトムシート（オーナー用）----
 
 class _ChannelInfoEditSheet extends ConsumerStatefulWidget {
-  final Map<String, dynamic> channel;
+  final ChannelModel channel;
   final VoidCallback onSaved;
 
   const _ChannelInfoEditSheet({required this.channel, required this.onSaved});
@@ -565,11 +561,11 @@ class _ChannelInfoEditSheetState extends ConsumerState<_ChannelInfoEditSheet> {
   void initState() {
     super.initState();
     final ch = widget.channel;
-    _nameController.text = ch['name'] as String? ?? '';
-    _descriptionController.text = ch['description'] as String? ?? '';
-    _colorController.text = ch['color'] as String? ?? '#000000';
-    _isSensitive = ch['isSensitive'] as bool? ?? false;
-    _allowRenoteToExternal = ch['allowRenoteToExternal'] as bool? ?? true;
+    _nameController.text = ch.name;
+    _descriptionController.text = ch.description ?? '';
+    _colorController.text = ch.color ?? '#000000';
+    _isSensitive = ch.isSensitive;
+    _allowRenoteToExternal = ch.allowRenoteToExternal;
   }
 
   @override
@@ -593,7 +589,7 @@ class _ChannelInfoEditSheetState extends ConsumerState<_ChannelInfoEditSheet> {
     setState(() => _isSaving = true);
     try {
       await api.updateChannel(
-        channelId: widget.channel['id'] as String,
+        channelId: widget.channel.id,
         name: name,
         description: _descriptionController.text.trim(),
         color: _colorController.text.trim().isEmpty

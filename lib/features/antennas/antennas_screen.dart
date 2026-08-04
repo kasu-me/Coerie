@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/constants/app_constants.dart';
+import '../../data/models/antenna_model.dart';
 import '../../data/models/app_settings_model.dart';
 import '../../data/models/user_model.dart';
 import '../../shared/providers/account_provider.dart';
@@ -19,7 +20,7 @@ class AntennasScreen extends ConsumerStatefulWidget {
 }
 
 class _AntennasScreenState extends ConsumerState<AntennasScreen> {
-  List<Map<String, dynamic>> _items = [];
+  List<AntennaModel> _items = [];
   bool _isLoading = false;
   String? _error;
 
@@ -55,7 +56,7 @@ class _AntennasScreenState extends ConsumerState<AntennasScreen> {
     }
   }
 
-  void _showEditSheet({Map<String, dynamic>? antenna}) {
+  void _showEditSheet({AntennaModel? antenna}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -64,12 +65,12 @@ class _AntennasScreenState extends ConsumerState<AntennasScreen> {
     );
   }
 
-  Future<void> _deleteAntenna(Map<String, dynamic> antenna) async {
+  Future<void> _deleteAntenna(AntennaModel antenna) async {
     final confirmed = await confirmAction(
       context,
       ref,
       title: 'アンテナを削除',
-      message: '「${antenna['name']}」を削除しますか？この操作は取り消せません。',
+      message: '「${antenna.name}」を削除しますか？この操作は取り消せません。',
       confirmLabel: '削除',
     );
     if (!confirmed || !mounted) return;
@@ -77,7 +78,7 @@ class _AntennasScreenState extends ConsumerState<AntennasScreen> {
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
     try {
-      await api.deleteAntenna(antennaId: antenna['id'] as String);
+      await api.deleteAntenna(antennaId: antenna.id);
       await _load();
     } catch (e) {
       if (mounted) {
@@ -88,9 +89,9 @@ class _AntennasScreenState extends ConsumerState<AntennasScreen> {
     }
   }
 
-  Future<void> _addToHomeTab(Map<String, dynamic> antenna) async {
-    final name = antenna['name'] as String? ?? 'アンテナ';
-    final id = antenna['id'] as String? ?? '';
+  Future<void> _addToHomeTab(AntennaModel antenna) async {
+    final name = antenna.name.isEmpty ? 'アンテナ' : antenna.name;
+    final id = antenna.id;
     final labelController = TextEditingController(text: name);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -207,13 +208,13 @@ class _AntennasScreenState extends ConsumerState<AntennasScreen> {
         separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (ctx, i) {
           final item = _items[i];
-          final id = item['id'] as String? ?? '';
-          final name = item['name'] as String? ?? '';
+          final id = item.id;
+          final name = item.name;
           return ListTile(
             leading: const Icon(Icons.settings_input_antenna),
             title: Text(name),
             subtitle: Text(
-              _srcLabel(item['src'] as String? ?? 'all'),
+              _srcLabel(item.src),
               style: Theme.of(context).textTheme.bodySmall,
             ),
             trailing: PopupMenuButton<String>(
@@ -309,7 +310,7 @@ class _AntennaUser {
 // ---- アンテナ作成/編集ボトムシート ----
 
 class _AntennaEditSheet extends ConsumerStatefulWidget {
-  final Map<String, dynamic>? antenna;
+  final AntennaModel? antenna;
   final VoidCallback onSaved;
 
   const _AntennaEditSheet({this.antenna, required this.onSaved});
@@ -341,45 +342,18 @@ class _AntennaEditSheetState extends ConsumerState<_AntennaEditSheet> {
     super.initState();
     final a = widget.antenna;
     if (a != null) {
-      _nameController.text = a['name'] as String? ?? '';
-      _src = a['src'] as String? ?? 'all';
-      _excludeBots = a['excludeBots'] as bool? ?? false;
-      _withReplies = a['withReplies'] as bool? ?? false;
-      _withFile = a['withFile'] as bool? ?? false;
-      _localOnly = a['localOnly'] as bool? ?? false;
-      _caseSensitive = a['caseSensitive'] as bool? ?? false;
-      _excludeNotesInSensitiveChannel =
-          a['excludeNotesInSensitiveChannel'] as bool? ?? false;
+      _nameController.text = a.name;
+      _src = a.src;
+      _excludeBots = a.excludeBots;
+      _withReplies = a.withReplies;
+      _withFile = a.withFile;
+      _localOnly = a.localOnly;
+      _caseSensitive = a.caseSensitive;
+      _excludeNotesInSensitiveChannel = a.excludeNotesInSensitiveChannel;
 
-      // keywords: [[w1, w2], [w3]] → "w1 w2\nw3"
-      final kw = a['keywords'] as List<dynamic>?;
-      if (kw != null) {
-        _keywordsController.text = kw
-            .map(
-              (row) =>
-                  (row as List<dynamic>).map((w) => w.toString()).join(' '),
-            )
-            .where((s) => s.isNotEmpty)
-            .join('\n');
-      }
-      final ekw = a['excludeKeywords'] as List<dynamic>?;
-      if (ekw != null) {
-        _excludeKeywordsController.text = ekw
-            .map(
-              (row) =>
-                  (row as List<dynamic>).map((w) => w.toString()).join(' '),
-            )
-            .where((s) => s.isNotEmpty)
-            .join('\n');
-      }
-
-      // users: ["@username@host", ...]
-      final users = a['users'] as List<dynamic>?;
-      if (users != null) {
-        _selectedUsers = users
-            .map((u) => _AntennaUser.fromAcct(u.toString()))
-            .toList();
-      }
+      _keywordsController.text = _keywordRowsToText(a.keywords);
+      _excludeKeywordsController.text = _keywordRowsToText(a.excludeKeywords);
+      _selectedUsers = a.users.map(_AntennaUser.fromAcct).toList();
     }
   }
 
@@ -392,6 +366,13 @@ class _AntennaEditSheetState extends ConsumerState<_AntennaEditSheet> {
   }
 
   bool get _needsUsers => _src == 'users' || _src == 'users_blacklist';
+
+  /// キーワード行（[[w1, w2], [w3]]）を編集用のテキスト（"w1 w2\nw3"）に戻す。
+  /// [_parseKeywords] の逆変換。
+  String _keywordRowsToText(List<List<String>> rows) => rows
+      .map((row) => row.join(' '))
+      .where((s) => s.isNotEmpty)
+      .join('\n');
 
   List<List<String>> _parseKeywords(String text) {
     if (text.trim().isEmpty) return [[]];
@@ -451,7 +432,7 @@ class _AntennaEditSheetState extends ConsumerState<_AntennaEditSheet> {
         );
       } else {
         await api.updateAntenna(
-          antennaId: widget.antenna!['id'] as String,
+          antennaId: widget.antenna!.id,
           name: name,
           src: _src,
           keywords: keywords,

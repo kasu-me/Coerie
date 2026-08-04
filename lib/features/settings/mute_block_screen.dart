@@ -23,14 +23,14 @@ String _apiErrorMessage(Object e) {
 // ---- プロバイダー ----
 
 final _mutingListProvider =
-    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+    FutureProvider.autoDispose<List<UserModel>>((ref) async {
       final api = ref.watch(misskeyApiProvider);
       if (api == null) return [];
       return api.getMutingList();
     });
 
 final _blockingListProvider =
-    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+    FutureProvider.autoDispose<List<UserModel>>((ref) async {
       final api = ref.watch(misskeyApiProvider);
       if (api == null) return [];
       return api.getBlockingList();
@@ -219,7 +219,7 @@ class _UserMuteTab extends ConsumerWidget {
           ref.invalidate(_mutingListProvider);
           await ref
               .read(_mutingListProvider.future)
-              .catchError((_) => <Map<String, dynamic>>[]);
+              .catchError((_) => <UserModel>[]);
         },
         child: list.isEmpty
             ? ListView(
@@ -235,9 +235,7 @@ class _UserMuteTab extends ConsumerWidget {
                 physics: const AlwaysScrollableScrollPhysics(),
                 itemCount: list.length,
                 itemBuilder: (_, i) {
-                  final muteeJson = list[i]['mutee'] as Map<String, dynamic>?;
-                  if (muteeJson == null) return const SizedBox.shrink();
-                  final mutee = UserModel.fromJson(muteeJson);
+                  final mutee = list[i];
 
                   return ListTile(
                     leading: UserAvatar(avatarUrl: mutee.avatarUrl),
@@ -295,7 +293,7 @@ class _UserBlockTab extends ConsumerWidget {
           ref.invalidate(_blockingListProvider);
           await ref
               .read(_blockingListProvider.future)
-              .catchError((_) => <Map<String, dynamic>>[]);
+              .catchError((_) => <UserModel>[]);
         },
         child: list.isEmpty
             ? ListView(
@@ -311,10 +309,7 @@ class _UserBlockTab extends ConsumerWidget {
                 physics: const AlwaysScrollableScrollPhysics(),
                 itemCount: list.length,
                 itemBuilder: (_, i) {
-                  final blockeeJson =
-                      list[i]['blockee'] as Map<String, dynamic>?;
-                  if (blockeeJson == null) return const SizedBox.shrink();
-                  final blockee = UserModel.fromJson(blockeeJson);
+                  final blockee = list[i];
 
                   return ListTile(
                     leading: UserAvatar(avatarUrl: blockee.avatarUrl),

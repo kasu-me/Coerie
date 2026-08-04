@@ -64,12 +64,12 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
       if (t.startsWith('list:')) {
         final id = t.substring(5);
         final lists = await api.getLists();
-        final exists = lists.any((l) => (l['id'] as String?) == id);
+        final exists = lists.any((l) => l.id == id);
         if (mounted) setState(() => _sourceMissing = !exists);
       } else if (t.startsWith('antenna:')) {
         final id = t.substring(8);
         final ants = await api.getAntennas();
-        final exists = ants.any((a) => (a['id'] as String?) == id);
+        final exists = ants.any((a) => a.id == id);
         if (mounted) setState(() => _sourceMissing = !exists);
       } else if (t.startsWith('channel:')) {
         final id = t.substring(8);

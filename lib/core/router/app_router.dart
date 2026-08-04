@@ -1,5 +1,8 @@
+import '../../data/models/antenna_model.dart';
+import '../../data/models/channel_model.dart';
 import '../../data/models/drive_file_model.dart';
 import '../../data/models/note_model.dart';
+import '../../data/models/user_list_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -364,7 +367,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final channelId = state.pathParameters['channelId']!;
           final extra = state.extra;
-          final initialData = extra is Map<String, dynamic> ? extra : null;
+          final initialData = extra is ChannelModel ? extra : null;
           return ChannelDetailScreen(
             channelId: channelId,
             initialData: initialData,
@@ -454,17 +457,13 @@ class _ListLoader extends ConsumerWidget {
       );
     }
 
-    return FutureBuilder<Map<String, dynamic>?>(
+    return FutureBuilder<UserListModel?>(
       future: () async {
         final lists = await api.getLists();
-        Map<String, dynamic>? found;
-        for (final m in lists) {
-          if ((m['id'] as String?) == listId) {
-            found = m;
-            break;
-          }
+        for (final l in lists) {
+          if (l.id == listId) return l;
         }
-        return found;
+        return null;
       }(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -480,7 +479,7 @@ class _ListLoader extends ConsumerWidget {
           );
         }
         final item = snapshot.data;
-        final title = item?['name'] as String? ?? 'リスト';
+        final title = (item?.name.isNotEmpty ?? false) ? item!.name : 'リスト';
         return _SourceTimelineScreen(
           sourceId: listId,
           name: title,
@@ -507,17 +506,13 @@ class _AntennaLoader extends ConsumerWidget {
       );
     }
 
-    return FutureBuilder<Map<String, dynamic>?>(
+    return FutureBuilder<AntennaModel?>(
       future: () async {
         final items = await api.getAntennas();
-        Map<String, dynamic>? found;
-        for (final m in items) {
-          if ((m['id'] as String?) == antennaId) {
-            found = m;
-            break;
-          }
+        for (final a in items) {
+          if (a.id == antennaId) return a;
         }
-        return found;
+        return null;
       }(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -533,7 +528,7 @@ class _AntennaLoader extends ConsumerWidget {
           );
         }
         final item = snapshot.data;
-        final title = item?['name'] as String? ?? 'アンテナ';
+        final title = (item?.name.isNotEmpty ?? false) ? item!.name : 'アンテナ';
         return _SourceTimelineScreen(
           sourceId: antennaId,
           name: title,

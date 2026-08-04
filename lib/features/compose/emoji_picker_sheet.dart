@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:coerie/core/services/cache_service.dart';
+import '../../data/models/custom_emoji_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/utils/emoji_utils.dart';
 
 // カスタム絵文字一覧プロバイダー
-final customEmojisProvider = FutureProvider<List<Map<String, dynamic>>>((
+final customEmojisProvider = FutureProvider<List<CustomEmojiModel>>((
   ref,
 ) async {
   final api = ref.watch(misskeyApiProvider);
@@ -24,8 +25,7 @@ final customEmojiUrlMapProvider = Provider<Map<String, String>>((ref) {
       .maybeWhen(
         data: (list) => {
           for (final e in list)
-            if (e['name'] != null && e['url'] != null)
-              e['name'] as String: e['url'] as String,
+            if (e.name.isNotEmpty && e.url != null) e.name: e.url!,
         },
         // 未取得・エラー時は空マップ。
         // 各ノートの emojis/reactionEmojis フィールドで補完される。
@@ -1991,7 +1991,7 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
   // カスタム絵文字のカテゴリタブ用
   TabController? _customTabController;
   List<String> _customCategories = [];
-  Map<String, List<Map<String, dynamic>>> _customByCategory = {};
+  Map<String, List<CustomEmojiModel>> _customByCategory = {};
 
   // 上位タブ（カスタム / 通常）
   late final TabController _mainTabController;
@@ -2010,11 +2010,10 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
     super.dispose();
   }
 
-  void _buildCustomCategories(List<Map<String, dynamic>> emojis) {
-    final map = <String, List<Map<String, dynamic>>>{};
+  void _buildCustomCategories(List<CustomEmojiModel> emojis) {
+    final map = <String, List<CustomEmojiModel>>{};
     for (final e in emojis) {
-      final cat = (e['category'] as String?)?.trim() ?? '';
-      map.putIfAbsent(cat, () => []).add(e);
+      map.putIfAbsent(e.category, () => []).add(e);
     }
     final cats = map.keys.toList()
       ..sort((a, b) {
@@ -2033,7 +2032,7 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
   }
 
   Widget _customEmojiGrid(
-    List<Map<String, dynamic>> emojis,
+    List<CustomEmojiModel> emojis,
     ScrollController scrollController,
   ) {
     if (emojis.isEmpty) {
@@ -2050,8 +2049,8 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
       itemCount: emojis.length,
       itemBuilder: (_, i) {
         final emoji = emojis[i];
-        final name = emoji['name'] as String? ?? '';
-        final url = emoji['url'] as String?;
+        final name = emoji.name;
+        final url = emoji.url;
         return Tooltip(
           message: ':$name:',
           child: InkWell(
@@ -2114,22 +2113,21 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
   }
 
   Widget _buildCustomTab(
-    List<Map<String, dynamic>> emojis,
+    List<CustomEmojiModel> emojis,
     ScrollController scrollController,
   ) {
     // リモート投稿へのリアクション時は localOnly 絵文字を除外する
     final availableEmojis = widget.isRemoteNote
-        ? emojis.where((e) => e['localOnly'] != true).toList()
+        ? emojis.where((e) => !e.localOnly).toList()
         : emojis;
 
     _buildCustomCategories(availableEmojis);
 
     if (_query.isNotEmpty) {
       final filtered = availableEmojis.where((e) {
-        final name = (e['name'] as String? ?? '').toLowerCase();
-        final aliases = (e['aliases'] as List<dynamic>? ?? []);
+        final name = e.name.toLowerCase();
         return name.contains(_query) ||
-            aliases.any((a) => a.toString().toLowerCase().contains(_query));
+            e.aliases.any((a) => a.toLowerCase().contains(_query));
       }).toList();
       return _customEmojiGrid(filtered, scrollController);
     }

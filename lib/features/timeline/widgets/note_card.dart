@@ -1202,7 +1202,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
       try {
         final state = await api.getNoteState(widget.note.id);
         if (mounted) {
-          setState(() => _isFavorited = state['isFavorited'] as bool? ?? false);
+          setState(() => _isFavorited = state.isFavorited);
         }
       } catch (_) {
         if (mounted) setState(() => _isFavorited = false);

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/constants/app_constants.dart';
 import '../../data/models/app_settings_model.dart';
+import '../../data/models/user_list_model.dart';
 import '../../data/models/user_model.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
@@ -19,7 +20,7 @@ class ListsScreen extends ConsumerStatefulWidget {
 }
 
 class _ListsScreenState extends ConsumerState<ListsScreen> {
-  List<Map<String, dynamic>> _lists = [];
+  List<UserListModel> _lists = [];
   bool _isLoading = false;
   String? _error;
 
@@ -64,7 +65,7 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
     );
   }
 
-  void _showEditSheet(Map<String, dynamic> list) {
+  void _showEditSheet(UserListModel list) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -73,12 +74,12 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
     );
   }
 
-  Future<void> _deleteList(Map<String, dynamic> list) async {
+  Future<void> _deleteList(UserListModel list) async {
     final confirmed = await confirmAction(
       context,
       ref,
       title: 'リストを削除',
-      message: '「${list['name']}」を削除しますか？この操作は取り消せません。',
+      message: '「${list.name}」を削除しますか？この操作は取り消せません。',
       confirmLabel: '削除',
     );
     if (!confirmed || !mounted) return;
@@ -86,7 +87,7 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
     try {
-      await api.deleteList(listId: list['id'] as String);
+      await api.deleteList(listId: list.id);
       await _load();
     } catch (e) {
       if (mounted) {
@@ -97,9 +98,9 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
     }
   }
 
-  Future<void> _addToHomeTab(Map<String, dynamic> list) async {
-    final name = list['name'] as String? ?? 'リスト';
-    final id = list['id'] as String? ?? '';
+  Future<void> _addToHomeTab(UserListModel list) async {
+    final name = list.name.isEmpty ? 'リスト' : list.name;
+    final id = list.id;
     final labelController = TextEditingController(text: name);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -151,7 +152,7 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
     }
   }
 
-  void _showMembersSheet(Map<String, dynamic> list) {
+  void _showMembersSheet(UserListModel list) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -221,9 +222,9 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
         separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (ctx, i) {
           final item = _lists[i];
-          final id = item['id'] as String? ?? '';
-          final name = item['name'] as String? ?? '';
-          final isPublic = item['isPublic'] as bool? ?? false;
+          final id = item.id;
+          final name = item.name;
+          final isPublic = item.isPublic;
           return ListTile(
             leading: Icon(
               isPublic ? Icons.list : Icons.lock_outline,
@@ -292,7 +293,7 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
 // ---- リスト作成/編集ボトムシート ----
 
 class _ListEditSheet extends ConsumerStatefulWidget {
-  final Map<String, dynamic>? list;
+  final UserListModel? list;
   final VoidCallback onSaved;
 
   const _ListEditSheet({this.list, required this.onSaved});
@@ -311,8 +312,8 @@ class _ListEditSheetState extends ConsumerState<_ListEditSheet> {
     super.initState();
     final l = widget.list;
     if (l != null) {
-      _nameController.text = l['name'] as String? ?? '';
-      _isPublic = l['isPublic'] as bool? ?? false;
+      _nameController.text = l.name;
+      _isPublic = l.isPublic;
     }
   }
 
@@ -343,14 +344,13 @@ class _ListEditSheetState extends ConsumerState<_ListEditSheet> {
         final created = await api.createList(name: name);
         // isPublic は create では設定できないため、trueの場合は update で設定する
         if (_isPublic) {
-          final listId = created['id'] as String?;
-          if (listId != null) {
-            await api.updateList(listId: listId, isPublic: true);
+          if (created.id.isNotEmpty) {
+            await api.updateList(listId: created.id, isPublic: true);
           }
         }
       } else {
         await api.updateList(
-          listId: widget.list!['id'] as String,
+          listId: widget.list!.id,
           name: name,
           isPublic: _isPublic,
         );
@@ -440,7 +440,7 @@ class _ListEditSheetState extends ConsumerState<_ListEditSheet> {
 // ---- メンバー管理ボトムシート ----
 
 class _ListMembersSheet extends ConsumerStatefulWidget {
-  final Map<String, dynamic> list;
+  final UserListModel list;
   const _ListMembersSheet({required this.list});
 
   @override
@@ -448,7 +448,7 @@ class _ListMembersSheet extends ConsumerStatefulWidget {
 }
 
 class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
-  List<Map<String, dynamic>> _members = [];
+  List<UserListMembershipModel> _members = [];
   bool _isLoading = false;
   String? _error;
 
@@ -469,7 +469,7 @@ class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
       return;
     }
     try {
-      final listId = widget.list['id'] as String;
+      final listId = widget.list.id;
       final memberships = await api.getListMembers(listId: listId);
       if (mounted) setState(() => _members = memberships);
     } catch (e) {
@@ -590,7 +590,7 @@ class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
     if (api == null) return;
     try {
       await api.addListMember(
-        listId: widget.list['id'] as String,
+        listId: widget.list.id,
         userId: selectedUser.id,
       );
       await _loadMembers();
@@ -603,19 +603,14 @@ class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
     }
   }
 
-  Future<void> _removeMember(Map<String, dynamic> membership) async {
-    final user = membership['user'] as Map<String, dynamic>?;
-    if (user == null) return;
-    final userId = user['id'] as String?;
-    if (userId == null) return;
+  Future<void> _removeMember(UserListMembershipModel membership) async {
+    final userId = membership.user?.id ?? membership.userId;
+    if (userId.isEmpty) return;
 
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
     try {
-      await api.removeListMember(
-        listId: widget.list['id'] as String,
-        userId: userId,
-      );
+      await api.removeListMember(listId: widget.list.id, userId: userId);
       await _loadMembers();
     } catch (e) {
       if (mounted) {
@@ -628,7 +623,7 @@ class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final listName = widget.list['name'] as String? ?? 'リスト';
+    final listName = widget.list.name.isEmpty ? 'リスト' : widget.list.name;
     return DraggableScrollableSheet(
       initialChildSize: 0.7,
       minChildSize: 0.4,
@@ -708,9 +703,8 @@ class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
       separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (ctx, i) {
         final membership = _members[i];
-        final userJson = membership['user'] as Map<String, dynamic>?;
-        if (userJson == null) return const SizedBox.shrink();
-        final user = UserModel.fromJson(userJson);
+        final user = membership.user;
+        if (user == null) return const SizedBox.shrink();
         return ListTile(
           leading: UserAvatar(avatarUrl: user.avatarUrl, radius: 20),
           title: Text(user.name),

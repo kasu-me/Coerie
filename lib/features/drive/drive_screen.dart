@@ -10,20 +10,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../shared/utils/download_helper.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../data/models/drive_file_model.dart';
+import '../../data/models/drive_folder_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/widgets/media_player_screen.dart';
 import 'file_notes_screen.dart';
 import '../../shared/utils/format_utils.dart';
-
-/// ドライブフォルダの簡易モデル
-class _DriveFolder {
-  final String id;
-  final String name;
-  const _DriveFolder({required this.id, required this.name});
-
-  factory _DriveFolder.fromJson(Map<String, dynamic> json) =>
-      _DriveFolder(id: json['id'] as String, name: json['name'] as String);
-}
 
 class DriveScreen extends ConsumerStatefulWidget {
   /// trueのとき選択モード（投稿画面からの呼び出し）
@@ -48,7 +39,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     (id: null, name: 'ドライブ'),
   ];
 
-  List<_DriveFolder> _folders = [];
+  List<DriveFolderModel> _folders = [];
   List<DriveFileModel> _files = [];
   bool _isLoading = false;
   bool _hasMore = true;
@@ -102,7 +93,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
         folderId: _currentFolderId,
       );
       setState(() {
-        _folders = folderMaps.map(_DriveFolder.fromJson).toList();
+        _folders = folderMaps;
         _files = files;
         _hasMore = files.length >= 40;
         _isLoading = false;
@@ -137,7 +128,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     }
   }
 
-  void _openFolder(_DriveFolder folder) {
+  void _openFolder(DriveFolderModel folder) {
     setState(() {
       _breadcrumbs.add((id: folder.id, name: folder.name));
       if (!_managingMode) {
@@ -197,7 +188,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     }
   }
 
-  void _enterManagingMode({DriveFileModel? file, _DriveFolder? folder}) {
+  void _enterManagingMode({DriveFileModel? file, DriveFolderModel? folder}) {
     setState(() {
       _managingMode = true;
       _managingModeSourceFolderId = _currentFolderId;
@@ -206,11 +197,11 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     });
   }
 
-  void _onFolderTap(_DriveFolder folder) {
+  void _onFolderTap(DriveFolderModel folder) {
     _openFolder(folder);
   }
 
-  void _toggleFolderSelection(_DriveFolder folder) {
+  void _toggleFolderSelection(DriveFolderModel folder) {
     setState(() {
       if (_selectedFolderIds.contains(folder.id)) {
         _selectedFolderIds.remove(folder.id);
@@ -861,7 +852,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     }
   }
 
-  Future<void> _showFolderMenu(_DriveFolder folder) async {
+  Future<void> _showFolderMenu(DriveFolderModel folder) async {
     showModalBottomSheet<void>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -912,7 +903,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     );
   }
 
-  Future<void> _moveSingleFolder(_DriveFolder folder) async {
+  Future<void> _moveSingleFolder(DriveFolderModel folder) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -938,7 +929,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     );
   }
 
-  Future<void> _renameFolder(_DriveFolder folder) async {
+  Future<void> _renameFolder(DriveFolderModel folder) async {
     final controller = TextEditingController(text: folder.name);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -987,7 +978,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     }
   }
 
-  Future<void> _deleteFolder(_DriveFolder folder) async {
+  Future<void> _deleteFolder(DriveFolderModel folder) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1029,7 +1020,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
 
 // ---- フォルダタイル ----
 class _FolderTile extends StatelessWidget {
-  final _DriveFolder folder;
+  final DriveFolderModel folder;
   final bool selectionMode;
   final bool isSelected;
   final VoidCallback onTap;
@@ -1365,7 +1356,7 @@ class _FolderPickerSheetState extends ConsumerState<_FolderPickerSheet> {
   final List<({String? id, String name})> _breadcrumbs = [
     (id: null, name: 'ドライブ'),
   ];
-  List<_DriveFolder> _folders = [];
+  List<DriveFolderModel> _folders = [];
   bool _isLoading = true;
   String? _error;
 
@@ -1387,7 +1378,7 @@ class _FolderPickerSheetState extends ConsumerState<_FolderPickerSheet> {
     try {
       final maps = await api.getDriveFolders(folderId: _currentFolderId);
       setState(() {
-        _folders = maps.map(_DriveFolder.fromJson).toList();
+        _folders = maps;
         _isLoading = false;
       });
     } catch (e) {
@@ -1398,7 +1389,7 @@ class _FolderPickerSheetState extends ConsumerState<_FolderPickerSheet> {
     }
   }
 
-  void _openFolder(_DriveFolder folder) {
+  void _openFolder(DriveFolderModel folder) {
     setState(() => _breadcrumbs.add((id: folder.id, name: folder.name)));
     _loadFolders();
   }

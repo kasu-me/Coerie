@@ -3,7 +3,9 @@ import 'package:coerie/core/services/cache_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../data/models/channel_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/utils/color_utils.dart';
 import '../../shared/widgets/confirm_dialog.dart';
 import '../../shared/widgets/error_view.dart';
 
@@ -61,7 +63,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
 // ---- Channel list tile ----
 
 class _ChannelTile extends StatelessWidget {
-  final Map<String, dynamic> channel;
+  final ChannelModel channel;
   final List<PopupMenuEntry<String>>? menuItems;
   final void Function(String)? onMenuSelected;
 
@@ -73,23 +75,16 @@ class _ChannelTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = channel['name'] as String? ?? '';
-    final description = channel['description'] as String?;
-    final bannerUrl = channel['bannerUrl'] as String?;
-    final color = channel['color'] as String? ?? '#888888';
-    final usersCount = channel['usersCount'] as int? ?? 0;
-    final notesCount = channel['notesCount'] as int? ?? 0;
-    final isArchived = channel['isArchived'] as bool? ?? false;
+    final name = channel.name;
+    final description = channel.description;
+    final bannerUrl = channel.bannerUrl;
+    final usersCount = channel.usersCount;
+    final notesCount = channel.notesCount;
+    final isArchived = channel.isArchived;
 
-    Color channelColor;
-    try {
-      final hex = color.replaceAll('#', '');
-      channelColor = Color(
-        int.parse(hex.length == 6 ? 'FF$hex' : hex, radix: 16),
-      );
-    } catch (_) {
-      channelColor = Theme.of(context).colorScheme.primary;
-    }
+    final channelColor =
+        channelColorFromHex(channel.color ?? '#888888') ??
+        Theme.of(context).colorScheme.primary;
 
     return ListTile(
       leading: bannerUrl != null
@@ -141,7 +136,7 @@ class _ChannelTile extends StatelessWidget {
               itemBuilder: (_) => menuItems!,
             )
           : null,
-      onTap: () => context.push('/channels/${channel['id']}', extra: channel),
+      onTap: () => context.push('/channels/${channel.id}', extra: channel),
     );
   }
 
@@ -171,7 +166,7 @@ class _SearchTab extends ConsumerStatefulWidget {
 class _SearchTabState extends ConsumerState<_SearchTab>
     with AutomaticKeepAliveClientMixin {
   final _searchController = TextEditingController();
-  List<Map<String, dynamic>> _results = [];
+  List<ChannelModel> _results = [];
   bool _isLoading = false;
   String? _error;
   bool _searched = false;
@@ -282,7 +277,7 @@ class _FeaturedTab extends ConsumerStatefulWidget {
 
 class _FeaturedTabState extends ConsumerState<_FeaturedTab>
     with AutomaticKeepAliveClientMixin {
-  List<Map<String, dynamic>> _items = [];
+  List<ChannelModel> _items = [];
   bool _isLoading = false;
   String? _error;
 
@@ -353,7 +348,7 @@ class _FavoritesTab extends ConsumerStatefulWidget {
 
 class _FavoritesTabState extends ConsumerState<_FavoritesTab>
     with AutomaticKeepAliveClientMixin {
-  List<Map<String, dynamic>> _items = [];
+  List<ChannelModel> _items = [];
   bool _isLoading = false;
   String? _error;
 
@@ -424,7 +419,7 @@ class _FollowedTab extends ConsumerStatefulWidget {
 
 class _FollowedTabState extends ConsumerState<_FollowedTab>
     with AutomaticKeepAliveClientMixin {
-  List<Map<String, dynamic>> _items = [];
+  List<ChannelModel> _items = [];
   bool _isLoading = false;
   String? _error;
 
@@ -495,7 +490,7 @@ class _OwnedTab extends ConsumerStatefulWidget {
 
 class _OwnedTabState extends ConsumerState<_OwnedTab>
     with AutomaticKeepAliveClientMixin {
-  List<Map<String, dynamic>> _items = [];
+  List<ChannelModel> _items = [];
   bool _isLoading = false;
   String? _error;
 
@@ -539,7 +534,7 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
     );
   }
 
-  void _showEditSheet(Map<String, dynamic> channel) {
+  void _showEditSheet(ChannelModel channel) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -548,12 +543,12 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
     );
   }
 
-  Future<void> _archiveChannel(Map<String, dynamic> channel) async {
+  Future<void> _archiveChannel(ChannelModel channel) async {
     final confirmed = await confirmAction(
       context,
       ref,
       title: 'チャンネルをアーカイブ',
-      message: '「${channel['name']}」をアーカイブしますか？アーカイブされたチャンネルは非公開になります。',
+      message: '「${channel.name}」をアーカイブしますか？アーカイブされたチャンネルは非公開になります。',
       confirmLabel: 'アーカイブ',
     );
     if (!confirmed || !mounted) return;
@@ -561,7 +556,7 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
     try {
-      await api.archiveChannel(channel['id'] as String);
+      await api.archiveChannel(channel.id);
       await _load();
     } catch (e) {
       if (mounted) {
@@ -663,7 +658,7 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
 // ---- Channel create/edit bottom sheet ----
 
 class _ChannelEditSheet extends ConsumerStatefulWidget {
-  final Map<String, dynamic>? channel;
+  final ChannelModel? channel;
   final VoidCallback onSaved;
 
   const _ChannelEditSheet({this.channel, required this.onSaved});
@@ -685,11 +680,11 @@ class _ChannelEditSheetState extends ConsumerState<_ChannelEditSheet> {
     super.initState();
     final ch = widget.channel;
     if (ch != null) {
-      _nameController.text = ch['name'] as String? ?? '';
-      _descriptionController.text = ch['description'] as String? ?? '';
-      _colorController.text = ch['color'] as String? ?? '#000000';
-      _isSensitive = ch['isSensitive'] as bool? ?? false;
-      _allowRenoteToExternal = ch['allowRenoteToExternal'] as bool? ?? true;
+      _nameController.text = ch.name;
+      _descriptionController.text = ch.description ?? '';
+      _colorController.text = ch.color ?? '#000000';
+      _isSensitive = ch.isSensitive;
+      _allowRenoteToExternal = ch.allowRenoteToExternal;
     } else {
       _colorController.text = '#000000';
     }
@@ -729,7 +724,7 @@ class _ChannelEditSheetState extends ConsumerState<_ChannelEditSheet> {
         );
       } else {
         await api.updateChannel(
-          channelId: widget.channel!['id'] as String,
+          channelId: widget.channel!.id,
           name: name,
           description: _descriptionController.text.trim(),
           color: _colorController.text.trim().isEmpty
