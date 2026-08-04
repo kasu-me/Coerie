@@ -13,6 +13,7 @@ import 'package:provider/provider.dart';
 import 'package:wechat_assets_picker/wechat_assets_picker.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/constants/image_compression_level.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../core/services/image_compression_service.dart';
 import '../../data/local/hive_service.dart';
 import '../../data/models/account_model.dart';
@@ -745,9 +746,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
             });
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(
-                  'アップロードに失敗しました: ${e.toString().replaceFirst('Exception: ', '')}',
-                ),
+                content: Text(apiErrorMessage(e, fallback: 'アップロードに失敗しました')),
                 backgroundColor: Theme.of(context).colorScheme.error,
               ),
             );
@@ -790,9 +789,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              '投稿に失敗しました: ${e.toString().replaceFirst('Exception: ', '')}',
-            ),
+            content: Text(apiErrorMessage(e, fallback: '投稿に失敗しました')),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );

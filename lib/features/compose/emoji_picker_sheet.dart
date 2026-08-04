@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:coerie/core/services/cache_service.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../data/models/custom_emoji_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/utils/emoji_utils.dart';
@@ -2273,7 +2274,11 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
                   emojisAsync.when(
                     loading: () =>
                         const Center(child: CircularProgressIndicator()),
-                    error: (e, _) => Center(child: Text('読み込みエラー: $e')),
+                    error: (e, _) => Center(
+                      child: Text(
+                        apiErrorMessage(e, fallback: '絵文字を読み込めませんでした'),
+                      ),
+                    ),
                     data: (emojis) => _buildCustomTab(emojis, scrollController),
                   ),
                   _buildUnicodeTab(scrollController),

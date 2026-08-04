@@ -9,9 +9,11 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../shared/utils/download_helper.dart';
 import 'package:file_picker/file_picker.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../data/models/drive_file_model.dart';
 import '../../data/models/drive_folder_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/media_player_screen.dart';
 import 'file_notes_screen.dart';
 import '../../shared/utils/format_utils.dart';
@@ -100,7 +102,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       });
     } catch (e) {
       setState(() {
-        _error = e.toString();
+        _error = apiErrorMessage(e, fallback: 'ドライブを取得できませんでした');
         _isLoading = false;
       });
     }
@@ -352,9 +354,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            '更新に失敗しました: ${e.toString().replaceFirst('Exception: ', '')}',
-          ),
+          content: Text(apiErrorMessage(e, fallback: '更新に失敗しました')),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
@@ -377,9 +377,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
             _load();
           } catch (e) {
             if (!mounted) return;
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('移動に失敗しました: $e')));
+            showApiErrorSnackBar(context, e, fallback: '移動に失敗しました');
           }
         },
       ),
@@ -415,9 +413,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       setState(() => _files.remove(file));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
+      showApiErrorSnackBar(context, e, fallback: '削除に失敗しました');
     }
   }
 
@@ -443,9 +439,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('移動に失敗しました: $e')));
+      showApiErrorSnackBar(context, e, fallback: '移動に失敗しました');
     }
   }
 
@@ -500,9 +494,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       _exitManagingMode();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
+      showApiErrorSnackBar(context, e, fallback: '削除に失敗しました');
     }
   }
 
@@ -531,9 +523,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('アップロードに失敗しました: $e')));
+      showApiErrorSnackBar(context, e, fallback: 'アップロードに失敗しました');
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
@@ -846,9 +836,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('フォルダ作成に失敗しました: $e')));
+      showApiErrorSnackBar(context, e, fallback: 'フォルダを作成できませんでした');
     }
   }
 
@@ -920,9 +908,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
             _load();
           } catch (e) {
             if (!mounted) return;
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('移動に失敗しました: $e')));
+            showApiErrorSnackBar(context, e, fallback: '移動に失敗しました');
           }
         },
       ),
@@ -972,9 +958,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('変更に失敗しました: $e')));
+      showApiErrorSnackBar(context, e, fallback: '変更に失敗しました');
     }
   }
 
@@ -1011,9 +995,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
+      showApiErrorSnackBar(context, e, fallback: '削除に失敗しました');
     }
   }
 }
@@ -1383,7 +1365,7 @@ class _FolderPickerSheetState extends ConsumerState<_FolderPickerSheet> {
       });
     } catch (e) {
       setState(() {
-        _error = e.toString();
+        _error = apiErrorMessage(e, fallback: 'フォルダを取得できませんでした');
         _isLoading = false;
       });
     }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/misskey_api_provider.dart';
+import 'api_error_snack_bar.dart';
 
 /// ユーザー通報フォームのボトムシート。
 ///
@@ -53,9 +54,7 @@ class _ReportAbuseSheetState extends ConsumerState<ReportAbuseSheet> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('通報の送信に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '通報を送信できませんでした');
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);

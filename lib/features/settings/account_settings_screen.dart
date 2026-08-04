@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/auth/miauth_service.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../shared/providers/account_provider.dart';
 
 class AccountSettingsScreen extends ConsumerWidget {
@@ -103,7 +104,7 @@ class AccountSettingsScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            content: Text(apiErrorMessage(e, fallback: 'トークンを再取得できませんでした')),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );

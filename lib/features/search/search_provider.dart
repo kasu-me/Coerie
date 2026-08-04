@@ -1,9 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../data/models/note_model.dart';
 import '../../data/models/user_model.dart';
 import '../../data/remote/misskey_api.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+
+/// 原因を特定できなかった検索失敗の表示文言。
+const String _searchErrorFallback = '検索に失敗しました';
 
 // ---- 検索エラー種別 ----
 
@@ -174,7 +178,7 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
         isLoading: false,
         error: SearchError(
           type: SearchErrorType.unknown,
-          message: e.toString(),
+          message: apiErrorMessage(e, fallback: _searchErrorFallback),
         ),
       );
     }
@@ -211,7 +215,7 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
         isLoading: false,
         error: SearchError(
           type: SearchErrorType.unknown,
-          message: e.toString(),
+          message: apiErrorMessage(e, fallback: _searchErrorFallback),
         ),
       );
     }
@@ -391,7 +395,7 @@ class TagNoteSearchNotifier extends StateNotifier<TagNoteSearchState> {
         isLoading: false,
         error: SearchError(
           type: SearchErrorType.unknown,
-          message: e.toString(),
+          message: apiErrorMessage(e, fallback: _searchErrorFallback),
         ),
       );
     }
@@ -423,7 +427,7 @@ class TagNoteSearchNotifier extends StateNotifier<TagNoteSearchState> {
         isLoading: false,
         error: SearchError(
           type: SearchErrorType.unknown,
-          message: e.toString(),
+          message: apiErrorMessage(e, fallback: _searchErrorFallback),
         ),
       );
     }
@@ -531,7 +535,7 @@ class UserSearchNotifier extends StateNotifier<UserSearchState> {
         isLoading: false,
         error: SearchError(
           type: SearchErrorType.unknown,
-          message: e.toString(),
+          message: apiErrorMessage(e, fallback: _searchErrorFallback),
         ),
       );
     }
@@ -564,7 +568,7 @@ class UserSearchNotifier extends StateNotifier<UserSearchState> {
         isLoading: false,
         error: SearchError(
           type: SearchErrorType.unknown,
-          message: e.toString(),
+          message: apiErrorMessage(e, fallback: _searchErrorFallback),
         ),
       );
     }
@@ -656,7 +660,7 @@ class HashtagSearchNotifier extends StateNotifier<HashtagSearchState> {
         isLoading: false,
         error: SearchError(
           type: SearchErrorType.unknown,
-          message: e.toString(),
+          message: apiErrorMessage(e, fallback: _searchErrorFallback),
         ),
       );
     }
@@ -688,7 +692,7 @@ class HashtagSearchNotifier extends StateNotifier<HashtagSearchState> {
         isLoading: false,
         error: SearchError(
           type: SearchErrorType.unknown,
-          message: e.toString(),
+          message: apiErrorMessage(e, fallback: _searchErrorFallback),
         ),
       );
     }
@@ -726,14 +730,15 @@ SearchError _parseDioError(DioException e) {
   if (e.type == DioExceptionType.connectionTimeout ||
       e.type == DioExceptionType.receiveTimeout ||
       e.type == DioExceptionType.connectionError) {
-    return const SearchError(
+    return SearchError(
       type: SearchErrorType.network,
-      message: 'ネットワークエラーが発生しました',
+      message: apiErrorMessage(e, fallback: 'ネットワークエラーが発生しました'),
     );
   }
   return SearchError(
     type: SearchErrorType.unknown,
-    message: e.message ?? '不明なエラーが発生しました',
+    // e.message は Dio が組み立てる英語の内部メッセージなので画面には出さない。
+    message: apiErrorMessage(e, fallback: _searchErrorFallback),
   );
 }
 

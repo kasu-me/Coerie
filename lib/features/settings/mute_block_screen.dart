@@ -1,40 +1,30 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../data/models/user_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/user_avatar.dart';
 
-// ---- エラーメッセージ変換 ----
-String _apiErrorMessage(Object e) {
-  if (e is DioException) {
-    final statusCode = e.response?.statusCode;
-    if (statusCode == 403) return '権限がありません。このAPIには追加の権限スコープが必要です。';
-    if (statusCode == 401) return '認証エラーです。再ログインしてください。';
-    if (statusCode == 404) return 'このサーバーでは対応していません。';
-    if (statusCode != null) return 'サーバーエラー ($statusCode)';
-    return 'ネットワークエラー: ${e.message}';
-  }
-  return e.toString();
-}
-
 // ---- プロバイダー ----
 
-final _mutingListProvider =
-    FutureProvider.autoDispose<List<UserModel>>((ref) async {
-      final api = ref.watch(misskeyApiProvider);
-      if (api == null) return [];
-      return api.getMutingList();
-    });
+final _mutingListProvider = FutureProvider.autoDispose<List<UserModel>>((
+  ref,
+) async {
+  final api = ref.watch(misskeyApiProvider);
+  if (api == null) return [];
+  return api.getMutingList();
+});
 
-final _blockingListProvider =
-    FutureProvider.autoDispose<List<UserModel>>((ref) async {
-      final api = ref.watch(misskeyApiProvider);
-      if (api == null) return [];
-      return api.getBlockingList();
-    });
+final _blockingListProvider = FutureProvider.autoDispose<List<UserModel>>((
+  ref,
+) async {
+  final api = ref.watch(misskeyApiProvider);
+  if (api == null) return [];
+  return api.getBlockingList();
+});
 
 final _mutedWordsProvider = FutureProvider<List<List<String>>>((ref) async {
   final api = ref.watch(misskeyApiProvider);
@@ -138,9 +128,7 @@ class _WordMuteTabState extends ConsumerState<_WordMuteTab> {
       ref.invalidate(_mutedWordsProvider);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('追加に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '追加に失敗しました');
       }
     }
   }
@@ -154,9 +142,7 @@ class _WordMuteTabState extends ConsumerState<_WordMuteTab> {
       ref.invalidate(_mutedWordsProvider);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '削除に失敗しました');
       }
     }
   }
@@ -168,7 +154,7 @@ class _WordMuteTabState extends ConsumerState<_WordMuteTab> {
     return mutedAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => ErrorView(
-        message: _apiErrorMessage(e),
+        message: apiErrorMessage(e, fallback: 'ワードミュートを取得できませんでした'),
         onRetry: () => ref.invalidate(_mutedWordsProvider),
       ),
       data: (words) => Scaffold(
@@ -211,7 +197,7 @@ class _UserMuteTab extends ConsumerWidget {
     return listAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => ErrorView(
-        message: _apiErrorMessage(e),
+        message: apiErrorMessage(e, fallback: 'ミュート中のユーザーを取得できませんでした'),
         onRetry: () => ref.invalidate(_mutingListProvider),
       ),
       data: (list) => RefreshIndicator(
@@ -265,9 +251,7 @@ class _UserMuteTab extends ConsumerWidget {
       ref.invalidate(_mutingListProvider);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('ミュート解除に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: 'ミュート解除に失敗しました');
       }
     }
   }
@@ -285,7 +269,7 @@ class _UserBlockTab extends ConsumerWidget {
     return listAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => ErrorView(
-        message: _apiErrorMessage(e),
+        message: apiErrorMessage(e, fallback: 'ブロック中のユーザーを取得できませんでした'),
         onRetry: () => ref.invalidate(_blockingListProvider),
       ),
       data: (list) => RefreshIndicator(
@@ -339,12 +323,9 @@ class _UserBlockTab extends ConsumerWidget {
       ref.invalidate(_blockingListProvider);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('ブロック解除に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: 'ブロック解除に失敗しました');
       }
     }
   }
 }
 // ---- エラー表示ウィジェット ----
-

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../data/models/chat_message_model.dart';
 import '../../data/models/chat_room_model.dart';
 import '../../data/models/clip_model.dart';
@@ -620,7 +621,7 @@ class MisskeyApi {
     if (fileSize > maxSize) {
       final maxMB = maxSize ~/ (1024 * 1024);
       final fileMB = fileSize ~/ (1024 * 1024);
-      throw Exception(
+      throw AppException(
         'ファイルサイズが大きすぎます（${fileMB}MB）。'
         'このサーバーの上限は${maxMB}MBです。'
         '動画を短くするか、画質を下げてお試しください。',
@@ -652,7 +653,7 @@ class MisskeyApi {
     } on DioException catch (e) {
       if (e.response?.statusCode == 413) {
         final maxMB = maxSize ~/ (1024 * 1024);
-        throw Exception(
+        throw AppException(
           'ファイルサイズが大きすぎます。'
           'このサーバーの上限は${maxMB}MBです。'
           '動画を短くするか、画質を下げてお試しください。',
@@ -902,11 +903,12 @@ class MisskeyApi {
 
   /// `[{ ..., <key>: User }]` 形式のレスポンスから対象ユーザーだけを取り出す。
   /// 対象が欠けている要素は捨てる。
-  List<UserModel> _unwrapUsers(dynamic data, String key) => (data as List<dynamic>)
-      .map((e) => (e as Map<String, dynamic>)[key] as Map<String, dynamic>?)
-      .whereType<Map<String, dynamic>>()
-      .map(UserModel.fromJson)
-      .toList();
+  List<UserModel> _unwrapUsers(dynamic data, String key) =>
+      (data as List<dynamic>)
+          .map((e) => (e as Map<String, dynamic>)[key] as Map<String, dynamic>?)
+          .whereType<Map<String, dynamic>>()
+          .map(UserModel.fromJson)
+          .toList();
 
   /// ミュート中のユーザー一覧（mute/list）。
   ///
@@ -1689,8 +1691,7 @@ class MisskeyApi {
     final res = await _dio.post('i/page-likes', data: _body(params));
     return (res.data as List<dynamic>)
         .map(
-          (e) =>
-              PageLikeModel.fromJson(e as Map<String, dynamic>, host: host),
+          (e) => PageLikeModel.fromJson(e as Map<String, dynamic>, host: host),
         )
         .toList();
   }
@@ -1889,10 +1890,8 @@ class MisskeyApi {
     final res = await _dio.post('i/gallery/likes', data: _body(params));
     return (res.data as List<dynamic>)
         .map(
-          (e) => GalleryLikeModel.fromJson(
-            e as Map<String, dynamic>,
-            host: host,
-          ),
+          (e) =>
+              GalleryLikeModel.fromJson(e as Map<String, dynamic>, host: host),
         )
         .toList();
   }

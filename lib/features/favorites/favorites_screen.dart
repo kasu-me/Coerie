@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../timeline/widgets/note_card.dart';
+import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/error_view.dart';
 
 class FavoritesScreen extends ConsumerStatefulWidget {
@@ -69,7 +71,11 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        setState(
+          () => _error = apiErrorMessage(e, fallback: 'お気に入りを取得できませんでした'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -90,9 +96,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('読み込みに失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '読み込みに失敗しました');
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

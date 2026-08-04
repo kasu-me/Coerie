@@ -7,6 +7,7 @@ import '../../data/models/clip_model.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../timeline/widgets/note_card.dart';
+import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/error_view.dart';
 
 class ClipNotesScreen extends ConsumerStatefulWidget {
@@ -89,7 +90,11 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        setState(
+          () => _error = apiErrorMessage(e, fallback: 'クリップの中身を取得できませんでした'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -115,9 +120,7 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('読み込みに失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '読み込みに失敗しました');
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -145,9 +148,7 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('読み込みに失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '読み込みに失敗しました');
       }
     } finally {
       if (mounted) {
@@ -194,9 +195,7 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '削除に失敗しました');
       }
     }
   }

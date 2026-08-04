@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../data/models/chat_message_model.dart';
 import '../../data/models/chat_room_model.dart';
 import '../../data/models/user_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/dm_badge_provider.dart';
+import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/user_avatar.dart';
 import '../../shared/widgets/error_view.dart';
 
@@ -51,7 +53,10 @@ class _ChatHistoryNotifier extends StateNotifier<_ChatHistoryState> {
       final items = await api.getChatHistory(room: false);
       state = state.copyWith(items: items, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+        isLoading: false,
+        error: apiErrorMessage(e, fallback: 'チャットを取得できませんでした'),
+      );
     }
   }
 }
@@ -136,7 +141,10 @@ class _RoomListNotifier extends StateNotifier<_RoomListState> {
 
       state = state.copyWith(items: entries, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+        isLoading: false,
+        error: apiErrorMessage(e, fallback: 'ルームを取得できませんでした'),
+      );
     }
   }
 }
@@ -438,9 +446,7 @@ class _RoomListTab extends ConsumerWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('作成失敗: $e')));
+        showApiErrorSnackBar(context, e, fallback: 'ルームを作成できませんでした');
       }
     }
   }

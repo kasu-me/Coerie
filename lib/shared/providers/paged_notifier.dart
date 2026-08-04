@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/errors/api_error_message.dart';
+
 /// untilId でページングする一覧の共通状態。
 class PagedState<T> {
   final List<T> items;
@@ -40,6 +42,10 @@ abstract class PagedNotifier<T> extends StateNotifier<PagedState<T>> {
   /// 1ページの件数。取得件数がこれ未満なら [PagedState.hasMore] を false にする。
   int get pageSize => 20;
 
+  /// 取得に失敗したときに [PagedState.error] へ入れる既定メッセージ。
+  /// 通信断など原因を特定できた場合はそちらが優先される。
+  String get errorFallback => defaultApiErrorMessage;
+
   /// [untilId] より古い1ページを取得する。null なら先頭から。
   Future<List<T>> fetchPage({String? untilId});
 
@@ -66,7 +72,10 @@ abstract class PagedNotifier<T> extends StateNotifier<PagedState<T>> {
         hasMore: fetched.length >= pageSize,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+        isLoading: false,
+        error: apiErrorMessage(e, fallback: errorFallback),
+      );
     }
   }
 

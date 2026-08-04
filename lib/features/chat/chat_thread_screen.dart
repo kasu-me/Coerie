@@ -3,12 +3,14 @@ import 'package:coerie/core/services/cache_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../data/models/chat_message_model.dart';
 import '../../data/models/user_model.dart';
 import '../../data/remote/misskey_api.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/utils/format_utils.dart';
+import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/user_avatar.dart';
 import '../../shared/widgets/error_view.dart';
 
@@ -91,7 +93,10 @@ class _ThreadNotifier extends StateNotifier<_ThreadState> {
         hasMore: msgs.length >= _limit,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+        isLoading: false,
+        error: apiErrorMessage(e, fallback: 'メッセージを取得できませんでした'),
+      );
     }
   }
 
@@ -260,9 +265,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('送信失敗: $e')));
+        showApiErrorSnackBar(context, e, fallback: 'メッセージを送信できませんでした');
       }
     }
   }

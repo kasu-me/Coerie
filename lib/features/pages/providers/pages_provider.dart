@@ -6,7 +6,7 @@ import '../../../shared/providers/paged_notifier.dart';
 
 /// ページ系一覧の共通基底。
 ///
-/// [PagedNotifier] は失敗時に `e.toString()` しか保持しないため、
+/// [PagedNotifier] は失敗時に表示用の文字列しか保持しないため、
 /// `showApiErrorSnackBar` / `apiErrorMessage` に渡せる生の例外を
 /// [lastError] に控えておく。
 abstract class _PagesPagedNotifier<T> extends PagedNotifier<T> {

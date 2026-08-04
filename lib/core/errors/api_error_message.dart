@@ -1,4 +1,28 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
+
+/// そのまま画面に出せる日本語メッセージを持つ、アプリ内で投げる例外。
+///
+/// `Exception('...')` を直接投げると `toString()` に `Exception: ` が付き、
+/// 各画面で剥がして回る必要があった。ユーザーに見せる文言はこの型で投げ、
+/// 表示側は [apiErrorMessage] を通すこと。
+class AppException implements Exception {
+  final String message;
+
+  const AppException(this.message);
+
+  @override
+  String toString() => message;
+}
+
+/// 原因を特定できなかったときの既定メッセージ。
+///
+/// 例外の `toString()`（英語の内部メッセージ）を画面に出さないための最後の受け皿。
+const String defaultApiErrorMessage = '通信に失敗しました。時間をおいて再試行してください';
+
+/// ネットワーク未接続（機内モード・圏外など）の案内。
+const String _networkMessage = 'ネットワークに接続できません。通信環境を確認してください';
 
 /// Misskey API のエラーコードに対応する日本語メッセージ。
 /// ここに無いコードは HTTP ステータス・`kind` からの推測、
@@ -61,7 +85,14 @@ const String _permissionMessage =
 /// 通信・API エラーをユーザー向けの日本語メッセージに変換する。
 ///
 /// 判別できないエラーは [fallback]（例: `'投票に失敗しました'`）を返す。
-String apiErrorMessage(Object error, {required String fallback}) {
+/// 例外の `toString()` をそのまま画面に出すと英語の内部メッセージが露出するため、
+/// エラーを表示する箇所は必ずこの関数を通すこと。
+String apiErrorMessage(
+  Object error, {
+  String fallback = defaultApiErrorMessage,
+}) {
+  // ユーザー向けの文言を持つ例外はそのまま見せる。
+  if (error is AppException) return error.message;
   if (error is! DioException) return fallback;
 
   switch (error.type) {
@@ -70,12 +101,15 @@ String apiErrorMessage(Object error, {required String fallback}) {
     case DioExceptionType.receiveTimeout:
       return 'サーバーの応答がありません。時間をおいて再試行してください';
     case DioExceptionType.connectionError:
-      return 'ネットワークに接続できません。通信環境を確認してください';
+      return _networkMessage;
     case DioExceptionType.badCertificate:
       return 'サーバーの証明書を検証できませんでした';
     case DioExceptionType.cancel:
       return fallback;
     case DioExceptionType.unknown:
+      // 機内モードや名前解決の失敗は type が unknown のまま
+      // SocketException を包んで届くことがある。
+      if (error.error is SocketException) return _networkMessage;
       return fallback;
     case DioExceptionType.badResponse:
       break;

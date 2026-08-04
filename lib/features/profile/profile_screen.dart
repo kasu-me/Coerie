@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:coerie/core/services/cache_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../shared/widgets/mfm_content.dart';
 import '../../data/models/user_model.dart';
 import '../../data/models/user_field_model.dart';
@@ -50,7 +51,7 @@ class _AppBarIcon extends StatelessWidget {
 final userProfileProvider = FutureProvider.autoDispose
     .family<UserModel, String>((ref, userId) async {
       final api = ref.watch(misskeyApiProvider);
-      if (api == null) throw Exception('未ログイン');
+      if (api == null) throw const AppException('ログインが必要です');
       return api.getUser(userId);
     });
 
@@ -178,7 +179,7 @@ class ProfileScreen extends ConsumerWidget {
       body: userAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => ErrorView(
-          message: e.toString().replaceFirst('Exception: ', ''),
+          message: apiErrorMessage(e, fallback: 'プロフィールを取得できませんでした'),
           onRetry: () => ref.invalidate(userProfileProvider(userId)),
         ),
         data: (user) => _ProfileBody(user: user, userId: userId),

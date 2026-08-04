@@ -3,11 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/note_model.dart';
 import '../../data/models/app_settings_model.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../core/streaming/streaming_service.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/notifications_badge_provider.dart';
+
+/// 原因を特定できなかった取得失敗の表示文言。
+const String _timelineErrorFallback = 'タイムラインを取得できませんでした';
 
 class TimelineState {
   final List<NoteModel> notes;
@@ -213,7 +217,7 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
       state = state.copyWith(
         isLoading: false,
         isLoadingMore: false,
-        error: e.toString().replaceFirst('Exception: ', ''),
+        error: apiErrorMessage(e, fallback: _timelineErrorFallback),
       );
     }
   }
@@ -254,7 +258,7 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
     } catch (e) {
       state = state.copyWith(
         isLoadingMore: false,
-        error: e.toString().replaceFirst('Exception: ', ''),
+        error: apiErrorMessage(e, fallback: _timelineErrorFallback),
       );
     }
   }

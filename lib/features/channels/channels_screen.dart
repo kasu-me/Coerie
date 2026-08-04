@@ -3,9 +3,11 @@ import 'package:coerie/core/services/cache_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../data/models/channel_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/utils/color_utils.dart';
+import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/confirm_dialog.dart';
 import '../../shared/widgets/error_view.dart';
 
@@ -193,7 +195,11 @@ class _SearchTabState extends ConsumerState<_SearchTab>
       final results = await api.searchChannels(query: query.trim());
       if (mounted) setState(() => _results = results);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        setState(
+          () => _error = apiErrorMessage(e, fallback: 'チャンネルを検索できませんでした'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -306,7 +312,11 @@ class _FeaturedTabState extends ConsumerState<_FeaturedTab>
       final items = await api.getChannelsFeatured();
       if (mounted) setState(() => _items = items);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        setState(
+          () => _error = apiErrorMessage(e, fallback: 'チャンネルを取得できませんでした'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -377,7 +387,11 @@ class _FavoritesTabState extends ConsumerState<_FavoritesTab>
       final items = await api.getChannelsMyFavorites();
       if (mounted) setState(() => _items = items);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        setState(
+          () => _error = apiErrorMessage(e, fallback: 'チャンネルを取得できませんでした'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -448,7 +462,11 @@ class _FollowedTabState extends ConsumerState<_FollowedTab>
       final items = await api.getChannelsFollowed();
       if (mounted) setState(() => _items = items);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        setState(
+          () => _error = apiErrorMessage(e, fallback: 'チャンネルを取得できませんでした'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -519,7 +537,11 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
       final items = await api.getChannelsOwned();
       if (mounted) setState(() => _items = items);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        setState(
+          () => _error = apiErrorMessage(e, fallback: 'チャンネルを取得できませんでした'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -560,9 +582,7 @@ class _OwnedTabState extends ConsumerState<_OwnedTab>
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('アーカイブに失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: 'アーカイブに失敗しました');
       }
     }
   }
@@ -738,9 +758,7 @@ class _ChannelEditSheetState extends ConsumerState<_ChannelEditSheet> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('保存に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '保存に失敗しました');
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);

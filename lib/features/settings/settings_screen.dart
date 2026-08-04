@@ -277,7 +277,7 @@ class SettingsScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('エクスポートに失敗しました: $e')));
+        ).showSnackBar(const SnackBar(content: Text('エクスポートに失敗しました')));
       }
     }
   }
@@ -339,7 +339,7 @@ class SettingsScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('エクスポートに失敗しました: $e')));
+        ).showSnackBar(const SnackBar(content: Text('エクスポートに失敗しました')));
       }
     }
   }
@@ -356,7 +356,7 @@ class SettingsScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('ファイル選択に失敗しました: $e')));
+        ).showSnackBar(const SnackBar(content: Text('ファイルを選択できませんでした')));
       }
       return;
     }
@@ -378,7 +378,7 @@ class SettingsScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('ファイルの読み込みに失敗しました: $e')));
+        ).showSnackBar(const SnackBar(content: Text('ファイルを読み込めませんでした')));
       }
       return;
     }
@@ -461,7 +461,7 @@ class SettingsScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('インポートに失敗しました: $e')));
+        ).showSnackBar(const SnackBar(content: Text('インポートに失敗しました')));
       }
     }
   }
@@ -547,4 +547,3 @@ class _CacheManagementTileState extends State<_CacheManagementTile> {
     );
   }
 }
-

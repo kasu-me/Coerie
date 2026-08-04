@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../data/models/antenna_model.dart';
 import '../../data/models/app_settings_model.dart';
 import '../../data/models/user_model.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/confirm_dialog.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/user_avatar.dart';
@@ -51,7 +53,11 @@ class _AntennasScreenState extends ConsumerState<AntennasScreen> {
       final items = await api.getAntennas();
       if (mounted) setState(() => _items = items);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        setState(
+          () => _error = apiErrorMessage(e, fallback: 'アンテナを取得できませんでした'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -83,9 +89,7 @@ class _AntennasScreenState extends ConsumerState<AntennasScreen> {
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '削除に失敗しました');
       }
     }
   }
@@ -286,15 +290,11 @@ class _AntennaUser {
   /// API から復元する（表示用の情報は持たない）。
   factory _AntennaUser.fromAcct(String acct) => _AntennaUser(acct: acct);
 
-  factory _AntennaUser.fromUser(UserModel user) => _AntennaUser(
-    acct: user.acct,
-    name: user.name,
-    avatarUrl: user.avatarUrl,
-  );
+  factory _AntennaUser.fromUser(UserModel user) =>
+      _AntennaUser(acct: user.acct, name: user.name, avatarUrl: user.avatarUrl);
 
   /// 表示名。API から復元しただけの場合は acct から username を起こす。
-  String get displayName =>
-      name ?? acct.replaceFirst('@', '').split('@').first;
+  String get displayName => name ?? acct.replaceFirst('@', '').split('@').first;
 }
 
 // ---- アンテナ作成/編集ボトムシート ----
@@ -359,10 +359,8 @@ class _AntennaEditSheetState extends ConsumerState<_AntennaEditSheet> {
 
   /// キーワード行（[[w1, w2], [w3]]）を編集用のテキスト（"w1 w2\nw3"）に戻す。
   /// [_parseKeywords] の逆変換。
-  String _keywordRowsToText(List<List<String>> rows) => rows
-      .map((row) => row.join(' '))
-      .where((s) => s.isNotEmpty)
-      .join('\n');
+  String _keywordRowsToText(List<List<String>> rows) =>
+      rows.map((row) => row.join(' ')).where((s) => s.isNotEmpty).join('\n');
 
   List<List<String>> _parseKeywords(String text) {
     if (text.trim().isEmpty) return [[]];
@@ -440,9 +438,7 @@ class _AntennaEditSheetState extends ConsumerState<_AntennaEditSheet> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('保存に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '保存に失敗しました');
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);

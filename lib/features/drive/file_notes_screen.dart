@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 
+import '../../core/errors/api_error_message.dart';
 import '../../data/models/drive_file_model.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/widgets/error_view.dart';
 import '../timeline/widgets/note_card.dart';
+
+/// 原因を特定できなかった取得失敗の表示文言。
+const String _fetchErrorFallback = 'ノートを取得できませんでした';
 
 class DriveFileNotesScreen extends ConsumerStatefulWidget {
   final DriveFileModel file;
@@ -121,14 +125,14 @@ class _DriveFileNotesScreenState extends ConsumerState<DriveFileNotesScreen> {
         }
       } else {
         setState(() {
-          _error = dioErr.toString();
+          _error = apiErrorMessage(dioErr, fallback: _fetchErrorFallback);
           _isLoading = false;
           _isLoadingMore = false;
         });
       }
     } catch (e) {
       setState(() {
-        _error = e.toString();
+        _error = apiErrorMessage(e, fallback: _fetchErrorFallback);
         _isLoading = false;
         _isLoadingMore = false;
       });

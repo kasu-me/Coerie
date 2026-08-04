@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../data/models/app_settings_model.dart';
 import '../../data/models/user_list_model.dart';
 import '../../data/models/user_model.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/confirm_dialog.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/user_avatar.dart';
@@ -51,7 +53,9 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
       final items = await api.getLists();
       if (mounted) setState(() => _lists = items);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        setState(() => _error = apiErrorMessage(e, fallback: 'リストを取得できませんでした'));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -92,9 +96,7 @@ class _ListsScreenState extends ConsumerState<ListsScreen> {
       await _load();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '削除に失敗しました');
       }
     }
   }
@@ -349,9 +351,7 @@ class _ListEditSheetState extends ConsumerState<_ListEditSheet> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('保存に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '保存に失敗しました');
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -463,7 +463,11 @@ class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
       final memberships = await api.getListMembers(listId: listId);
       if (mounted) setState(() => _members = memberships);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        setState(
+          () => _error = apiErrorMessage(e, fallback: 'メンバーを取得できませんでした'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -579,16 +583,11 @@ class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
     try {
-      await api.addListMember(
-        listId: widget.list.id,
-        userId: selectedUser.id,
-      );
+      await api.addListMember(listId: widget.list.id, userId: selectedUser.id);
       await _loadMembers();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('追加に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '追加に失敗しました');
       }
     }
   }
@@ -604,9 +603,7 @@ class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
       await _loadMembers();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '削除に失敗しました');
       }
     }
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
@@ -129,7 +130,7 @@ class _NoteDetailScreenState extends ConsumerState<NoteDetailScreen> {
             ),
             error: (e, _) => Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('返信の読み込みに失敗しました: $e'),
+              child: Text(apiErrorMessage(e, fallback: '返信を読み込めませんでした')),
             ),
           ),
         ],

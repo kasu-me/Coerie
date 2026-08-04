@@ -5,12 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../data/models/app_settings_model.dart';
 import '../../data/models/channel_model.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/utils/color_utils.dart';
+import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/error_view.dart';
 import '../timeline/timeline_screen.dart';
 import '../timeline/timeline_provider.dart';
@@ -64,7 +66,11 @@ class _ChannelDetailScreenState extends ConsumerState<ChannelDetailScreen>
       final data = await api.getChannel(widget.channelId);
       if (mounted) setState(() => _channel = data);
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        setState(
+          () => _error = apiErrorMessage(e, fallback: 'チャンネルを取得できませんでした'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -268,9 +274,7 @@ class _InfoTabState extends ConsumerState<_InfoTab> {
       widget.onUpdated();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('操作に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '操作に失敗しました');
       }
     } finally {
       if (mounted) setState(() => _isActionLoading = false);
@@ -292,9 +296,7 @@ class _InfoTabState extends ConsumerState<_InfoTab> {
       widget.onUpdated();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('操作に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '操作に失敗しました');
       }
     } finally {
       if (mounted) setState(() => _isActionLoading = false);
@@ -592,9 +594,7 @@ class _ChannelInfoEditSheetState extends ConsumerState<_ChannelInfoEditSheet> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('保存に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '保存に失敗しました');
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);

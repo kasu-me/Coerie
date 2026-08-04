@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 import '../../data/models/user_model.dart';
+import '../errors/api_error_message.dart';
 import 'miauth_permissions.dart';
 
 class MiAuthService {
@@ -81,7 +82,7 @@ class MiAuthService {
       if (!await launchUrl(authUrl, mode: LaunchMode.externalApplication)) {
         await prefs.remove(_prefKeySession);
         await prefs.remove(_prefKeyHost);
-        throw Exception('ブラウザを開けませんでした');
+        throw const AppException('ブラウザを開けませんでした');
       }
 
       await completer.future.timeout(
@@ -134,7 +135,7 @@ class MiAuthService {
       await prefs.remove(_prefKeySession);
       await prefs.remove(_prefKeyHost);
 
-      if (data['ok'] != true) throw Exception('認証に失敗しました');
+      if (data['ok'] != true) throw const AppException('認証に失敗しました');
 
       final token = data['token'] as String;
       final user = UserModel.fromJson(

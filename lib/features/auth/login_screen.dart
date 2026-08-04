@@ -10,6 +10,7 @@ import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/account_visibility_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../../core/auth/miauth_service.dart';
+import '../../core/errors/api_error_message.dart';
 import '../../data/local/hive_service.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/app_settings_model.dart';
@@ -93,7 +94,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+          _errorMessage = apiErrorMessage(e, fallback: 'ログインに失敗しました');
         });
       }
     }
@@ -111,7 +112,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('ファイル選択に失敗しました: $e')));
+        ).showSnackBar(const SnackBar(content: Text('ファイルを選択できませんでした')));
       }
       return;
     }
@@ -127,13 +128,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       } else if (path != null) {
         jsonStr = await File(path).readAsString();
       } else {
-        throw const FormatException('ファイルを読み込めませんでした');
+        throw const AppException('ファイルを読み込めませんでした');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('ファイルの読み込みに失敗しました: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(apiErrorMessage(e, fallback: 'ファイルを読み込めませんでした')),
+          ),
+        );
       }
       return;
     }
@@ -215,17 +218,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         );
       }
-    } on FormatException catch (e) {
+    } on FormatException {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('無効なJSONです: ${e.message}')));
+        ).showSnackBar(const SnackBar(content: Text('設定ファイルの形式が正しくありません')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('インポートに失敗しました: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(apiErrorMessage(e, fallback: 'インポートに失敗しました'))),
+        );
       }
     }
   }

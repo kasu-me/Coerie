@@ -30,6 +30,7 @@ import '../../../shared/utils/emoji_utils.dart';
 import '../ogp_provider.dart';
 import '../timeline_provider.dart';
 import '../../../shared/utils/format_utils.dart';
+import '../../../shared/widgets/api_error_snack_bar.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/user_avatar.dart';
 
@@ -259,12 +260,8 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
-          SnackBar(
-            content: Text(apiErrorMessage(e, fallback: '投票に失敗しました')),
-          ),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(apiErrorMessage(e, fallback: '投票に失敗しました'))),
         );
       }
     } finally {
@@ -334,9 +331,7 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('エラー: $e')));
+        showApiErrorSnackBar(context, e, fallback: 'リアクションに失敗しました');
       }
     }
   }
@@ -1185,9 +1180,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
       // 失敗したら元に戻す
       if (mounted) setState(() => _isFavorited = current);
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('操作に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '操作に失敗しました');
       }
     }
   }
@@ -1398,8 +1391,10 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                               }
                             } catch (e) {
                               if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('操作に失敗しました: $e')),
+                                showApiErrorSnackBar(
+                                  context,
+                                  e,
+                                  fallback: '操作に失敗しました',
                                 );
                               }
                             }
@@ -1494,9 +1489,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '削除に失敗しました');
       }
     }
   }
@@ -1531,9 +1524,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
       );
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '削除に失敗しました');
       }
     }
   }
@@ -1548,9 +1539,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
       clips = await api.getClips(limit: 100);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('クリップの取得に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: 'クリップを取得できませんでした');
       }
       return;
     }
@@ -1604,9 +1593,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('リノートに失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: 'リノートに失敗しました');
       }
     } finally {
       if (mounted) setState(() => _isRenoting = false);
@@ -2373,9 +2360,7 @@ class _UnrenoteButtonState extends ConsumerState<_UnrenoteButton> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('リノート解除に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: 'リノート解除に失敗しました');
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -2570,9 +2555,7 @@ class _ClipPickerSheetState extends ConsumerState<_ClipPickerSheet> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('追加に失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: '追加に失敗しました');
       }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
@@ -2625,9 +2608,7 @@ class _ClipPickerSheetState extends ConsumerState<_ClipPickerSheet> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('失敗しました: $e')));
+        showApiErrorSnackBar(context, e, fallback: 'クリップに追加できませんでした');
       }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
