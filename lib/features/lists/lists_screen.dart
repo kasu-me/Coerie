@@ -708,17 +708,13 @@ class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
       separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (ctx, i) {
         final membership = _members[i];
-        final user = membership['user'] as Map<String, dynamic>? ?? {};
-        final name =
-            user['name'] as String? ?? user['username'] as String? ?? '';
-        final username = user['username'] as String? ?? '';
-        final userHost = user['host'] as String?;
-        final acct = userHost != null ? '@$username@$userHost' : '@$username';
-        final avatarUrl = user['avatarUrl'] as String?;
+        final userJson = membership['user'] as Map<String, dynamic>?;
+        if (userJson == null) return const SizedBox.shrink();
+        final user = UserModel.fromJson(userJson);
         return ListTile(
-          leading: UserAvatar(avatarUrl: avatarUrl, radius: 20),
-          title: Text(name),
-          subtitle: Text(acct, style: Theme.of(ctx).textTheme.bodySmall),
+          leading: UserAvatar(avatarUrl: user.avatarUrl, radius: 20),
+          title: Text(user.name),
+          subtitle: Text(user.acct, style: Theme.of(ctx).textTheme.bodySmall),
           trailing: IconButton(
             icon: Icon(
               Icons.person_remove_outlined,

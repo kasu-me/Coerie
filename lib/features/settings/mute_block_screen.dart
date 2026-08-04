@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../data/models/user_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/user_avatar.dart';
@@ -234,25 +235,17 @@ class _UserMuteTab extends ConsumerWidget {
                 physics: const AlwaysScrollableScrollPhysics(),
                 itemCount: list.length,
                 itemBuilder: (_, i) {
-                  final mutee = list[i]['mutee'] as Map<String, dynamic>?;
-                  if (mutee == null) return const SizedBox.shrink();
-                  final name =
-                      mutee['name'] as String? ??
-                      mutee['username'] as String? ??
-                      '';
-                  final username = mutee['username'] as String? ?? '';
-                  final host = mutee['host'] as String? ?? '';
-                  final acct = host.isEmpty ? '@$username' : '@$username@$host';
-                  final avatarUrl = mutee['avatarUrl'] as String?;
-                  final userId = mutee['id'] as String? ?? '';
+                  final muteeJson = list[i]['mutee'] as Map<String, dynamic>?;
+                  if (muteeJson == null) return const SizedBox.shrink();
+                  final mutee = UserModel.fromJson(muteeJson);
 
                   return ListTile(
-                    leading: UserAvatar(avatarUrl: avatarUrl),
-                    title: Text(name),
-                    subtitle: Text(acct),
-                    onTap: () => context.push('/profile/$userId'),
+                    leading: UserAvatar(avatarUrl: mutee.avatarUrl),
+                    title: Text(mutee.name),
+                    subtitle: Text(mutee.acct),
+                    onTap: () => context.push('/profile/${mutee.id}'),
                     trailing: TextButton(
-                      onPressed: () => _unmute(context, ref, userId),
+                      onPressed: () => _unmute(context, ref, mutee.id),
                       child: const Text('解除'),
                     ),
                   );
@@ -318,25 +311,18 @@ class _UserBlockTab extends ConsumerWidget {
                 physics: const AlwaysScrollableScrollPhysics(),
                 itemCount: list.length,
                 itemBuilder: (_, i) {
-                  final blockee = list[i]['blockee'] as Map<String, dynamic>?;
-                  if (blockee == null) return const SizedBox.shrink();
-                  final name =
-                      blockee['name'] as String? ??
-                      blockee['username'] as String? ??
-                      '';
-                  final username = blockee['username'] as String? ?? '';
-                  final host = blockee['host'] as String? ?? '';
-                  final acct = host.isEmpty ? '@$username' : '@$username@$host';
-                  final avatarUrl = blockee['avatarUrl'] as String?;
-                  final userId = blockee['id'] as String? ?? '';
+                  final blockeeJson =
+                      list[i]['blockee'] as Map<String, dynamic>?;
+                  if (blockeeJson == null) return const SizedBox.shrink();
+                  final blockee = UserModel.fromJson(blockeeJson);
 
                   return ListTile(
-                    leading: UserAvatar(avatarUrl: avatarUrl),
-                    title: Text(name),
-                    subtitle: Text(acct),
-                    onTap: () => context.push('/profile/$userId'),
+                    leading: UserAvatar(avatarUrl: blockee.avatarUrl),
+                    title: Text(blockee.name),
+                    subtitle: Text(blockee.acct),
+                    onTap: () => context.push('/profile/${blockee.id}'),
                     trailing: TextButton(
-                      onPressed: () => _unblock(context, ref, userId),
+                      onPressed: () => _unblock(context, ref, blockee.id),
                       child: const Text('解除'),
                     ),
                   );

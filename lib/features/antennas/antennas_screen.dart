@@ -280,6 +280,32 @@ class _AntennasScreenState extends ConsumerState<AntennasScreen> {
   }
 }
 
+/// アンテナの受信対象ユーザー。
+///
+/// アンテナ API はユーザーを acct 文字列（`"@username@host"`）の配列でしか
+/// 返さず id を含まないため、[UserModel] では表現できない。
+/// [name] と [avatarUrl] はユーザー選択で追加したときだけ埋まる。
+class _AntennaUser {
+  final String acct;
+  final String? name;
+  final String? avatarUrl;
+
+  const _AntennaUser({required this.acct, this.name, this.avatarUrl});
+
+  /// API から復元する（表示用の情報は持たない）。
+  factory _AntennaUser.fromAcct(String acct) => _AntennaUser(acct: acct);
+
+  factory _AntennaUser.fromUser(UserModel user) => _AntennaUser(
+    acct: user.acct,
+    name: user.name,
+    avatarUrl: user.avatarUrl,
+  );
+
+  /// 表示名。API から復元しただけの場合は acct から username を起こす。
+  String get displayName =>
+      name ?? acct.replaceFirst('@', '').split('@').first;
+}
+
 // ---- アンテナ作成/編集ボトムシート ----
 
 class _AntennaEditSheet extends ConsumerStatefulWidget {
@@ -306,8 +332,7 @@ class _AntennaEditSheetState extends ConsumerState<_AntennaEditSheet> {
   bool _excludeNotesInSensitiveChannel = false;
 
   // ユーザー一覧（users / users_blacklist のとき使う）
-  // 各要素は {id, username, host, name, avatarUrl} の Map
-  List<Map<String, dynamic>> _selectedUsers = [];
+  List<_AntennaUser> _selectedUsers = [];
 
   bool _isSaving = false;
 
@@ -348,18 +373,12 @@ class _AntennaEditSheetState extends ConsumerState<_AntennaEditSheet> {
             .join('\n');
       }
 
-      // users: ["@username@host", ...] → user map list
+      // users: ["@username@host", ...]
       final users = a['users'] as List<dynamic>?;
       if (users != null) {
-        _selectedUsers = users.map((u) {
-          final acct = u.toString();
-          final parts = acct.replaceFirst('@', '').split('@');
-          return {
-            'acct': acct,
-            'username': parts.isNotEmpty ? parts[0] : acct,
-            'host': parts.length > 1 ? parts[1] : null,
-          };
-        }).toList();
+        _selectedUsers = users
+            .map((u) => _AntennaUser.fromAcct(u.toString()))
+            .toList();
       }
     }
   }
@@ -406,13 +425,7 @@ class _AntennaEditSheetState extends ConsumerState<_AntennaEditSheet> {
       return;
     }
 
-    final users = _selectedUsers.map((u) {
-      final acct = u['acct'] as String?;
-      if (acct != null) return acct;
-      final username = u['username'] as String? ?? '';
-      final host = u['host'] as String?;
-      return host != null ? '@$username@$host' : '@$username';
-    }).toList();
+    final users = _selectedUsers.map((u) => u.acct).toList();
 
     setState(() => _isSaving = true);
     final api = ref.read(misskeyApiProvider);
@@ -573,24 +586,9 @@ class _AntennaEditSheetState extends ConsumerState<_AntennaEditSheet> {
     if (selectedUser == null || !mounted) return;
     final acct = selectedUser.acct;
     // 重複チェック
-    final alreadyAdded = _selectedUsers.any((u) {
-      final existing =
-          u['acct'] as String? ??
-          (u['host'] != null
-              ? '@${u['username']}@${u['host']}'
-              : '@${u['username']}');
-      return existing == acct;
-    });
+    final alreadyAdded = _selectedUsers.any((u) => u.acct == acct);
     if (!alreadyAdded) {
-      setState(() {
-        _selectedUsers.add({
-          'acct': acct,
-          'username': selectedUser.username,
-          'host': selectedUser.host.isEmpty ? null : selectedUser.host,
-          'name': selectedUser.name,
-          'avatarUrl': selectedUser.avatarUrl,
-        });
-      });
+      setState(() => _selectedUsers.add(_AntennaUser.fromUser(selectedUser)));
     }
   }
 
@@ -684,27 +682,17 @@ class _AntennaEditSheetState extends ConsumerState<_AntennaEditSheet> {
                   else
                     ...List.generate(_selectedUsers.length, (i) {
                       final user = _selectedUsers[i];
-                      final name =
-                          user['name'] as String? ??
-                          user['username'] as String? ??
-                          '';
-                      final acct =
-                          user['acct'] as String? ??
-                          (user['host'] != null
-                              ? '@${user['username']}@${user['host']}'
-                              : '@${user['username']}');
-                      final avatarUrl = user['avatarUrl'] as String?;
                       return ListTile(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                         leading: UserAvatar(
-                          avatarUrl: avatarUrl,
+                          avatarUrl: user.avatarUrl,
                           radius: 16,
                           iconSize: 16,
                         ),
-                        title: Text(name),
+                        title: Text(user.displayName),
                         subtitle: Text(
-                          acct,
+                          user.acct,
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                         trailing: IconButton(

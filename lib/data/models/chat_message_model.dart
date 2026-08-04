@@ -1,3 +1,6 @@
+import 'chat_room_model.dart';
+import 'user_model.dart';
+
 /// Misskey チャット（chat/*）のメッセージモデル。
 ///
 /// chat API は用途によって返すスキーマが異なる:
@@ -15,15 +18,15 @@ class ChatMessageModel {
 
   /// 送信者
   final String fromUserId;
-  final Map<String, dynamic>? fromUser;
+  final UserModel? fromUser;
 
   /// 1対1 DM の宛先（ルームメッセージでは null）
   final String? toUserId;
-  final Map<String, dynamic>? toUser;
+  final UserModel? toUser;
 
   /// ルームメッセージの宛先（DM では null）
   final String? toRoomId;
-  final Map<String, dynamic>? toRoom;
+  final ChatRoomModel? toRoom;
 
   /// 既読フラグ（`ChatMessage` のみ。Lite スキーマには含まれない）
   final bool isRead;
@@ -50,13 +53,15 @@ class ChatMessageModel {
   bool get isDirectMessage => toUserId != null;
   bool get isRoomMessage => toRoomId != null;
 
-  String get senderName =>
-      fromUser?['name'] as String? ?? fromUser?['username'] as String? ?? '不明';
+  String get senderName => fromUser?.name ?? '不明';
 
-  String? get senderAvatarUrl => fromUser?['avatarUrl'] as String?;
+  String? get senderAvatarUrl => fromUser?.avatarUrl;
 
   factory ChatMessageModel.fromJson(Map<String, dynamic> json) {
     final rawCreatedAt = json['createdAt'] as String?;
+    final fromUser = json['fromUser'] as Map<String, dynamic>?;
+    final toUser = json['toUser'] as Map<String, dynamic>?;
+    final toRoom = json['toRoom'] as Map<String, dynamic>?;
     return ChatMessageModel(
       id: json['id'] as String? ?? '',
       createdAt: rawCreatedAt != null
@@ -66,11 +71,11 @@ class ChatMessageModel {
       fileId: json['fileId'] as String?,
       file: json['file'] as Map<String, dynamic>?,
       fromUserId: json['fromUserId'] as String? ?? '',
-      fromUser: json['fromUser'] as Map<String, dynamic>?,
+      fromUser: fromUser == null ? null : UserModel.fromJson(fromUser),
       toUserId: json['toUserId'] as String?,
-      toUser: json['toUser'] as Map<String, dynamic>?,
+      toUser: toUser == null ? null : UserModel.fromJson(toUser),
       toRoomId: json['toRoomId'] as String?,
-      toRoom: json['toRoom'] as Map<String, dynamic>?,
+      toRoom: toRoom == null ? null : ChatRoomModel.fromJson(toRoom),
       isRead: json['isRead'] as bool? ?? false,
       reactions: json['reactions'] as List<dynamic>? ?? const [],
     );

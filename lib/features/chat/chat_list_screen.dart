@@ -305,13 +305,11 @@ class _DmListTab extends ConsumerWidget {
           // 自分が送信者かどうか
           final isMe = myUserId.isNotEmpty && msg.fromUserId == myUserId;
           // 会話相手（自分が送信者なら toUser、相手が送信者なら fromUser）
-          final partnerData = isMe ? msg.toUser : msg.fromUser;
+          final partner = isMe ? msg.toUser : msg.fromUser;
           final partnerId = (isMe ? msg.toUserId : msg.fromUserId) ?? '';
           final partnerName =
-              partnerData?['name'] as String? ??
-              partnerData?['username'] as String? ??
-              (partnerId.isNotEmpty ? partnerId : 'ユーザー');
-          final partnerAvatar = partnerData?['avatarUrl'] as String?;
+              partner?.name ?? (partnerId.isNotEmpty ? partnerId : 'ユーザー');
+          final partnerAvatar = partner?.avatarUrl;
           final previewText = msg.text ?? (msg.file != null ? '[添付ファイル]' : '');
 
           return _ConversationTile(
@@ -416,18 +414,16 @@ class _RoomListTab extends ConsumerWidget {
           final room = entry.room;
           final msg = entry.lastMessage;
 
+          final fallbackRoomName = msg?.toRoom?.name ?? '';
           final roomName = room.name.isNotEmpty
               ? room.name
-              : (msg?.toRoom?['name'] as String? ?? 'グループ');
+              : (fallbackRoomName.isNotEmpty ? fallbackRoomName : 'グループ');
 
           final String previewText;
           if (msg == null) {
             previewText = 'まだメッセージはありません';
           } else {
-            final senderName =
-                msg.fromUser?['name'] as String? ??
-                msg.fromUser?['username'] as String? ??
-                '不明';
+            final senderName = msg.senderName;
             previewText = msg.text != null
                 ? '$senderName: ${msg.text}'
                 : (msg.file != null ? '$senderName: [添付ファイル]' : '');
