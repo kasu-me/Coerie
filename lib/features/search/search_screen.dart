@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../data/models/note_model.dart';
-import '../../data/models/user_model.dart';
 import '../timeline/widgets/note_card.dart';
 import 'search_provider.dart';
 import '../../shared/mixins/infinite_scroll_mixin.dart';
+import '../../shared/widgets/user_list_sheet.dart';
 import '../../shared/utils/format_utils.dart';
-import '../../shared/widgets/user_avatar.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   final int initialTab;
@@ -628,7 +627,11 @@ class _UserSearchTabState extends ConsumerState<_UserSearchTab>
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          return _UserTile(user: state.users[index]);
+          final user = state.users[index];
+          return UserListTile(
+            user: user,
+            onTap: () => context.push('/profile/${user.id}'),
+          );
         },
       ),
     );
@@ -668,22 +671,6 @@ class _UserOriginSelector extends ConsumerWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _UserTile extends StatelessWidget {
-  final UserModel user;
-
-  const _UserTile({required this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: UserAvatar(avatarUrl: user.avatarUrl),
-      title: Text(user.name, overflow: TextOverflow.ellipsis),
-      subtitle: Text(user.acct, overflow: TextOverflow.ellipsis),
-      onTap: () => context.push('/profile/${user.id}'),
     );
   }
 }

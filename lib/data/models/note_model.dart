@@ -1,3 +1,4 @@
+import '../../core/constants/app_constants.dart';
 import 'drive_file_model.dart';
 import 'user_model.dart';
 import 'poll_model.dart';
@@ -54,6 +55,18 @@ class NoteModel {
     this.poll,
     this.isFavorited,
   });
+
+  /// [viewerUserId] のユーザーがこのノートをリノートできるか。
+  ///
+  /// フォロワー限定は本人のノートだけ、ダイレクトは誰もリノートできない。
+  /// 同じ判定式が note_card の2箇所に書かれていたためここへ寄せた。
+  bool canRenoteBy(String? viewerUserId) {
+    if (visibility == AppConstants.visibilitySpecified) return false;
+    if (visibility == AppConstants.visibilityFollowers) {
+      return user.id == viewerUserId;
+    }
+    return true;
+  }
 
   static const _sentinel = Object();
 

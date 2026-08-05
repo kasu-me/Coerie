@@ -24,6 +24,7 @@ import '../../data/models/note_model.dart';
 import '../../data/remote/misskey_api.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_visibility_provider.dart';
+import '../../shared/utils/visibility_utils.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../draft/draft_provider.dart';
 import 'emoji_picker_sheet.dart';
@@ -1005,7 +1006,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                     : AppConstants.visibilityLabels.entries)
                 .map(
                   (e) => ListTile(
-                    leading: Icon(_visibilityIcon(e.key)),
+                    leading: Icon(visibilityIcon(e.key)),
                     title: Text(e.value),
                     trailing: _visibility == e.key
                         ? const Icon(Icons.check, color: Colors.green)
@@ -1780,7 +1781,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
                     // 公開範囲ボタン
                     IconButton(
-                      icon: Icon(_visibilityIcon(_visibility), size: 20),
+                      icon: Icon(visibilityIcon(_visibility), size: 20),
                       tooltip: AppConstants.visibilityLabels[_visibility],
                       onPressed: _showVisibilityPicker,
                     ),
@@ -1913,16 +1914,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         ),
       ),
     );
-  }
-
-  IconData _visibilityIcon(String visibility) {
-    return switch (visibility) {
-      AppConstants.visibilityPublic => Icons.public,
-      AppConstants.visibilityHome => Icons.home_outlined,
-      AppConstants.visibilityFollowers => Icons.lock_outline,
-      AppConstants.visibilitySpecified => Icons.mail_outline,
-      _ => Icons.public,
-    };
   }
 }
 

@@ -5,6 +5,7 @@ import '../../core/constants/app_constants.dart';
 import '../../shared/widgets/confirm_dialog.dart';
 import 'draft_provider.dart';
 import '../../shared/utils/format_utils.dart';
+import '../../shared/utils/visibility_utils.dart';
 
 class DraftScreen extends ConsumerWidget {
   const DraftScreen({super.key});
@@ -61,7 +62,7 @@ class DraftScreen extends ConsumerWidget {
                     subtitle: Row(
                       children: [
                         Icon(
-                          _visibilityIcon(draft.visibility),
+                          visibilityIcon(draft.visibility),
                           size: 12,
                           color: Theme.of(context).colorScheme.outline,
                         ),
@@ -104,11 +105,4 @@ class DraftScreen extends ConsumerWidget {
             ),
     );
   }
-
-  IconData _visibilityIcon(String v) => switch (v) {
-    AppConstants.visibilityHome => Icons.home_outlined,
-    AppConstants.visibilityFollowers => Icons.lock_outline,
-    AppConstants.visibilitySpecified => Icons.mail_outline,
-    _ => Icons.public,
-  };
 }

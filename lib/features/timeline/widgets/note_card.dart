@@ -30,21 +30,13 @@ import '../../../shared/utils/emoji_utils.dart';
 import '../ogp_provider.dart';
 import '../timeline_provider.dart';
 import '../../../shared/utils/format_utils.dart';
+import '../../../shared/utils/visibility_utils.dart';
+import '../../../shared/widgets/user_list_sheet.dart';
 import '../../../shared/widgets/api_error_snack_bar.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/user_avatar.dart';
 
 // ---- NoteCard ----
-
-IconData _renoteVisibilityIcon(String visibility) {
-  return switch (visibility) {
-    AppConstants.visibilityPublic => Icons.public,
-    AppConstants.visibilityHome => Icons.home_outlined,
-    AppConstants.visibilityFollowers => Icons.lock_outline,
-    AppConstants.visibilitySpecified => Icons.mail_outline,
-    _ => Icons.public,
-  };
-}
 
 /// ノート1件を表示する。
 ///
@@ -385,90 +377,22 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
       reaction: reactionKey,
     );
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheetCtx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Text(
-                            'リアクション:',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(width: 8),
-                          _ReactionEmojiImage(
-                            reactionKey: reactionKey,
-                            emojiResolver: emojiResolver,
-                            size: 22,
-                            fallbackStyle: Theme.of(
-                              context,
-                            ).textTheme.titleMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(sheetCtx),
-                      child: const Text('閉じる'),
-                    ),
-                  ],
-                ),
-              ),
-              FutureBuilder<List<UserModel>>(
-                future: usersFuture,
-                builder: (ctx, snap) {
-                  if (snap.connectionState != ConnectionState.done) {
-                    return const SizedBox(
-                      height: 120,
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
-                  final users = snap.data ?? [];
-                  if (users.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Text('該当するユーザーはいません'),
-                    );
-                  }
-                  return SizedBox(
-                    height: 320,
-                    child: ListView.separated(
-                      itemCount: users.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (c, i) {
-                        final u = users[i];
-                        return ListTile(
-                          leading: UserAvatar(
-                            avatarUrl: u.avatarUrl,
-                            iconSize: 20,
-                          ),
-                          title: Text(u.name),
-                          subtitle: Text(u.acct),
-                          onTap: () {
-                            Navigator.pop(sheetCtx);
-                            context.push('/profile/${u.id}');
-                          },
-                        );
-                      },
-                    ),
-                  );
-                },
-              ),
-            ],
+    await showUserListSheet(
+      context,
+      title: Row(
+        children: [
+          Text('リアクション:', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(width: 8),
+          _ReactionEmojiImage(
+            reactionKey: reactionKey,
+            emojiResolver: emojiResolver,
+            size: 22,
+            fallbackStyle: Theme.of(context).textTheme.titleMedium,
           ),
-        ),
+        ],
       ),
+      usersFuture: usersFuture,
+      emptyMessage: '該当するユーザーはいません',
     );
   }
 
@@ -567,7 +491,7 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                                 .renoteVisibility] ??
                             widget.renoteVisibility!,
                         child: Icon(
-                          _renoteVisibilityIcon(widget.renoteVisibility!),
+                          visibilityIcon(widget.renoteVisibility!),
                           size: 14,
                           color: theme.colorScheme.outline,
                         ),
@@ -650,7 +574,7 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                   Padding(
                     padding: const EdgeInsets.only(left: 4),
                     child: Icon(
-                      _visibilityIcon(note.visibility),
+                      visibilityIcon(note.visibility),
                       size: 14,
                       color: theme.colorScheme.outline,
                     ),
@@ -886,15 +810,6 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
       onTap: () => context.push('/note/${note.id}', extra: note),
       child: card,
     );
-  }
-
-  IconData _visibilityIcon(String visibility) {
-    return switch (visibility) {
-      AppConstants.visibilityHome => Icons.home_outlined,
-      AppConstants.visibilityFollowers => Icons.lock_outline,
-      AppConstants.visibilitySpecified => Icons.mail_outline,
-      _ => Icons.public,
-    };
   }
 }
 
@@ -1273,12 +1188,9 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
             Builder(
               builder: (ctx) {
                 final activeAccount = ref.read(activeAccountProvider);
-                final canRenote =
-                    !((widget.note.visibility ==
-                                AppConstants.visibilityFollowers &&
-                            widget.note.user.id != activeAccount?.userId) ||
-                        widget.note.visibility ==
-                            AppConstants.visibilitySpecified);
+                final canRenote = widget.note.canRenoteBy(
+                  activeAccount?.userId,
+                );
                 return ListTile(
                   leading: const Icon(Icons.format_quote),
                   title: const Text('引用してリノート'),
@@ -1620,79 +1532,22 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     // シートを開く前に1度だけ生成しておく。
     final usersFuture = api.getNoteRenotes(widget.note.id);
 
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheetCtx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 8),
-                    const Icon(Icons.repeat, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'リノートしたユーザー',
-                        style: Theme.of(sheetCtx).textTheme.titleMedium,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(sheetCtx),
-                      child: const Text('閉じる'),
-                    ),
-                  ],
-                ),
-              ),
-              FutureBuilder<List<UserModel>>(
-                future: usersFuture,
-                builder: (ctx, snap) {
-                  if (snap.connectionState != ConnectionState.done) {
-                    return const SizedBox(
-                      height: 120,
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
-                  final users = snap.data ?? [];
-                  if (users.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Text('リノートしたユーザーはいません'),
-                    );
-                  }
-                  return SizedBox(
-                    height: 320,
-                    child: ListView.separated(
-                      itemCount: users.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (c, i) {
-                        final u = users[i];
-                        return ListTile(
-                          leading: UserAvatar(
-                            avatarUrl: u.avatarUrl,
-                            iconSize: 20,
-                          ),
-                          title: Text(u.name),
-                          subtitle: Text(u.acct),
-                          onTap: () {
-                            Navigator.pop(sheetCtx);
-                            context.push('/profile/${u.id}');
-                          },
-                        );
-                      },
-                    ),
-                  );
-                },
-              ),
-            ],
+    await showUserListSheet(
+      context,
+      title: Row(
+        children: [
+          const Icon(Icons.repeat, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'リノートしたユーザー',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
           ),
-        ),
+        ],
       ),
+      usersFuture: usersFuture,
+      emptyMessage: 'リノートしたユーザーはいません',
     );
   }
 
@@ -1700,10 +1555,7 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final activeAccount = ref.read(activeAccountProvider);
-    final canRenote =
-        !((widget.note.visibility == AppConstants.visibilityFollowers &&
-                widget.note.user.id != activeAccount?.userId) ||
-            widget.note.visibility == AppConstants.visibilitySpecified);
+    final canRenote = widget.note.canRenoteBy(activeAccount?.userId);
     return Row(
       children: [
         _ActionButton(
