@@ -102,6 +102,16 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen>
     if (toAscending && hasMore) await _notifier.fetchAll();
   }
 
+  /// 再読み込み。
+  ///
+  /// [PagedNotifier.refresh] は先頭1ページだけ取り直すため、昇順のまま呼ぶと
+  /// 「最新ページの中で最も古いノート」が先頭に来て順序が崩れて見える。
+  /// 昇順表示中は切り替え時と同じく全件読み切ってから表示する。
+  Future<void> _refresh() async {
+    await _notifier.refresh();
+    if (_ascending && mounted) await _notifier.fetchAll();
+  }
+
   Future<void> _removeNote(NoteModel note) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -254,7 +264,7 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen>
             ),
             IconButton(
               icon: const Icon(Icons.refresh),
-              onPressed: _notifier.refresh,
+              onPressed: _refresh,
             ),
             PopupMenuButton<String>(
               onSelected: (v) {
@@ -279,7 +289,7 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen>
       return const Center(child: CircularProgressIndicator());
     }
     if (state.error != null) {
-      return ErrorView(message: state.error!, onRetry: _notifier.refresh);
+      return ErrorView(message: state.error!, onRetry: _refresh);
     }
     if (state.items.isEmpty) {
       return const Center(
@@ -297,20 +307,23 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen>
     }
 
     final notes = _sorted(state.items);
+    // 追加読み込みぶんは常に「より古いノート」なので、昇順では先頭側に入る。
+    // インジケーターも同じ側に置かないと、続きが下にあるように見えてしまう。
+    final loaderIndex = state.hasMore ? (_ascending ? 0 : notes.length) : -1;
     return RefreshIndicator(
-      onRefresh: _notifier.refresh,
+      onRefresh: _refresh,
       child: ListView.builder(
         controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: notes.length + (state.hasMore ? 1 : 0),
         itemBuilder: (ctx, i) {
-          if (i == notes.length) {
+          if (i == loaderIndex) {
             return const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          final note = notes[i];
+          final note = notes[loaderIndex == 0 ? i - 1 : i];
           return NoteCard(
             key: ValueKey(note.id),
             note: note,
