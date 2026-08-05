@@ -55,16 +55,32 @@ abstract class PagedNotifier<T> extends StateNotifier<PagedState<T>> {
   /// 取得した [fetched] を state に載せる前に加工する。既定では素通し。
   List<T> mergeItems(List<T> fetched) => fetched;
 
+  /// リクエスト世代。[refresh] のたびに増分する。
+  ///
+  /// [refresh] は state を作り直して `isLoading` を false に戻すため、
+  /// [fetch] 冒頭の多重実行ガードだけでは飛行中の取得を止められない。
+  /// 世代を控えておき、await 明けに変わっていれば「別の取得へ切り替わった
+  /// 後に遅れて返ってきた古い結果」として捨てる。これがないと古い
+  /// loadMore の結果が新しい一覧の末尾に継ぎ足され、[PagedState.hasMore]
+  /// も古い値で上書きされる。
+  int _requestId = 0;
+
+  /// await 明けに state を触ってよいか。
+  /// 破棄済み（`state` への代入が例外になる）か、世代が進んでいれば false。
+  bool _isCurrent(int requestId) => mounted && requestId == _requestId;
+
   Future<void> fetch({bool loadMore = false}) async {
     if (state.isLoading) return;
     if (loadMore && !state.hasMore) return;
 
+    final requestId = _requestId;
     state = state.copyWith(isLoading: true, error: null);
     try {
       final untilId = loadMore && state.items.isNotEmpty
           ? cursorOf(state.items.last)
           : null;
       final fetched = await fetchPage(untilId: untilId);
+      if (!_isCurrent(requestId)) return;
       final merged = mergeItems(fetched);
       state = state.copyWith(
         isLoading: false,
@@ -72,6 +88,7 @@ abstract class PagedNotifier<T> extends StateNotifier<PagedState<T>> {
         hasMore: fetched.length >= pageSize,
       );
     } catch (e) {
+      if (!_isCurrent(requestId)) return;
       state = state.copyWith(
         isLoading: false,
         error: apiErrorMessage(e, fallback: errorFallback),
@@ -79,7 +96,9 @@ abstract class PagedNotifier<T> extends StateNotifier<PagedState<T>> {
     }
   }
 
+  /// 先頭から取り直す。飛行中の取得があればその結果は破棄される。
   Future<void> refresh() async {
+    _requestId++;
     state = PagedState<T>();
     await fetch();
   }

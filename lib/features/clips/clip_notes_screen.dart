@@ -45,7 +45,11 @@ class _ClipNotesNotifier extends PagedNotifier<NoteModel> {
   /// 表示順が途中で破綻する。エラーが出た時点で打ち切る。
   Future<void> fetchAll() async {
     while (state.hasMore && state.error == null) {
+      final countBefore = state.items.length;
       await fetch(loadMore: true);
+      // 途中で refresh() が入ると fetch() は結果を捨てて即座に返る。
+      // hasMore は真のままなので、件数が増えなければ打ち切らないと空回りする。
+      if (state.items.length == countBefore) break;
     }
   }
 
