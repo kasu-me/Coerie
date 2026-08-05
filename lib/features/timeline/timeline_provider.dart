@@ -55,10 +55,25 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
   /// 古い末尾を切り捨てることで増加を抑える。
   static const int _maxNotes = 500;
 
+  /// ページングで読み込んだ件数。上限はこれを下回らない。
+  ///
+  /// 追加読み込みしたぶんまで [_maxNotes] で切ると、追加した20件がその場で
+  /// 捨てられて untilId（末尾のノートID）が進まず、以降スクロールのたびに
+  /// 同じページを取得し続けて追加読み込みが空回りする。
+  int _pagedCount = 0;
+
+  /// 実際に適用する上限。ページングで読み込んだぶんは切り捨てない。
+  int get _noteLimit => _pagedCount > _maxNotes ? _pagedCount : _maxNotes;
+
   /// ノートリストが上限を超えていれば古い末尾を切り捨てる。
+  ///
+  /// 切り捨てが起きるのはストリーミング受信で先頭に積まれた場合だけで、
+  /// その経路は画面が最上部にあるときしか呼ばれない（timeline_screen 参照）。
+  /// つまり切り落とすのは常に画面外の末尾側になる。
   List<NoteModel> _capNotes(List<NoteModel> notes) {
-    if (notes.length <= _maxNotes) return notes;
-    return notes.sublist(0, _maxNotes);
+    final limit = _noteLimit;
+    if (notes.length <= limit) return notes;
+    return notes.sublist(0, limit);
   }
 
   TimelineNotifier(this._ref, this.timelineType)
@@ -69,6 +84,7 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
       if (prev?.id != next?.id) {
         // isLoading: true で即座にローディング表示に切り替える
         _noteIds.clear();
+        _pagedCount = 0;
         state = const TimelineState(isLoading: true);
         // アカウント切り替え時は各タイムラインを再取得する。
         // microtask で遅延させることで misskeyApiProvider が新アカウントで
@@ -208,10 +224,13 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
       if (loadMore) {
         state = state.copyWith(
           isLoadingMore: false,
-          notes: _syncNotes([...state.notes, ...notes]),
+          notes: _syncNotes([...state.notes, ...notes], paged: true),
         );
       } else {
-        state = state.copyWith(isLoading: false, notes: _syncNotes(notes));
+        state = state.copyWith(
+          isLoading: false,
+          notes: _syncNotes(notes, paged: true),
+        );
       }
     } catch (e) {
       state = state.copyWith(
@@ -240,7 +259,10 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
         limit: 20,
         extraParams: extraParams,
       );
-      state = state.copyWith(isLoadingMore: false, notes: _syncNotes(notes));
+      state = state.copyWith(
+        isLoadingMore: false,
+        notes: _syncNotes(notes, paged: true),
+      );
       // WebSocket が接続されていない場合は、通知を API から手動取得してバッジ等を更新する
       final status = _ref
           .read(streamingStatusProvider)
@@ -269,7 +291,11 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
 
   /// 上限を適用したうえで [_noteIds] を同期し、state に入れるリストを返す。
   /// state の更新は呼び出し側で1回だけ行うこと（分けると余分な再構築が起きる）。
-  List<NoteModel> _syncNotes(List<NoteModel> notes) {
+  ///
+  /// [paged] は取得・追加読み込みの経路から呼ぶ場合に true にする。
+  /// 渡された件数を切り捨て下限として記録し、読み込んだぶんが失われないようにする。
+  List<NoteModel> _syncNotes(List<NoteModel> notes, {bool paged = false}) {
+    if (paged) _pagedCount = notes.length;
     final capped = _capNotes(notes);
     _noteIds
       ..clear()
