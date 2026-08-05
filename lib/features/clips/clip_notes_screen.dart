@@ -79,7 +79,15 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
       _isLoading = true;
     });
     final api = ref.read(misskeyApiProvider);
-    if (api == null) return;
+    if (api == null) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _error = 'ログインが必要です';
+        });
+      }
+      return;
+    }
     try {
       final notes = await api.getClipNotes(clipId: widget.clip.id, limit: 20);
       if (mounted) {
@@ -104,7 +112,12 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
     if (_notes.isEmpty) return;
     setState(() => _isLoading = true);
     final api = ref.read(misskeyApiProvider);
-    if (api == null) return;
+    // ここで return する場合は try/finally を通らないため、
+    // _isLoading を自前で戻さないと以降の追加読み込みが止まる。
+    if (api == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
     try {
       final more = await api.getClipNotes(
         clipId: widget.clip.id,

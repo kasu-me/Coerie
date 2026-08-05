@@ -116,7 +116,16 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
       userAcct: state.userAcct,
     );
     final api = _ref.read(misskeyApiProvider);
-    if (api == null) return;
+    if (api == null) {
+      state = state.copyWith(
+        isLoading: false,
+        error: const SearchError(
+          type: SearchErrorType.unknown,
+          message: 'ログインが必要です',
+        ),
+      );
+      return;
+    }
     // 検索対象ごとの入力バリデーションと userId 解決
     if (state.scope == NoteSearchScope.server && state.host.trim().isEmpty) {
       state = state.copyWith(
@@ -190,7 +199,12 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
     final reqId = _requestId;
     state = state.copyWith(isLoading: true);
     final api = _ref.read(misskeyApiProvider);
-    if (api == null) return;
+    // isLoading を立てた後に素通しすると、先頭の early return に阻まれて
+    // 以降の追加読み込みが止まる。
+    if (api == null) {
+      state = state.copyWith(isLoading: false);
+      return;
+    }
     try {
       final notes = await api.searchNotes(
         query: state.query,

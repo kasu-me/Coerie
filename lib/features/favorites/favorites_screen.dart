@@ -85,7 +85,12 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     if (_notes.isEmpty) return;
     setState(() => _isLoading = true);
     final api = ref.read(misskeyApiProvider);
-    if (api == null) return;
+    // ここで return する場合は try/finally を通らないため、
+    // _isLoading を自前で戻さないと以降の追加読み込みが止まる。
+    if (api == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
     try {
       final more = await api.getFavorites(limit: 20, untilId: _oldestNoteId);
       if (mounted) {

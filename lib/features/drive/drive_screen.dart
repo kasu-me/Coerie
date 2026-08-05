@@ -87,7 +87,13 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
       _isLoading = true;
     });
     final api = ref.read(misskeyApiProvider);
-    if (api == null) return;
+    if (api == null) {
+      setState(() {
+        _error = 'ログインが必要です';
+        _isLoading = false;
+      });
+      return;
+    }
     try {
       final folderMaps = await api.getDriveFolders(folderId: _currentFolderId);
       final files = await api.getDriveFiles(
@@ -114,7 +120,12 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     setState(() => _isLoading = true);
     try {
       final api = ref.read(misskeyApiProvider);
-      if (api == null) return;
+      // catch 節でしか _isLoading を戻していないため、
+      // ここで素通しすると以降の追加読み込みが止まる。
+      if (api == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
       final more = await api.getDriveFiles(
         limit: 40,
         untilId: _files.isNotEmpty ? _files.last.id : null,
@@ -1356,7 +1367,13 @@ class _FolderPickerSheetState extends ConsumerState<_FolderPickerSheet> {
       _error = null;
     });
     final api = ref.read(misskeyApiProvider);
-    if (api == null) return;
+    if (api == null) {
+      setState(() {
+        _error = 'ログインが必要です';
+        _isLoading = false;
+      });
+      return;
+    }
     try {
       final maps = await api.getDriveFolders(folderId: _currentFolderId);
       setState(() {
