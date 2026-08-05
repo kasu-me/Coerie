@@ -357,6 +357,15 @@ class _ProfileHeader extends StatelessWidget {
                 context.push('/login?addAccount=true');
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.manage_accounts),
+              title: const Text('アカウント設定'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pop();
+                context.push('/account-settings');
+              },
+            ),
           ],
         ),
       ),
