@@ -6,6 +6,7 @@ import '../../data/models/user_list_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 import '../../core/constants/app_constants.dart';
 import '../../data/models/app_settings_model.dart';
@@ -192,6 +193,16 @@ final routerProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
+      // ノート内のページURL（/@user/pages/<name>）からの遷移先。
+      // pages/show を name + username で引いてから閲覧画面へ渡す。
+      GoRoute(
+        path: '/pages/by-name/:username/:pageName',
+        builder: (context, state) => _PageByNameLoader(
+          username: state.pathParameters['username']!,
+          pageName: state.pathParameters['pageName']!,
+          host: state.uri.queryParameters['host'],
+        ),
+      ),
       GoRoute(
         path: '/pages/:pageId',
         builder: (context, state) {
@@ -199,6 +210,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           return PageViewScreen(
             pageId: state.pathParameters['pageId']!,
             initialPage: extra is PageModel ? extra : null,
+            host: state.uri.queryParameters['host'],
           );
         },
       ),
@@ -240,6 +252,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           return GalleryDetailScreen(
             postId: state.pathParameters['postId']!,
             initialPost: extra is GalleryPostModel ? extra : null,
+            host: state.uri.queryParameters['host'],
           );
         },
       ),
@@ -437,6 +450,100 @@ class _ClipLoader extends ConsumerWidget {
         }
         final clip = snapshot.data!;
         return ClipNotesScreen(clip: clip, host: host);
+      },
+    );
+  }
+}
+
+/// `@user/pages/<name>` 形式のURLからページを解決して閲覧画面を出す。
+///
+/// `pages/show` は自インスタンスのページしか返さないため、[host] が
+/// アクティブアカウントと異なる場合はそのホストへ未認証で問い合わせる。
+class _PageByNameLoader extends ConsumerStatefulWidget {
+  final String username;
+  final String pageName;
+  final String? host;
+
+  const _PageByNameLoader({
+    required this.username,
+    required this.pageName,
+    this.host,
+  });
+
+  @override
+  ConsumerState<_PageByNameLoader> createState() => _PageByNameLoaderState();
+}
+
+class _PageByNameLoaderState extends ConsumerState<_PageByNameLoader> {
+  late Future<PageModel> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _fetch();
+  }
+
+  Future<PageModel> _fetch() async {
+    final api = ref.apiForHost(widget.host);
+    if (api == null) throw Exception('読み込むにはアカウントが必要です');
+    return api.getPage(name: widget.pageName, username: widget.username);
+  }
+
+  /// 取得に失敗したときの逃げ道として元のページURLを組み立てる。
+  String? get _sourceUrl {
+    final host = widget.host ?? ref.read(activeAccountProvider)?.host;
+    if (host == null || host.isEmpty) return null;
+    return 'https://$host/@${widget.username}/pages/${widget.pageName}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PageModel>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            appBar: AppBar(),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError) {
+          final url = _sourceUrl;
+          return Scaffold(
+            appBar: AppBar(),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'ページの読み込みに失敗しました\n${snapshot.error}',
+                      textAlign: TextAlign.center,
+                    ),
+                    if (url != null) ...[
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: () => launchUrl(
+                          Uri.parse(url),
+                          mode: LaunchMode.externalApplication,
+                        ),
+                        icon: const Icon(Icons.open_in_browser),
+                        label: const Text('ブラウザで開く'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+        final page = snapshot.data!;
+        return PageViewScreen(
+          pageId: page.id,
+          initialPage: page,
+          host: widget.host,
+        );
       },
     );
   }

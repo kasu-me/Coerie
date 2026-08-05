@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -29,10 +30,15 @@ class GalleryDetailScreen extends ConsumerStatefulWidget {
   final String postId;
   final GalleryPostModel? initialPost;
 
+  /// 投稿が置かれているインスタンス。ノート内のリンクから来た場合に付く。
+  /// アクティブアカウントと異なるときは未認証で読むだけの表示になる。
+  final String? host;
+
   const GalleryDetailScreen({
     super.key,
     required this.postId,
     this.initialPost,
+    this.host,
   });
 
   @override
@@ -63,8 +69,11 @@ class _GalleryDetailScreenState extends ConsumerState<GalleryDetailScreen> {
     super.dispose();
   }
 
+  /// 他インスタンスの投稿を開いている（未認証アクセス）かどうか。
+  bool get _isRemote => ref.isRemoteHost(widget.host);
+
   Future<void> _load() async {
-    final api = ref.read(misskeyApiProvider);
+    final api = ref.apiForHost(widget.host);
     if (api == null) return;
     if (_post == null) {
       setState(() {
@@ -92,8 +101,58 @@ class _GalleryDetailScreenState extends ConsumerState<GalleryDetailScreen> {
 
   bool get _isOwnPost {
     final post = _post;
+    if (post == null || _isRemote) return false;
     final myId = ref.read(activeAccountProvider)?.userId;
-    return post != null && myId != null && post.userId == myId;
+    return myId != null && post.userId == myId;
+  }
+
+  /// この投稿のインスタンス上でのURL。ホスト不明なら null。
+  String? get _postUrl {
+    final host = widget.host ?? ref.read(activeAccountProvider)?.host;
+    if (host == null || host.isEmpty) return null;
+    return 'https://$host/gallery/${widget.postId}';
+  }
+
+  Future<void> _copyUrl() async {
+    final url = _postUrl;
+    if (url == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('URLを取得できませんでした')));
+      }
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: url));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('URLをコピーしました'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openInBrowser() async {
+    final url = _postUrl;
+    if (url == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('URLを取得できませんでした')));
+      }
+      return;
+    }
+    final ok = await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('ブラウザを開けませんでした')));
+    }
   }
 
   Future<void> _toggleLike() async {
@@ -172,7 +231,10 @@ class _GalleryDetailScreenState extends ConsumerState<GalleryDetailScreen> {
     context.push('/search', extra: {'tab': 1, 'query': tag});
   }
 
+  /// 他インスタンスのユーザーIDは自インスタンスで解決できないため、
+  /// リモート表示ではプロフィールへ遷移しない。
   void _openUser(String userId) {
+    if (_isRemote) return;
     context.push('/profile/$userId');
   }
 
@@ -209,14 +271,55 @@ class _GalleryDetailScreenState extends ConsumerState<GalleryDetailScreen> {
             overflow: TextOverflow.ellipsis,
           ),
           actions: [
-            if (post != null && _isOwnPost)
-              PopupMenuButton<String>(
-                onSelected: (v) {
-                  if (v == 'edit') _edit();
-                  if (v == 'delete') _delete();
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(
+            PopupMenuButton<String>(
+              onSelected: (v) {
+                switch (v) {
+                  case 'browser':
+                    _openInBrowser();
+                  case 'copy':
+                    _copyUrl();
+                  case 'reload':
+                    _load();
+                  case 'edit':
+                    _edit();
+                  case 'delete':
+                    _delete();
+                }
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'browser',
+                  child: Row(
+                    children: [
+                      Icon(Icons.open_in_browser),
+                      SizedBox(width: 8),
+                      Text('ブラウザで開く'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'copy',
+                  child: Row(
+                    children: [
+                      Icon(Icons.copy),
+                      SizedBox(width: 8),
+                      Text('URLをコピー'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'reload',
+                  enabled: !_isLoading,
+                  child: const Row(
+                    children: [
+                      Icon(Icons.refresh),
+                      SizedBox(width: 8),
+                      Text('再読み込み'),
+                    ],
+                  ),
+                ),
+                if (post != null && _isOwnPost) ...[
+                  const PopupMenuItem(
                     value: 'edit',
                     child: Row(
                       children: [
@@ -226,7 +329,7 @@ class _GalleryDetailScreenState extends ConsumerState<GalleryDetailScreen> {
                       ],
                     ),
                   ),
-                  PopupMenuItem(
+                  const PopupMenuItem(
                     value: 'delete',
                     child: Row(
                       children: [
@@ -237,7 +340,8 @@ class _GalleryDetailScreenState extends ConsumerState<GalleryDetailScreen> {
                     ),
                   ),
                 ],
-              ),
+              ],
+            ),
           ],
         ),
         body: _buildBody(post),
@@ -350,8 +454,9 @@ class _GalleryDetailScreenState extends ConsumerState<GalleryDetailScreen> {
   Widget _buildLikeRow(GalleryPostModel post) {
     final theme = Theme.of(context);
     final isLiked = post.isLiked ?? false;
-    if (_isOwnPost) {
-      // 自分の投稿にはいいねできない（YOUR_POST）ためボタンは表示しない
+    // 自分の投稿にはいいねできない（YOUR_POST）。他インスタンスの投稿は
+    // 未認証アクセスなのでいいねできない。どちらもボタンは表示しない。
+    if (_isOwnPost || _isRemote) {
       return Row(
         children: [
           Icon(Icons.favorite_border, color: theme.colorScheme.outline),

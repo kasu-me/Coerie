@@ -14,22 +14,64 @@ import '../utils/format_utils.dart';
 
 /// MFM 中のリンクを開く。
 ///
-/// クリップURL（`https://host/clips/<id>`）はアプリ内画面へ遷移させ、
+/// クリップ・ギャラリー・ページのURLはアプリ内画面へ遷移させ、
 /// それ以外は外部ブラウザで開く。
 Future<void> openMfmUrl(BuildContext ctx, String url) async {
   final uri = Uri.tryParse(url);
   if (uri == null) return;
 
-  if (uri.pathSegments.length >= 2 && uri.pathSegments[0] == 'clips') {
-    final clipId = uri.pathSegments[1];
-    final host = uri.host;
-    final query = host.isNotEmpty ? '?host=${Uri.encodeComponent(host)}' : '';
-    ctx.push('/clips/$clipId$query');
+  final location = inAppLocationOf(uri);
+  if (location != null) {
+    ctx.push(location);
     return;
   }
 
   await launchUrl(uri, mode: LaunchMode.externalApplication);
 }
+
+/// Misskey の URL をアプリ内ルートへ変換する。対応しないURLなら null。
+///
+/// 変換先には元URLのホストを `host` クエリで付ける。ページ・ギャラリーは
+/// 連合しないため、遷移先の画面はこのホストのAPIを参照する必要がある。
+@visibleForTesting
+String? inAppLocationOf(Uri uri) {
+  if (uri.scheme != 'http' && uri.scheme != 'https') return null;
+  final segments = uri.pathSegments;
+
+  // クリップ: https://host/clips/<clipId>
+  if (segments.length >= 2 && segments[0] == 'clips') {
+    if (segments[1].isEmpty) return null;
+    return '/clips/${segments[1]}${_hostQuery(uri.host)}';
+  }
+
+  // ギャラリー: https://host/gallery/<postId>
+  // 'new' は投稿画面のURLなので詳細としては扱わない。
+  if (segments.length >= 2 && segments[0] == 'gallery') {
+    if (segments[1].isEmpty || segments[1] == 'new') return null;
+    return '/gallery/${segments[1]}${_hostQuery(uri.host)}';
+  }
+
+  // ページ: https://host/@<username>/pages/<name>
+  // `@user@example.com` 形式ならページの実体はそのリモート側にあるため、
+  // URLのホストではなく acct 側のホストを見に行く。
+  if (segments.length >= 3 &&
+      segments[0].startsWith('@') &&
+      segments[1] == 'pages') {
+    final acct = segments[0].substring(1);
+    final atIndex = acct.indexOf('@');
+    final username = atIndex < 0 ? acct : acct.substring(0, atIndex);
+    final host = atIndex < 0 ? uri.host : acct.substring(atIndex + 1);
+    final name = segments[2];
+    if (username.isEmpty || host.isEmpty || name.isEmpty) return null;
+    return '/pages/by-name/${Uri.encodeComponent(username)}'
+        '/${Uri.encodeComponent(name)}${_hostQuery(host)}';
+  }
+
+  return null;
+}
+
+String _hostQuery(String host) =>
+    host.isEmpty ? '' : '?host=${Uri.encodeComponent(host)}';
 
 /// MFM (Markup language For Misskey) テキストをレンダリングするウィジェット。
 ///

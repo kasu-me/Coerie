@@ -30,7 +30,16 @@ class PageViewScreen extends ConsumerStatefulWidget {
   /// 一覧から遷移してきた場合の初期値。取得完了まで仮表示に使う。
   final PageModel? initialPage;
 
-  const PageViewScreen({super.key, required this.pageId, this.initialPage});
+  /// ページが置かれているインスタンス。ノート内のリンクから来た場合に付く。
+  /// アクティブアカウントと異なるときは未認証で読むだけの表示になる。
+  final String? host;
+
+  const PageViewScreen({
+    super.key,
+    required this.pageId,
+    this.initialPage,
+    this.host,
+  });
 
   @override
   ConsumerState<PageViewScreen> createState() => _PageViewScreenState();
@@ -52,8 +61,11 @@ class _PageViewScreenState extends ConsumerState<PageViewScreen> {
     _load();
   }
 
+  /// 他インスタンスのページを開いている（未認証アクセス）かどうか。
+  bool get _isRemote => ref.isRemoteHost(widget.host);
+
   Future<void> _load() async {
-    final api = ref.read(misskeyApiProvider);
+    final api = ref.apiForHost(widget.host);
     if (api == null) {
       setState(() => _error = Exception('ログインが必要です'));
       return;
@@ -77,14 +89,14 @@ class _PageViewScreenState extends ConsumerState<PageViewScreen> {
 
   bool get _isOwnPage {
     final page = _page;
-    if (page == null) return false;
+    if (page == null || _isRemote) return false;
     final me = ref.read(activeAccountProvider);
     return me != null && me.userId == page.userId;
   }
 
   String? get _pageUrl {
     final page = _page;
-    final host = ref.read(activeAccountProvider)?.host;
+    final host = widget.host ?? ref.read(activeAccountProvider)?.host;
     if (page == null || host == null || host.isEmpty) return null;
     final username = page.user?.username;
     if (username == null || username.isEmpty || page.name.isEmpty) return null;
@@ -216,7 +228,6 @@ class _PageViewScreenState extends ConsumerState<PageViewScreen> {
   Widget build(BuildContext context) {
     final page = _page;
     final isOwn = _isOwnPage;
-    final isLiked = page?.isLiked ?? false;
 
     return Scaffold(
       appBar: AppBar(
@@ -224,26 +235,8 @@ class _PageViewScreenState extends ConsumerState<PageViewScreen> {
           page?.title.isNotEmpty == true ? page!.title : 'ページ',
           overflow: TextOverflow.ellipsis,
         ),
+        // 操作はギャラリー画面と揃えてメニューに集約する。いいねは本文末尾。
         actions: [
-          // 自分のページにはいいねできない（YOUR_PAGE）ため非表示にする
-          if (page != null && !isOwn)
-            IconButton(
-              icon: Icon(isLiked ? Icons.favorite : Icons.favorite_border),
-              tooltip: isLiked ? 'いいねを解除' : 'いいね',
-              color: isLiked ? Theme.of(context).colorScheme.primary : null,
-              onPressed: _isTogglingLike ? null : _toggleLike,
-            ),
-          if (page != null && isOwn)
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              tooltip: '編集',
-              onPressed: _edit,
-            ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: '再読み込み',
-            onPressed: _isLoading ? null : _load,
-          ),
           PopupMenuButton<String>(
             onSelected: (v) {
               switch (v) {
@@ -251,6 +244,10 @@ class _PageViewScreenState extends ConsumerState<PageViewScreen> {
                   _openInBrowser();
                 case 'copy':
                   _copyUrl();
+                case 'reload':
+                  _load();
+                case 'edit':
+                  _edit();
                 case 'delete':
                   _delete();
               }
@@ -276,7 +273,28 @@ class _PageViewScreenState extends ConsumerState<PageViewScreen> {
                   ],
                 ),
               ),
-              if (isOwn)
+              PopupMenuItem(
+                value: 'reload',
+                enabled: !_isLoading,
+                child: const Row(
+                  children: [
+                    Icon(Icons.refresh),
+                    SizedBox(width: 8),
+                    Text('再読み込み'),
+                  ],
+                ),
+              ),
+              if (isOwn) ...[
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_outlined),
+                      SizedBox(width: 8),
+                      Text('編集'),
+                    ],
+                  ),
+                ),
                 const PopupMenuItem(
                   value: 'delete',
                   child: Row(
@@ -287,6 +305,7 @@ class _PageViewScreenState extends ConsumerState<PageViewScreen> {
                     ],
                   ),
                 ),
+              ],
             ],
           ),
         ],
@@ -376,7 +395,9 @@ class _PageViewScreenState extends ConsumerState<PageViewScreen> {
                     ),
                   ),
                 const SizedBox(height: 12),
-                _AuthorRow(page: page),
+                // 他インスタンスのユーザーIDは自インスタンスで解決できないため、
+                // リモート表示ではプロフィールへの導線を出さない
+                _AuthorRow(page: page, enableProfileLink: !_isRemote),
                 const SizedBox(height: 8),
                 const Divider(),
               ],
@@ -394,32 +415,64 @@ class _PageViewScreenState extends ConsumerState<PageViewScreen> {
                 : PageBlockList(blocks: page.content, config: config),
           ),
           const Divider(),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.favorite,
-                  size: 16,
-                  color: theme.colorScheme.outline,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${page.likedCount}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.outline,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '更新: ${formatYmdHm(page.updatedAt)}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.outline,
-                  ),
-                ),
-              ],
+          _buildLikeRow(page, theme),
+        ],
+      ),
+    );
+  }
+
+  /// いいねと更新日時の行。ギャラリー画面と同じく本文末尾に置く。
+  ///
+  /// 自分のページ（`YOUR_PAGE` になる）と他インスタンスのページ（未認証）は
+  /// いいねできないため、件数だけの表示にする。
+  Widget _buildLikeRow(PageModel page, ThemeData theme) {
+    final updatedAt = Text(
+      '更新: ${formatYmdHm(page.updatedAt)}',
+      style: theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.outline,
+      ),
+    );
+
+    if (_isOwnPage || _isRemote) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            Icon(
+              Icons.favorite_border,
+              size: 16,
+              color: theme.colorScheme.outline,
             ),
+            const SizedBox(width: 4),
+            Text(
+              '${page.likedCount}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+            const Spacer(),
+            updatedAt,
+          ],
+        ),
+      );
+    }
+
+    final isLiked = page.isLiked ?? false;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Row(
+        children: [
+          IconButton(
+            icon: Icon(
+              isLiked ? Icons.favorite : Icons.favorite_border,
+              color: isLiked ? theme.colorScheme.error : null,
+            ),
+            tooltip: isLiked ? 'いいねを解除' : 'いいね',
+            onPressed: _isTogglingLike ? null : _toggleLike,
           ),
+          Text('${page.likedCount}'),
+          const Spacer(),
+          Padding(padding: const EdgeInsets.only(right: 8), child: updatedAt),
         ],
       ),
     );
@@ -430,7 +483,10 @@ class _PageViewScreenState extends ConsumerState<PageViewScreen> {
 class _AuthorRow extends StatelessWidget {
   final PageModel page;
 
-  const _AuthorRow({required this.page});
+  /// プロフィールへ遷移できるか。他インスタンスのページでは false。
+  final bool enableProfileLink;
+
+  const _AuthorRow({required this.page, this.enableProfileLink = true});
 
   @override
   Widget build(BuildContext context) {
@@ -440,7 +496,9 @@ class _AuthorRow extends StatelessWidget {
 
     return InkWell(
       borderRadius: BorderRadius.circular(8),
-      onTap: () => context.push('/profile/${user.id}'),
+      onTap: enableProfileLink
+          ? () => context.push('/profile/${user.id}')
+          : null,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
