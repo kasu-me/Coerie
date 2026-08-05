@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -41,8 +42,13 @@ class StreamingService {
   /// channelId -> timelineType（再接続時にクリアして再登録）
   final _channelSubscriptions = <String, String>{};
 
-  /// どのタイムラインを購読していたかを記憶（再接続後に再登録用）
-  final _subscribedTimelines = <String>{};
+  /// timelineType -> 現在発行中の channelId（disconnect と再登録に使う）
+  final _channelIdByTimeline = <String, String>{};
+
+  /// timelineType -> 購読者数。
+  /// 0 から 1 になったときだけ connect、0 に戻ったときだけ disconnect を送る。
+  /// キーはそのまま「購読中のタイムライン」として再接続時の再登録にも使う。
+  final _timelineSubCounts = <String, int>{};
   final _notificationController =
       StreamController<NotificationModel>.broadcast();
   final _noteUpdateController = StreamController<NoteUpdateEvent>.broadcast();
@@ -123,36 +129,41 @@ class StreamingService {
     );
   }
 
+  /// サーバーへ connect 済みのタイムラインチャンネル数。
+  /// 同じタイムラインを重複して登録していないかの回帰検知にのみ使う。
+  @visibleForTesting
+  int get debugChannelCount => _channelIdByTimeline.length;
+
+  /// [timelineType] が購読可能か（対応する Misskey チャンネルがあるか）。
+  static bool _isKnownTimeline(String timelineType) =>
+      timelineType.startsWith('channel:') ||
+      _channelMap.containsKey(timelineType);
+
+  /// [timelineType] に対応するチャンネルへ connect を送り、
+  /// 発行した channelId を控える。未対応の型なら何もしない。
+  void _openChannel(String timelineType) {
+    final isChannelTimeline = timelineType.startsWith('channel:');
+    final channelName = isChannelTimeline
+        ? 'channel'
+        : _channelMap[timelineType];
+    if (channelName == null) return;
+
+    final id = const Uuid().v4();
+    _channelSubscriptions[id] = timelineType;
+    _channelIdByTimeline[timelineType] = id;
+
+    final body = <String, dynamic>{'channel': channelName, 'id': id};
+    if (isChannelTimeline) {
+      body['params'] = {'channelId': timelineType.substring(8)};
+    }
+    _channel?.sink.add(jsonEncode({'type': 'connect', 'body': body}));
+  }
+
   /// 再接続後、既存の購読をすべて再登録する
   void _resubscribeAll() {
     // タイムラインチャンネル
-    for (final timelineType in _subscribedTimelines) {
-      if (timelineType.startsWith('channel:')) {
-        final channelId = timelineType.substring(8);
-        final id = const Uuid().v4();
-        _channelSubscriptions[id] = timelineType;
-        _channel?.sink.add(
-          jsonEncode({
-            'type': 'connect',
-            'body': {
-              'channel': 'channel',
-              'id': id,
-              'params': {'channelId': channelId},
-            },
-          }),
-        );
-      } else {
-        final channelName = _channelMap[timelineType];
-        if (channelName == null) continue;
-        final id = const Uuid().v4();
-        _channelSubscriptions[id] = timelineType;
-        _channel?.sink.add(
-          jsonEncode({
-            'type': 'connect',
-            'body': {'channel': channelName, 'id': id},
-          }),
-        );
-      }
+    for (final timelineType in _timelineSubCounts.keys) {
+      _openChannel(timelineType);
     }
     // subNote
     for (final noteId in _noteSubCounts.keys) {
@@ -239,8 +250,10 @@ class StreamingService {
     _connected = false;
     _reconnecting = true;
     _channel = null;
-    // 旧チャンネルIDはすべて無効になるのでクリア（_subscribedTimelines は保持）
+    // 旧チャンネルIDはすべて無効になるのでクリア
+    // （_timelineSubCounts は再登録に使うので保持する）
     _channelSubscriptions.clear();
+    _channelIdByTimeline.clear();
 
     if (!_statusController.isClosed) {
       _statusController.add(StreamingStatus.reconnecting);
@@ -289,70 +302,59 @@ class StreamingService {
     _channel?.sink.close();
     _channel = null;
     _channelSubscriptions.clear();
+    _channelIdByTimeline.clear();
     if (!_statusController.isClosed) {
       _statusController.add(StreamingStatus.reconnecting);
     }
     _tryReconnect();
   }
 
+  /// [timelineType] のリアルタイム配信を購読する。未対応の型なら null。
+  ///
+  /// 同じ型から複数回呼ばれても connect は1回しか送らない。以前は呼ばれるたびに
+  /// 新しい channelId で connect しており、タブの切り替えや再購読のたびに
+  /// サーバー側のチャンネルが積み上がっていた。その結果、同じノートが購読数だけ
+  /// 重複配信され、新着バッジが多重にカウントされていた。
+  ///
+  /// 購読をやめるときは必ず [unsubscribeTimeline] を呼ぶこと。
   Stream<NoteModel>? subscribeTimeline(String timelineType) {
-    // チャンネルタイムラインの場合は Misskey の "channel" チャンネルを使用する
-    if (timelineType.startsWith('channel:')) {
-      final channelId = timelineType.substring(8);
-      return _subscribeChannelTimeline(timelineType, channelId);
-    }
+    if (!_isKnownTimeline(timelineType)) return null;
 
-    final channelName = _channelMap[timelineType];
-    if (channelName == null) return null;
-
-    // 再接続時に再登録できるよう記憶
-    _subscribedTimelines.add(timelineType);
-
-    _timelineControllers.putIfAbsent(
+    final controller = _timelineControllers.putIfAbsent(
       timelineType,
       () => StreamController<NoteModel>.broadcast(),
     );
 
-    final id = const Uuid().v4();
-    _channelSubscriptions[id] = timelineType;
+    final count = _timelineSubCounts[timelineType] ?? 0;
+    _timelineSubCounts[timelineType] = count + 1;
+    if (count == 0) _openChannel(timelineType);
 
-    _channel?.sink.add(
-      jsonEncode({
-        'type': 'connect',
-        'body': {'channel': channelName, 'id': id},
-      }),
-    );
-
-    return _timelineControllers[timelineType]!.stream;
+    return controller.stream;
   }
 
-  Stream<NoteModel>? _subscribeChannelTimeline(
-    String timelineType,
-    String channelId,
-  ) {
-    // 再接続時に再登録できるよう記憶
-    _subscribedTimelines.add(timelineType);
+  /// [subscribeTimeline] の購読を解除する。
+  /// 参照カウントが 0 になった時点でサーバーへ disconnect を送る。
+  void unsubscribeTimeline(String timelineType) {
+    final count = _timelineSubCounts[timelineType] ?? 0;
+    if (count == 0) return;
+    if (count > 1) {
+      _timelineSubCounts[timelineType] = count - 1;
+      return;
+    }
 
-    _timelineControllers.putIfAbsent(
-      timelineType,
-      () => StreamController<NoteModel>.broadcast(),
-    );
-
-    final id = const Uuid().v4();
-    _channelSubscriptions[id] = timelineType;
-
-    _channel?.sink.add(
-      jsonEncode({
-        'type': 'connect',
-        'body': {
-          'channel': 'channel',
-          'id': id,
-          'params': {'channelId': channelId},
-        },
-      }),
-    );
-
-    return _timelineControllers[timelineType]!.stream;
+    _timelineSubCounts.remove(timelineType);
+    final id = _channelIdByTimeline.remove(timelineType);
+    if (id != null) {
+      _channelSubscriptions.remove(id);
+      _channel?.sink.add(
+        jsonEncode({
+          'type': 'disconnect',
+          'body': {'id': id},
+        }),
+      );
+    }
+    // 購読者がいなくなったので、配信先のコントローラも畳む。
+    _timelineControllers.remove(timelineType)?.close();
   }
 
   /// 指定ノートへのリアルタイム更新を購読する。
@@ -393,7 +395,8 @@ class StreamingService {
     }
     _timelineControllers.clear();
     _channelSubscriptions.clear();
-    _subscribedTimelines.clear();
+    _channelIdByTimeline.clear();
+    _timelineSubCounts.clear();
     _noteSubCounts.clear();
     _notificationController.close();
     _noteUpdateController.close();

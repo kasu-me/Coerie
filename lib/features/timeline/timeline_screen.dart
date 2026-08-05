@@ -24,6 +24,12 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
     with AutomaticKeepAliveClientMixin {
   final _scrollController = ScrollController();
   StreamSubscription? _streamSub;
+
+  /// 購読時の StreamingService と購読中のタイムライン種別。
+  /// dispose 内では ref を使えないため、解除に必要な参照をここに控える。
+  StreamingService? _streaming;
+  String? _subscribedType;
+
   int _newNotesCount = 0;
   bool _wasReconnecting = false;
   bool _sourceMissing = false;
@@ -43,8 +49,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
   void didUpdateWidget(TimelineScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.timelineType != widget.timelineType) {
-      _streamSub?.cancel();
-      _streamSub = null;
+      _unsubscribeStream();
       setState(() {
         _newNotesCount = 0;
         _checkedSourceExists = false;
@@ -126,14 +131,30 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
     ).showSnackBar(const SnackBar(content: Text('ホームタブから削除しました')));
   }
 
+  /// 購読を解除する。[_subscribeStream] と必ず対で呼ぶこと。
+  /// 解除しないとサーバー側のチャンネルが残り、同じノートが重複配信される。
+  void _unsubscribeStream() {
+    _streamSub?.cancel();
+    _streamSub = null;
+    final type = _subscribedType;
+    if (type != null) _streaming?.unsubscribeTimeline(type);
+    _subscribedType = null;
+    _streaming = null;
+  }
+
   void _subscribeStream() {
     final streaming = ref.read(streamingServiceProvider);
     if (streaming == null) return;
 
-    _streamSub?.cancel();
-    _streamSub = streaming.subscribeTimeline(widget.timelineType)?.listen((
-      note,
-    ) {
+    // 二重購読を避けるため、先に現在の購読を解除する。
+    _unsubscribeStream();
+
+    final stream = streaming.subscribeTimeline(widget.timelineType);
+    if (stream == null) return;
+    _streaming = streaming;
+    _subscribedType = widget.timelineType;
+
+    _streamSub = stream.listen((note) {
       if (!mounted) return;
       // ミュートユーザーの投稿はリアルタイムでも表示しない
       if (note.user.isMuted) return;
@@ -194,8 +215,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
 
     // アカウント切り替え時にストリーミングサービスが変わるため再購読する
     ref.listen<StreamingService?>(streamingServiceProvider, (prev, next) {
-      _streamSub?.cancel();
-      _streamSub = null;
+      _unsubscribeStream();
       if (next != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _subscribeStream();
@@ -397,7 +417,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
 
   @override
   void dispose() {
-    _streamSub?.cancel();
+    _unsubscribeStream();
     _scrollController.dispose();
     super.dispose();
   }
