@@ -1,3 +1,4 @@
+import '../../shared/mixins/infinite_scroll_mixin.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:coerie/core/services/cache_service.dart';
 import 'package:flutter/material.dart';
@@ -211,21 +212,24 @@ class ChatThreadScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatThreadScreen> createState() => _ChatThreadScreenState();
 }
 
-class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
+class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen>
+    with InfiniteScrollMixin<ChatThreadScreen> {
   final _textController = TextEditingController();
-  final _scrollController = ScrollController();
   bool _showScrollToBottom = false;
 
   @override
   void initState() {
+    // mixin が追加読み込み用のリスナーを登録する。
     super.initState();
-    _scrollController.addListener(_onScroll);
+    // 「最新へ戻る」ボタンの表示判定は追加読み込みとは別条件のため、独立して購読する。
+    scrollController.addListener(_updateScrollToBottomButton);
   }
 
   @override
   void dispose() {
     _textController.dispose();
-    _scrollController.dispose();
+    // コントローラーを破棄するのは mixin の dispose なので、その前に外す。
+    scrollController.removeListener(_updateScrollToBottomButton);
     super.dispose();
   }
 
@@ -238,13 +242,14 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     );
   }
 
-  void _onScroll() {
-    final pos = _scrollController.position;
-    // reverse: true なので maxScrollExtent 側がリストの「先頭（古いメッセージ）」
-    if (pos.pixels >= pos.maxScrollExtent - 300) {
-      ref.read(_threadProvider(_params).notifier).loadMore();
-    }
-    final shouldShow = pos.pixels > 200;
+  /// reverse: true なので maxScrollExtent 側がリストの「先頭（古いメッセージ）」。
+  /// mixin の判定式がそのまま「古い側へ到達」を意味する。
+  @override
+  void onLoadMore() => ref.read(_threadProvider(_params).notifier).loadMore();
+
+  void _updateScrollToBottomButton() {
+    if (!scrollController.hasClients) return;
+    final shouldShow = scrollController.position.pixels > 200;
     if (_showScrollToBottom != shouldShow) {
       setState(() => _showScrollToBottom = shouldShow);
     }
@@ -256,8 +261,8 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
     _textController.clear();
     try {
       await ref.read(_threadProvider(_params).notifier).sendMessage(text);
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
+      if (scrollController.hasClients) {
+        scrollController.animateTo(
           0,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
@@ -350,7 +355,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                 _MessageList(
                   state: state,
                   myUserId: myUserId,
-                  scrollController: _scrollController,
+                  scrollController: scrollController,
                   fallbackAvatarUrl: widget.partnerAvatarUrl,
                   onDeleteMessage: (id) => ref
                       .read(_threadProvider(params).notifier)
@@ -362,7 +367,7 @@ class _ChatThreadScreenState extends ConsumerState<ChatThreadScreen> {
                     bottom: 8,
                     child: FloatingActionButton.small(
                       heroTag: 'scroll_to_bottom',
-                      onPressed: () => _scrollController.animateTo(
+                      onPressed: () => scrollController.animateTo(
                         0,
                         duration: const Duration(milliseconds: 300),
                         curve: Curves.easeOut,

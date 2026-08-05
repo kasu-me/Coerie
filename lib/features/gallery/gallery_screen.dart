@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../shared/mixins/infinite_scroll_mixin.dart';
 import '../../data/models/gallery_post_model.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/paged_notifier.dart';
@@ -117,33 +118,14 @@ class _GalleryPostsTab extends ConsumerStatefulWidget {
 }
 
 class _GalleryPostsTabState extends ConsumerState<_GalleryPostsTab>
-    with AutomaticKeepAliveClientMixin {
-  final _scrollController = ScrollController();
-
+    with AutomaticKeepAliveClientMixin, InfiniteScrollMixin<_GalleryPostsTab> {
   @override
   bool get wantKeepAlive => true;
 
   @override
-  void initState() {
-    super.initState();
-    if (widget.allowLoadMore) {
-      _scrollController.addListener(_onScroll);
-    }
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 300) {
-      ref
-          .read(widget.provider(widget.accountId).notifier)
-          .fetch(loadMore: true);
-    }
+  void onLoadMore() {
+    if (!widget.allowLoadMore) return;
+    ref.read(widget.provider(widget.accountId).notifier).fetch(loadMore: true);
   }
 
   Future<void> _openDetail(GalleryPostModel post) async {
@@ -168,8 +150,9 @@ class _GalleryPostsTabState extends ConsumerState<_GalleryPostsTab>
       posts: state.items,
       isLoading: state.isLoading,
       hasMore: widget.allowLoadMore && state.hasMore,
-      scrollController: _scrollController,
-      onRefresh: () => ref.read(widget.provider(widget.accountId).notifier).refresh(),
+      scrollController: scrollController,
+      onRefresh: () =>
+          ref.read(widget.provider(widget.accountId).notifier).refresh(),
       onTap: _openDetail,
       emptyTitle: widget.emptyTitle,
       emptyDescription: widget.emptyDescription,
@@ -187,32 +170,14 @@ class _GalleryLikedTab extends ConsumerStatefulWidget {
 }
 
 class _GalleryLikedTabState extends ConsumerState<_GalleryLikedTab>
-    with AutomaticKeepAliveClientMixin {
-  final _scrollController = ScrollController();
-
+    with AutomaticKeepAliveClientMixin, InfiniteScrollMixin<_GalleryLikedTab> {
   @override
   bool get wantKeepAlive => true;
 
   @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 300) {
-      ref
-          .read(galleryLikedProvider(widget.accountId).notifier)
-          .fetch(loadMore: true);
-    }
-  }
+  void onLoadMore() => ref
+      .read(galleryLikedProvider(widget.accountId).notifier)
+      .fetch(loadMore: true);
 
   Future<void> _openDetail(GalleryPostModel post) async {
     final result = await context.push<GalleryDetailResult>(
@@ -237,7 +202,7 @@ class _GalleryLikedTabState extends ConsumerState<_GalleryLikedTab>
       posts: posts,
       isLoading: state.isLoading,
       hasMore: state.hasMore,
-      scrollController: _scrollController,
+      scrollController: scrollController,
       onRefresh: () =>
           ref.read(galleryLikedProvider(widget.accountId).notifier).refresh(),
       onTap: _openDetail,

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../shared/mixins/infinite_scroll_mixin.dart';
 import 'timeline_provider.dart';
 import 'widgets/note_card.dart';
 import '../../core/streaming/streaming_service.dart';
@@ -21,8 +22,7 @@ class TimelineScreen extends ConsumerStatefulWidget {
 }
 
 class _TimelineScreenState extends ConsumerState<TimelineScreen>
-    with AutomaticKeepAliveClientMixin {
-  final _scrollController = ScrollController();
+    with AutomaticKeepAliveClientMixin, InfiniteScrollMixin<TimelineScreen> {
   StreamSubscription? _streamSub;
 
   /// 購読時の StreamingService と購読中のタイムライン種別。
@@ -40,8 +40,10 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
 
   @override
   void initState() {
+    // mixin が追加読み込み用のリスナーを登録する。
     super.initState();
-    _scrollController.addListener(_onScroll);
+    // 新着バッジの解消は追加読み込みとは別条件のため、独立して購読する。
+    scrollController.addListener(_consumeNewNotesAtTop);
     WidgetsBinding.instance.addPostFrameCallback((_) => _subscribeStream());
   }
 
@@ -161,8 +163,8 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
       // リノートの場合、リノート元の投稿者もミュートチェック
       if (note.renote != null && note.renote!.user.isMuted) return;
       // スクロールが先頭付近なら即追加、それ以外はバッジで通知
-      if (_scrollController.hasClients &&
-          _scrollController.position.pixels < 100) {
+      if (scrollController.hasClients &&
+          scrollController.position.pixels < 100) {
         ref
             .read(timelineProvider(widget.timelineType).notifier)
             .prependNote(note);
@@ -173,7 +175,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
   }
 
   void _scrollToTopAndRefresh() {
-    _scrollController.animateTo(
+    scrollController.animateTo(
       0,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
@@ -182,21 +184,17 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
     ref.read(timelineProvider(widget.timelineType).notifier).refresh();
   }
 
-  void _onScroll() {
-    if (!_scrollController.hasClients) return;
-    final pos = _scrollController.position;
+  @override
+  void onLoadMore() => ref
+      .read(timelineProvider(widget.timelineType).notifier)
+      .fetchNotes(loadMore: true);
 
-    // 新着バッジがある状態でユーザーが先頭までスクロールしたら新着を取得してバッジを消す
-    if (pos.pixels < 100 && _newNotesCount > 0) {
-      ref.read(timelineProvider(widget.timelineType).notifier).fetchNew();
-      setState(() => _newNotesCount = 0);
-    }
-
-    if (pos.pixels >= pos.maxScrollExtent - 300) {
-      ref
-          .read(timelineProvider(widget.timelineType).notifier)
-          .fetchNotes(loadMore: true);
-    }
+  /// 新着バッジがある状態でユーザーが先頭まで戻ったら、新着を取得してバッジを消す。
+  void _consumeNewNotesAtTop() {
+    if (!scrollController.hasClients) return;
+    if (scrollController.position.pixels >= 100 || _newNotesCount == 0) return;
+    ref.read(timelineProvider(widget.timelineType).notifier).fetchNew();
+    setState(() => _newNotesCount = 0);
   }
 
   @override
@@ -206,8 +204,8 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
     // アカウント切り替え時にUIをリセットする
     ref.listen(activeAccountProvider, (prev, next) {
       if (prev?.id != next?.id) {
-        if (_scrollController.hasClients) {
-          _scrollController.jumpTo(0);
+        if (scrollController.hasClients) {
+          scrollController.jumpTo(0);
         }
         setState(() => _newNotesCount = 0);
       }
@@ -311,7 +309,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
             .read(timelineProvider(widget.timelineType).notifier)
             .fetchNotes(),
         child: CustomScrollView(
-          controller: _scrollController,
+          controller: scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverFillRemaining(
@@ -342,7 +340,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
               .refresh();
         },
         child: ListView.builder(
-          controller: _scrollController,
+          controller: scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           itemCount: state.notes.length + (state.isLoadingMore ? 1 : 0),
           itemBuilder: (context, index) {
@@ -408,7 +406,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
           left: 0,
           right: 0,
           child: Center(
-            child: ScrollToTopFab(scrollController: _scrollController),
+            child: ScrollToTopFab(scrollController: scrollController),
           ),
         ),
       ],
@@ -418,7 +416,8 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
   @override
   void dispose() {
     _unsubscribeStream();
-    _scrollController.dispose();
+    // コントローラーを破棄するのは mixin の dispose なので、その前に外す。
+    scrollController.removeListener(_consumeNewNotesAtTop);
     super.dispose();
   }
 }

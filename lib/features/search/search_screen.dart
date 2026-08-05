@@ -5,6 +5,7 @@ import '../../data/models/note_model.dart';
 import '../../data/models/user_model.dart';
 import '../timeline/widgets/note_card.dart';
 import 'search_provider.dart';
+import '../../shared/mixins/infinite_scroll_mixin.dart';
 import '../../shared/utils/format_utils.dart';
 import '../../shared/widgets/user_avatar.dart';
 
@@ -260,8 +261,10 @@ class _NoteSearchTab extends ConsumerStatefulWidget {
 }
 
 class _NoteSearchTabState extends ConsumerState<_NoteSearchTab>
-    with AutomaticKeepAliveClientMixin {
-  final _scrollController = ScrollController();
+    with AutomaticKeepAliveClientMixin, InfiniteScrollMixin<_NoteSearchTab> {
+  @override
+  void onLoadMore() => ref.read(noteSearchProvider.notifier).loadMore();
+
   // 新規検索（loadMore ではない）を検知したら、結果反映後にスクロール位置を
   // 先頭へ戻すためのフラグ。これをしないと前回結果を下までスクロールした
   // オフセットが新結果に引き継がれ最下部にクランプされ、無限スクロールが
@@ -270,28 +273,6 @@ class _NoteSearchTabState extends ConsumerState<_NoteSearchTab>
 
   @override
   bool get wantKeepAlive => true;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    // 稀に ScrollController が複数の ScrollPosition に紐づくと `.position` が
-    // 例外を投げ、以降 loadMore に到達しなくなるため安全に判定する（本来は 1 個）。
-    if (_scrollController.positions.length != 1) return;
-    final pos = _scrollController.position;
-    if (pos.pixels >= pos.maxScrollExtent - 300) {
-      ref.read(noteSearchProvider.notifier).loadMore();
-    }
-  }
 
   /// 新規検索の開始→結果反映を監視し、結果が入った直後に先頭へスクロールを戻す。
   void _handleScrollReset(NoteSearchState? prev, NoteSearchState next) {
@@ -304,7 +285,7 @@ class _NoteSearchTabState extends ConsumerState<_NoteSearchTab>
     if (gotResults && _pendingScrollReset) {
       _pendingScrollReset = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) _scrollController.jumpTo(0);
+        if (scrollController.hasClients) scrollController.jumpTo(0);
       });
     }
   }
@@ -353,7 +334,7 @@ class _NoteSearchTabState extends ConsumerState<_NoteSearchTab>
     return _NoteList(
       notes: state.notes,
       isLoadingMore: state.isLoading,
-      scrollController: _scrollController,
+      scrollController: scrollController,
       onRefresh: () => ref.read(noteSearchProvider.notifier).refresh(),
     );
   }
@@ -530,30 +511,12 @@ class _TagNoteSearchTab extends ConsumerStatefulWidget {
 }
 
 class _TagNoteSearchTabState extends ConsumerState<_TagNoteSearchTab>
-    with AutomaticKeepAliveClientMixin {
-  final _scrollController = ScrollController();
+    with AutomaticKeepAliveClientMixin, InfiniteScrollMixin<_TagNoteSearchTab> {
+  @override
+  void onLoadMore() => ref.read(tagNoteSearchProvider.notifier).loadMore();
 
   @override
   bool get wantKeepAlive => true;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 300) {
-      ref.read(tagNoteSearchProvider.notifier).loadMore();
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -580,7 +543,7 @@ class _TagNoteSearchTabState extends ConsumerState<_TagNoteSearchTab>
     return _NoteList(
       notes: state.notes,
       isLoadingMore: state.isLoading,
-      scrollController: _scrollController,
+      scrollController: scrollController,
       onRefresh: () => ref.read(tagNoteSearchProvider.notifier).refresh(),
     );
   }
@@ -598,34 +561,15 @@ class _UserSearchTab extends ConsumerStatefulWidget {
 }
 
 class _UserSearchTabState extends ConsumerState<_UserSearchTab>
-    with AutomaticKeepAliveClientMixin {
-  final _scrollController = ScrollController();
+    with AutomaticKeepAliveClientMixin, InfiniteScrollMixin<_UserSearchTab> {
+  @override
+  void onLoadMore() => ref.read(userSearchProvider.notifier).loadMore();
+
   // 新規検索の結果反映後に先頭へスクロールを戻すためのフラグ（_NoteSearchTab と同様）
   bool _pendingScrollReset = false;
 
   @override
   bool get wantKeepAlive => true;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    // 同上（複数ポジション時の例外を防ぐ）。
-    if (_scrollController.positions.length != 1) return;
-    final pos = _scrollController.position;
-    if (pos.pixels >= pos.maxScrollExtent - 300) {
-      ref.read(userSearchProvider.notifier).loadMore();
-    }
-  }
 
   /// 新規検索の開始→結果反映を監視し、結果が入った直後に先頭へスクロールを戻す。
   void _handleScrollReset(UserSearchState? prev, UserSearchState next) {
@@ -638,7 +582,7 @@ class _UserSearchTabState extends ConsumerState<_UserSearchTab>
     if (gotResults && _pendingScrollReset) {
       _pendingScrollReset = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) _scrollController.jumpTo(0);
+        if (scrollController.hasClients) scrollController.jumpTo(0);
       });
     }
   }
@@ -674,7 +618,7 @@ class _UserSearchTabState extends ConsumerState<_UserSearchTab>
     return RefreshIndicator(
       onRefresh: () => ref.read(userSearchProvider.notifier).refresh(),
       child: ListView.builder(
-        controller: _scrollController,
+        controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: state.users.length + (state.isLoading ? 1 : 0),
         itemBuilder: (context, index) {
@@ -756,30 +700,12 @@ class _HashtagSearchTab extends ConsumerStatefulWidget {
 }
 
 class _HashtagSearchTabState extends ConsumerState<_HashtagSearchTab>
-    with AutomaticKeepAliveClientMixin {
-  final _scrollController = ScrollController();
+    with AutomaticKeepAliveClientMixin, InfiniteScrollMixin<_HashtagSearchTab> {
+  @override
+  void onLoadMore() => ref.read(hashtagSearchProvider.notifier).loadMore();
 
   @override
   bool get wantKeepAlive => true;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 300) {
-      ref.read(hashtagSearchProvider.notifier).loadMore();
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -806,7 +732,7 @@ class _HashtagSearchTabState extends ConsumerState<_HashtagSearchTab>
     return RefreshIndicator(
       onRefresh: () => ref.read(hashtagSearchProvider.notifier).refresh(),
       child: ListView.builder(
-        controller: _scrollController,
+        controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: state.hashtags.length + (state.isLoading ? 1 : 0),
         itemBuilder: (context, index) {

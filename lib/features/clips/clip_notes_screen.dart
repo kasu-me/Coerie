@@ -5,10 +5,62 @@ import '../../core/errors/api_error_message.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../data/models/clip_model.dart';
 import '../../data/models/note_model.dart';
+import '../../shared/mixins/infinite_scroll_mixin.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/providers/paged_notifier.dart';
 import '../timeline/widgets/note_card.dart';
 import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/error_view.dart';
+
+/// クリップの中身。
+///
+/// 保持する順序は API の返却順（新しい順）のまま固定し、昇順・降順の
+/// 並べ替えは画面側で行う。ここで並べ替えてしまうと、昇順のとき
+/// [PagedNotifier] がカーソルに使う末尾要素が「最も新しいノート」になり、
+/// 追加読み込みが同じページを取り続ける。
+class _ClipNotesNotifier extends PagedNotifier<NoteModel> {
+  final Ref _ref;
+  final String clipId;
+
+  _ClipNotesNotifier(this._ref, this.clipId) {
+    fetch();
+  }
+
+  @override
+  String get errorFallback => 'クリップの中身を取得できませんでした';
+
+  @override
+  String cursorOf(NoteModel item) => item.id;
+
+  @override
+  Future<List<NoteModel>> fetchPage({String? untilId}) async {
+    final api = _ref.read(misskeyApiProvider);
+    if (api == null) return const [];
+    return api.getClipNotes(clipId: clipId, limit: pageSize, untilId: untilId);
+  }
+
+  /// 未取得の古いノートをすべて読み込む（昇順表示への切り替え時に使う）。
+  ///
+  /// 昇順ではリストの末尾が最古のノートになるため、全件揃っていないと
+  /// 表示順が途中で破綻する。エラーが出た時点で打ち切る。
+  Future<void> fetchAll() async {
+    while (state.hasMore && state.error == null) {
+      await fetch(loadMore: true);
+    }
+  }
+
+  /// 一覧から1件取り除く（クリップから削除した直後の反映用）。再取得はしない。
+  void removeLocally(String noteId) {
+    state = state.copyWith(
+      items: state.items.where((n) => n.id != noteId).toList(),
+    );
+  }
+}
+
+final _clipNotesProvider = StateNotifierProvider.autoDispose
+    .family<_ClipNotesNotifier, PagedState<NoteModel>, String>(
+      (ref, clipId) => _ClipNotesNotifier(ref, clipId),
+    );
 
 class ClipNotesScreen extends ConsumerStatefulWidget {
   final ClipModel clip;
@@ -20,157 +72,34 @@ class ClipNotesScreen extends ConsumerStatefulWidget {
   ConsumerState<ClipNotesScreen> createState() => _ClipNotesScreenState();
 }
 
-class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
+class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen>
+    with InfiniteScrollMixin<ClipNotesScreen> {
   /// お気に入り状態を含む最新のクリップ。画面を閉じるときに呼び出し元へ返す。
   late ClipModel _clip = widget.clip;
   bool _isTogglingFavorite = false;
 
-  List<NoteModel> _notes = [];
-  bool _isLoading = false;
-  bool _hasMore = true;
-  String? _error;
   // false: newest first（降順）, true: oldest first（昇順）
   bool _ascending = false;
-  final _scrollController = ScrollController();
 
-  void _sortNotes() {
-    _notes.sort(
+  _ClipNotesNotifier get _notifier =>
+      ref.read(_clipNotesProvider(widget.clip.id).notifier);
+
+  @override
+  void onLoadMore() => _notifier.fetch(loadMore: true);
+
+  /// 表示順に並べ替えたノート。保持順（API の返却順）は変えない。
+  List<NoteModel> _sorted(List<NoteModel> notes) => [...notes]
+    ..sort(
       (a, b) => _ascending
           ? a.createdAt.compareTo(b.createdAt)
           : b.createdAt.compareTo(a.createdAt),
     );
-  }
 
-  /// ページネーション用に常に最古ノートのIDを返す
-  String? get _oldestNoteId {
-    if (_notes.isEmpty) return null;
-    return _notes
-        .reduce((a, b) => a.createdAt.isBefore(b.createdAt) ? a : b)
-        .id;
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (!_isLoading &&
-        _hasMore &&
-        _scrollController.position.pixels >=
-            _scrollController.position.maxScrollExtent - 300) {
-      _loadMore();
-    }
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _notes = [];
-      _hasMore = true;
-      _error = null;
-      _isLoading = true;
-    });
-    final api = ref.read(misskeyApiProvider);
-    if (api == null) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _error = 'ログインが必要です';
-        });
-      }
-      return;
-    }
-    try {
-      final notes = await api.getClipNotes(clipId: widget.clip.id, limit: 20);
-      if (mounted) {
-        setState(() {
-          _notes = notes;
-          _sortNotes();
-          _hasMore = notes.length >= 20;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(
-          () => _error = apiErrorMessage(e, fallback: 'クリップの中身を取得できませんでした'),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _loadMore() async {
-    if (_notes.isEmpty) return;
-    setState(() => _isLoading = true);
-    final api = ref.read(misskeyApiProvider);
-    // ここで return する場合は try/finally を通らないため、
-    // _isLoading を自前で戻さないと以降の追加読み込みが止まる。
-    if (api == null) {
-      if (mounted) setState(() => _isLoading = false);
-      return;
-    }
-    try {
-      final more = await api.getClipNotes(
-        clipId: widget.clip.id,
-        limit: 20,
-        untilId: _oldestNoteId,
-      );
-      if (mounted) {
-        setState(() {
-          _notes.addAll(more);
-          _sortNotes();
-          _hasMore = more.length >= 20;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        showApiErrorSnackBar(context, e, fallback: '読み込みに失敗しました');
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  /// 昇順切り替え時に未読込の古いノートを全て取得する
-  Future<void> _ensureAllLoaded() async {
-    final api = ref.read(misskeyApiProvider);
-    if (api == null) return;
-    setState(() => _isLoading = true);
-    try {
-      while (_hasMore) {
-        final more = await api.getClipNotes(
-          clipId: widget.clip.id,
-          limit: 100,
-          untilId: _oldestNoteId,
-        );
-        if (!mounted) return;
-        setState(() {
-          _notes.addAll(more);
-          _hasMore = more.length >= 100;
-        });
-        if (more.isEmpty) break;
-      }
-    } catch (e) {
-      if (mounted) {
-        showApiErrorSnackBar(context, e, fallback: '読み込みに失敗しました');
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _sortNotes();
-          _isLoading = false;
-        });
-      }
-    }
+  Future<void> _toggleSortOrder(bool hasMore) async {
+    final toAscending = !_ascending;
+    setState(() => _ascending = toAscending);
+    // 昇順は全件揃っていないと表示順が破綻するため、先に読み切る。
+    if (toAscending && hasMore) await _notifier.fetchAll();
   }
 
   Future<void> _removeNote(NoteModel note) async {
@@ -200,7 +129,7 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
     if (api == null) return;
     try {
       await api.removeNoteFromClip(clipId: widget.clip.id, noteId: note.id);
-      setState(() => _notes.removeWhere((n) => n.id == note.id));
+      _notifier.removeLocally(note.id);
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -281,6 +210,7 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final state = ref.watch(_clipNotesProvider(widget.clip.id));
     final isFavorited = _clip.isFavorited ?? false;
     // お気に入り状態の変化を一覧画面へ返すため、戻る操作を自前で処理する
     return PopScope(
@@ -318,20 +248,14 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
                 _ascending ? Icons.arrow_upward : Icons.arrow_downward,
               ),
               tooltip: _ascending ? '古い順（昇順）' : '新しい順（降順）',
-              onPressed: _isLoading
+              onPressed: state.isLoading
                   ? null
-                  : () async {
-                      final toAscending = !_ascending;
-                      setState(() => _ascending = toAscending);
-                      if (toAscending && _hasMore) {
-                        // 未読込の古いノートを全て取得してから昇順表示
-                        await _ensureAllLoaded();
-                      } else {
-                        setState(() => _sortNotes());
-                      }
-                    },
+                  : () => _toggleSortOrder(state.hasMore),
             ),
-            IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _notifier.refresh,
+            ),
             PopupMenuButton<String>(
               onSelected: (v) {
                 if (v == 'open_browser') _openInBrowser();
@@ -345,19 +269,19 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
             ),
           ],
         ),
-        body: SafeArea(bottom: true, child: _buildBody()),
+        body: SafeArea(bottom: true, child: _buildBody(state)),
       ),
     );
   }
 
-  Widget _buildBody() {
-    if (_isLoading && _notes.isEmpty) {
+  Widget _buildBody(PagedState<NoteModel> state) {
+    if (state.isLoading && state.items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_error != null) {
-      return ErrorView(message: _error!, onRetry: _load);
+    if (state.error != null) {
+      return ErrorView(message: state.error!, onRetry: _notifier.refresh);
     }
-    if (_notes.isEmpty) {
+    if (state.items.isEmpty) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -371,21 +295,24 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen> {
         ),
       );
     }
+
+    final notes = _sorted(state.items);
     return RefreshIndicator(
-      onRefresh: _load,
+      onRefresh: _notifier.refresh,
       child: ListView.builder(
-        controller: _scrollController,
+        controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: _notes.length + (_hasMore ? 1 : 0),
+        itemCount: notes.length + (state.hasMore ? 1 : 0),
         itemBuilder: (ctx, i) {
-          if (i == _notes.length) {
+          if (i == notes.length) {
             return const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          final note = _notes[i];
+          final note = notes[i];
           return NoteCard(
+            key: ValueKey(note.id),
             note: note,
             trailing: Padding(
               padding: const EdgeInsets.only(left: 4),

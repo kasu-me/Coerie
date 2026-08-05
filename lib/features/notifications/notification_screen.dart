@@ -17,6 +17,7 @@ import '../../shared/utils/emoji_utils.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
 import '../../shared/utils/format_utils.dart';
 import '../../shared/widgets/user_avatar.dart';
+import '../../shared/mixins/infinite_scroll_mixin.dart';
 import '../../shared/providers/paged_notifier.dart';
 
 // ---- Provider ----
@@ -104,32 +105,16 @@ class NotificationScreen extends ConsumerStatefulWidget {
 }
 
 class _NotificationScreenState extends ConsumerState<NotificationScreen>
-    with AutomaticKeepAliveClientMixin {
-  final ScrollController _scrollController = ScrollController();
-
+    with
+        AutomaticKeepAliveClientMixin,
+        InfiniteScrollMixin<NotificationScreen> {
   @override
   bool get wantKeepAlive => true;
 
   @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 300) {
-      final accountId = ref.read(activeAccountProvider)?.id ?? '';
-      ref
-          .read(_notificationsProvider(accountId).notifier)
-          .fetch(loadMore: true);
-    }
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
+  void onLoadMore() {
+    final accountId = ref.read(activeAccountProvider)?.id ?? '';
+    ref.read(_notificationsProvider(accountId).notifier).fetch(loadMore: true);
   }
 
   @override
@@ -163,7 +148,7 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
             left: 0,
             right: 0,
             child: Center(
-              child: ScrollToTopFab(scrollController: _scrollController),
+              child: ScrollToTopFab(scrollController: scrollController),
             ),
           ),
         ],
@@ -189,7 +174,7 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
             left: 0,
             right: 0,
             child: Center(
-              child: ScrollToTopFab(scrollController: _scrollController),
+              child: ScrollToTopFab(scrollController: scrollController),
             ),
           ),
         ],
@@ -232,7 +217,7 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
       onRefresh: () =>
           ref.read(_notificationsProvider(accountId).notifier).refresh(),
       child: ListView.separated(
-        controller: _scrollController,
+        controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: state.items.length + (state.hasMore ? 1 : 0),
         separatorBuilder: (context, i) => const Divider(height: 1),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../shared/mixins/infinite_scroll_mixin.dart';
 import '../../data/models/gallery_post_model.dart';
 import 'providers/gallery_providers.dart';
 import 'widgets/gallery_post_grid.dart';
@@ -17,29 +18,12 @@ class UserGalleryScreen extends ConsumerStatefulWidget {
   ConsumerState<UserGalleryScreen> createState() => _UserGalleryScreenState();
 }
 
-class _UserGalleryScreenState extends ConsumerState<UserGalleryScreen> {
-  final _scrollController = ScrollController();
-
+class _UserGalleryScreenState extends ConsumerState<UserGalleryScreen>
+    with InfiniteScrollMixin<UserGalleryScreen> {
   @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 300) {
-      ref
-          .read(galleryUserPostsProvider(widget.userId).notifier)
-          .fetch(loadMore: true);
-    }
-  }
+  void onLoadMore() => ref
+      .read(galleryUserPostsProvider(widget.userId).notifier)
+      .fetch(loadMore: true);
 
   Future<void> _openDetail(GalleryPostModel post) async {
     final result = await context.push<GalleryDetailResult>(
@@ -77,9 +61,10 @@ class _UserGalleryScreenState extends ConsumerState<UserGalleryScreen> {
         posts: state.items,
         isLoading: state.isLoading,
         hasMore: state.hasMore,
-        scrollController: _scrollController,
-        onRefresh: () =>
-            ref.read(galleryUserPostsProvider(widget.userId).notifier).refresh(),
+        scrollController: scrollController,
+        onRefresh: () => ref
+            .read(galleryUserPostsProvider(widget.userId).notifier)
+            .refresh(),
         onTap: _openDetail,
         emptyTitle: 'ギャラリー投稿がありません',
       ),

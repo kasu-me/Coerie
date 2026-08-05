@@ -1,11 +1,47 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/errors/api_error_message.dart';
 import '../../data/models/note_model.dart';
+import '../../shared/mixins/infinite_scroll_mixin.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/providers/paged_notifier.dart';
 import '../timeline/widgets/note_card.dart';
-import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/error_view.dart';
+
+class _FavoritesNotifier extends PagedNotifier<FavoriteModel> {
+  final Ref _ref;
+
+  _FavoritesNotifier(this._ref) {
+    fetch();
+  }
+
+  @override
+  String get errorFallback => 'お気に入りを取得できませんでした';
+
+  /// カーソルはノートIDではなくお気に入りレコードのID。
+  /// 取り違えるとページングが壊れる（[FavoriteModel] のコメント参照）。
+  @override
+  String cursorOf(FavoriteModel item) => item.id;
+
+  @override
+  Future<List<FavoriteModel>> fetchPage({String? untilId}) async {
+    final api = _ref.read(misskeyApiProvider);
+    if (api == null) return const [];
+    return api.getFavorites(limit: pageSize, untilId: untilId);
+  }
+
+  /// 一覧から1件取り除く（お気に入り解除直後の反映用）。再取得はしない。
+  void removeLocally(String favoriteId) {
+    state = state.copyWith(
+      items: state.items.where((f) => f.id != favoriteId).toList(),
+    );
+  }
+}
+
+final _favoritesProvider =
+    StateNotifierProvider.autoDispose<
+      _FavoritesNotifier,
+      PagedState<FavoriteModel>
+    >((ref) => _FavoritesNotifier(ref));
 
 class FavoritesScreen extends ConsumerStatefulWidget {
   const FavoritesScreen({super.key});
@@ -14,104 +50,15 @@ class FavoritesScreen extends ConsumerStatefulWidget {
   ConsumerState<FavoritesScreen> createState() => _FavoritesScreenState();
 }
 
-class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
-  List<FavoriteModel> _favorites = [];
-  bool _isLoading = false;
-  bool _hasMore = true;
-  String? _error;
-  final _scrollController = ScrollController();
-
-  /// 次ページの取得に使うカーソル。
-  /// ノートのIDではなくお気に入りレコードのIDを渡す（[FavoriteModel] 参照）。
-  /// `i/favorites` は新しい順に返すため、末尾が最も古いレコードになる。
-  String? get _oldestFavoriteId =>
-      _favorites.isEmpty ? null : _favorites.last.id;
-
+class _FavoritesScreenState extends ConsumerState<FavoritesScreen>
+    with InfiniteScrollMixin<FavoritesScreen> {
   @override
-  void initState() {
-    super.initState();
-    _load();
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (!_isLoading &&
-        _hasMore &&
-        _scrollController.position.pixels >=
-            _scrollController.position.maxScrollExtent - 300) {
-      _loadMore();
-    }
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _favorites = [];
-      _hasMore = true;
-      _error = null;
-      _isLoading = true;
-    });
-    final api = ref.read(misskeyApiProvider);
-    if (api == null) {
-      if (mounted) setState(() => _isLoading = false);
-      return;
-    }
-    try {
-      final favorites = await api.getFavorites(limit: 20);
-      if (mounted) {
-        setState(() {
-          _favorites = favorites;
-          _hasMore = favorites.length >= 20;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(
-          () => _error = apiErrorMessage(e, fallback: 'お気に入りを取得できませんでした'),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _loadMore() async {
-    if (_favorites.isEmpty) return;
-    setState(() => _isLoading = true);
-    final api = ref.read(misskeyApiProvider);
-    // ここで return する場合は try/finally を通らないため、
-    // _isLoading を自前で戻さないと以降の追加読み込みが止まる。
-    if (api == null) {
-      if (mounted) setState(() => _isLoading = false);
-      return;
-    }
-    try {
-      final more = await api.getFavorites(
-        limit: 20,
-        untilId: _oldestFavoriteId,
-      );
-      if (mounted) {
-        setState(() {
-          _favorites = [..._favorites, ...more];
-          _hasMore = more.length >= 20;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        showApiErrorSnackBar(context, e, fallback: '読み込みに失敗しました');
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
+  void onLoadMore() =>
+      ref.read(_favoritesProvider.notifier).fetch(loadMore: true);
 
   @override
   Widget build(BuildContext context) {
+    final state = ref.watch(_favoritesProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('お気に入り'),
@@ -119,49 +66,46 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: '更新',
-            onPressed: _load,
+            onPressed: () => ref.read(_favoritesProvider.notifier).refresh(),
           ),
         ],
       ),
-      body: _buildBody(),
+      body: _buildBody(state),
     );
   }
 
-  Widget _buildBody() {
-    if (_isLoading && _favorites.isEmpty) {
+  Widget _buildBody(PagedState<FavoriteModel> state) {
+    final notifier = ref.read(_favoritesProvider.notifier);
+
+    if (state.isLoading && state.items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_error != null && _favorites.isEmpty) {
-      return ErrorView(message: _error!, onRetry: _load);
+    if (state.error != null && state.items.isEmpty) {
+      return ErrorView(message: state.error!, onRetry: notifier.refresh);
     }
-    if (_favorites.isEmpty) {
+    if (state.items.isEmpty) {
       return const Center(child: Text('お気に入りがありません'));
     }
     return RefreshIndicator(
-      onRefresh: _load,
+      onRefresh: notifier.refresh,
       child: ListView.separated(
-        controller: _scrollController,
+        controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: _favorites.length + (_isLoading || _hasMore ? 1 : 0),
+        itemCount:
+            state.items.length + (state.isLoading || state.hasMore ? 1 : 0),
         separatorBuilder: (context, index) => const Divider(height: 1),
         itemBuilder: (context, index) {
-          if (index >= _favorites.length) {
+          if (index >= state.items.length) {
             return const Padding(
               padding: EdgeInsets.all(16),
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          final favorite = _favorites[index];
+          final favorite = state.items[index];
           return NoteCard(
             key: ValueKey(favorite.id),
             note: favorite.note,
-            onUnfavorited: () {
-              if (mounted) {
-                setState(
-                  () => _favorites.removeWhere((f) => f.id == favorite.id),
-                );
-              }
-            },
+            onUnfavorited: () => notifier.removeLocally(favorite.id),
           );
         },
       ),

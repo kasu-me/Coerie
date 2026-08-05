@@ -1,3 +1,4 @@
+import '../../shared/mixins/infinite_scroll_mixin.dart';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -35,7 +36,8 @@ class DriveScreen extends ConsumerStatefulWidget {
   ConsumerState<DriveScreen> createState() => _DriveScreenState();
 }
 
-class _DriveScreenState extends ConsumerState<DriveScreen> {
+class _DriveScreenState extends ConsumerState<DriveScreen>
+    with InfiniteScrollMixin<DriveScreen> {
   // パンくずスタック（最初はルート）
   final List<({String? id, String name})> _breadcrumbs = [
     (id: null, name: 'ドライブ'),
@@ -46,7 +48,6 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
   bool _isLoading = false;
   bool _hasMore = true;
   String? _error;
-  final _scrollController = ScrollController();
   final Set<String> _selectedFileIds = {};
   final Set<String> _selectedFolderIds = {};
   bool _managingMode = false;
@@ -59,22 +60,12 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
   void initState() {
     super.initState();
     _load();
-    _scrollController.addListener(_onScroll);
   }
 
   @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (!_isLoading &&
-        _hasMore &&
-        _scrollController.position.pixels >=
-            _scrollController.position.maxScrollExtent - 300) {
-      _loadMoreFiles();
-    }
+  void onLoadMore() {
+    if (_isLoading || !_hasMore) return;
+    _loadMoreFiles();
   }
 
   /// 現在のフォルダの内容（フォルダ + ファイル）を最初から取得
@@ -728,7 +719,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen> {
     final itemCount = _folders.length + _files.length + (_isLoading ? 1 : 0);
 
     return GridView.builder(
-      controller: _scrollController,
+      controller: scrollController,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: EdgeInsets.fromLTRB(
         4,

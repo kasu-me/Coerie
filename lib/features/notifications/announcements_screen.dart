@@ -11,6 +11,7 @@ import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/announcements_badge_provider.dart';
 import '../../shared/widgets/mfm_content.dart';
 import '../../shared/utils/format_utils.dart';
+import '../../shared/mixins/infinite_scroll_mixin.dart';
 import '../../shared/providers/paged_notifier.dart';
 
 // Provider
@@ -75,32 +76,16 @@ class AnnouncementsScreen extends ConsumerStatefulWidget {
 }
 
 class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen>
-    with AutomaticKeepAliveClientMixin {
-  final ScrollController _scrollController = ScrollController();
-
+    with
+        AutomaticKeepAliveClientMixin,
+        InfiniteScrollMixin<AnnouncementsScreen> {
   @override
   bool get wantKeepAlive => true;
 
   @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-  }
-
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 300) {
-      final accountId = ref.read(activeAccountProvider)?.id ?? '';
-      ref
-          .read(_announcementsProvider(accountId).notifier)
-          .fetch(loadMore: true);
-    }
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
+  void onLoadMore() {
+    final accountId = ref.read(activeAccountProvider)?.id ?? '';
+    ref.read(_announcementsProvider(accountId).notifier).fetch(loadMore: true);
   }
 
   @override
@@ -164,7 +149,7 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen>
       onRefresh: () =>
           ref.read(_announcementsProvider(accountId).notifier).refresh(),
       child: ListView.separated(
-        controller: _scrollController,
+        controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: state.items.length + (state.hasMore ? 1 : 0),
         separatorBuilder: (_, _) => const Divider(height: 1),

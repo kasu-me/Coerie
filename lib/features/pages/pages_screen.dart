@@ -1,3 +1,4 @@
+import '../../shared/mixins/infinite_scroll_mixin.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -231,26 +232,12 @@ class PagedPagesList<T> extends StatefulWidget {
   State<PagedPagesList<T>> createState() => _PagedPagesListState<T>();
 }
 
-class _PagedPagesListState<T> extends State<PagedPagesList<T>> {
-  final _scrollController = ScrollController();
-
+class _PagedPagesListState<T> extends State<PagedPagesList<T>>
+    with InfiniteScrollMixin<PagedPagesList<T>> {
   @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
+  void onLoadMore() {
     if (widget.state.isLoading || !widget.state.hasMore) return;
-    if (!_scrollController.hasClients) return;
-    final pos = _scrollController.position;
-    if (pos.pixels >= pos.maxScrollExtent - 300) widget.onLoadMore();
+    widget.onLoadMore();
   }
 
   @override
@@ -271,7 +258,7 @@ class _PagedPagesListState<T> extends State<PagedPagesList<T>> {
     return RefreshIndicator(
       onRefresh: widget.onRefresh,
       child: ListView.separated(
-        controller: _scrollController,
+        controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: state.items.length + (state.hasMore ? 1 : 0),

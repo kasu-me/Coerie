@@ -5,12 +5,66 @@ import 'package:dio/dio.dart';
 import '../../core/errors/api_error_message.dart';
 import '../../data/models/drive_file_model.dart';
 import '../../data/models/note_model.dart';
+import '../../shared/mixins/infinite_scroll_mixin.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/providers/paged_notifier.dart';
 import '../../shared/widgets/error_view.dart';
 import '../timeline/widgets/note_card.dart';
 
-/// 原因を特定できなかった取得失敗の表示文言。
-const String _fetchErrorFallback = 'ノートを取得できませんでした';
+typedef _FileKey = ({String id, String name});
+
+class _FileNotesNotifier extends PagedNotifier<NoteModel> {
+  final Ref _ref;
+  final _FileKey file;
+
+  /// `file:ID` 検索が使えずファイル名での代替検索に切り替えたか。
+  /// 画面側が初回だけ案内を出すために見る。
+  bool usedNameFallback = false;
+
+  _FileNotesNotifier(this._ref, this.file) {
+    fetch();
+  }
+
+  @override
+  String get errorFallback => 'ノートを取得できませんでした';
+
+  @override
+  String cursorOf(NoteModel item) => item.id;
+
+  @override
+  Future<List<NoteModel>> fetchPage({String? untilId}) async {
+    final api = _ref.read(misskeyApiProvider);
+    if (api == null) return const [];
+
+    try {
+      return await api.getNotesByFile(
+        fileId: file.id,
+        limit: pageSize,
+        untilId: untilId,
+      );
+    } on DioException catch (e) {
+      // 400 を返すサーバーは file:ID での検索に対応していないため、
+      // ファイル名での検索で代替する。それ以外の失敗は通常のエラー扱い。
+      if (e.response?.statusCode != 400) rethrow;
+      try {
+        final notes = await api.searchNotes(
+          query: file.name,
+          limit: pageSize,
+          untilId: untilId,
+        );
+        usedNameFallback = true;
+        return notes;
+      } catch (_) {
+        throw const AppException('サーバーでの検索に失敗しました');
+      }
+    }
+  }
+}
+
+final _fileNotesProvider = StateNotifierProvider.autoDispose
+    .family<_FileNotesNotifier, PagedState<NoteModel>, _FileKey>(
+      (ref, file) => _FileNotesNotifier(ref, file),
+    );
 
 class DriveFileNotesScreen extends ConsumerStatefulWidget {
   final DriveFileModel file;
@@ -22,162 +76,68 @@ class DriveFileNotesScreen extends ConsumerStatefulWidget {
       _DriveFileNotesScreenState();
 }
 
-class _DriveFileNotesScreenState extends ConsumerState<DriveFileNotesScreen> {
-  final List<NoteModel> _notes = [];
-  final ScrollController _scrollController = ScrollController();
-  bool _isLoading = false;
-  bool _isLoadingMore = false;
-  bool _hasMore = true;
-  String? _error;
+class _DriveFileNotesScreenState extends ConsumerState<DriveFileNotesScreen>
+    with InfiniteScrollMixin<DriveFileNotesScreen> {
+  /// 代替検索の案内を出したか（1回だけ出す）。
+  bool _notifiedFallback = false;
+
+  _FileKey get _key => (id: widget.file.id, name: widget.file.name);
 
   @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchNotes());
-  }
+  void onLoadMore() =>
+      ref.read(_fileNotesProvider(_key).notifier).fetch(loadMore: true);
 
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (!_isLoadingMore &&
-        _hasMore &&
-        _scrollController.position.pixels >=
-            _scrollController.position.maxScrollExtent - 200) {
-      _fetchNotes(loadMore: true);
-    }
-  }
-
-  Future<void> _fetchNotes({bool loadMore = false}) async {
-    final api = ref.read(misskeyApiProvider);
-    if (api == null) {
-      setState(() => _error = 'ログインが必要です');
-      return;
-    }
-
-    if (loadMore) {
-      if (_isLoadingMore) return;
-      setState(() => _isLoadingMore = true);
-    } else {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
-    }
-
-    final untilId = loadMore && _notes.isNotEmpty ? _notes.last.id : null;
-
-    try {
-      final notes = await api.getNotesByFile(
-        fileId: widget.file.id,
-        limit: 20,
-        untilId: untilId,
+  /// ファイル名での代替検索に切り替わっていたら、一度だけ理由を伝える。
+  void _notifyFallbackOnce() {
+    if (_notifiedFallback) return;
+    if (!ref.read(_fileNotesProvider(_key).notifier).usedNameFallback) return;
+    _notifiedFallback = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ファイルIDでの検索に対応していないため、ファイル名で代替検索しました')),
       );
-      setState(() {
-        if (loadMore) {
-          _notes.addAll(notes);
-          _isLoadingMore = false;
-        } else {
-          _notes.clear();
-          _notes.addAll(notes);
-          _isLoading = false;
-        }
-        _hasMore = notes.length >= 20;
-      });
-    } on DioException catch (dioErr) {
-      // 400 が返るサーバでは file:ID 検索をサポートしていないことがあるため
-      // 代替としてファイル名で検索を試みる
-      if (dioErr.response?.statusCode == 400) {
-        try {
-          final notes = await api.searchNotes(
-            query: widget.file.name,
-            limit: 20,
-            untilId: untilId,
-          );
-          setState(() {
-            if (loadMore) {
-              _notes.addAll(notes);
-              _isLoadingMore = false;
-            } else {
-              _notes.clear();
-              _notes.addAll(notes);
-              _isLoading = false;
-            }
-            _hasMore = notes.length >= 20;
-          });
-          if (!loadMore && mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('ファイルIDでの検索に対応していないため、ファイル名で代替検索しました'),
-              ),
-            );
-          }
-        } catch (e) {
-          setState(() {
-            _error = 'サーバーでの検索に失敗しました';
-            _isLoading = false;
-            _isLoadingMore = false;
-          });
-        }
-      } else {
-        setState(() {
-          _error = apiErrorMessage(dioErr, fallback: _fetchErrorFallback);
-          _isLoading = false;
-          _isLoadingMore = false;
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _error = apiErrorMessage(e, fallback: _fetchErrorFallback);
-        _isLoading = false;
-        _isLoadingMore = false;
-      });
-    }
-  }
-
-  Future<void> _onRefresh() async {
-    await _fetchNotes(loadMore: false);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(_fileNotesProvider(_key), (_, _) => _notifyFallbackOnce());
+    final state = ref.watch(_fileNotesProvider(_key));
+
     return Scaffold(
       appBar: AppBar(title: Text('「${widget.file.name}」を添付したノート')),
-      body: _buildBody(context),
+      body: _buildBody(state),
     );
   }
 
-  Widget _buildBody(BuildContext context) {
-    if (_error != null && _notes.isEmpty) {
-      return ErrorView(message: _error!, onRetry: _fetchNotes);
-    }
+  Widget _buildBody(PagedState<NoteModel> state) {
+    final notifier = ref.read(_fileNotesProvider(_key).notifier);
 
-    if (_isLoading && _notes.isEmpty) {
+    if (state.error != null && state.items.isEmpty) {
+      return ErrorView(message: state.error!, onRetry: notifier.refresh);
+    }
+    if (state.isLoading && state.items.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-
-    if (!_isLoading && _notes.isEmpty) {
+    if (state.items.isEmpty) {
       return const Center(child: Text('該当するノートがありません'));
     }
 
     return RefreshIndicator(
-      onRefresh: _onRefresh,
+      onRefresh: notifier.refresh,
       child: ListView.builder(
-        controller: _scrollController,
+        controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: _notes.length + (_isLoadingMore ? 1 : 0),
+        itemCount: state.items.length + (state.isLoading ? 1 : 0),
         itemBuilder: (context, index) {
-          if (index == _notes.length) {
+          if (index == state.items.length) {
             return const Padding(
               padding: EdgeInsets.all(16),
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          final note = _notes[index];
+          final note = state.items[index];
           return NoteCard(key: ValueKey(note.id), note: note);
         },
       ),
