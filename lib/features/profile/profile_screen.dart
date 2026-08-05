@@ -112,7 +112,7 @@ _NotesProviderKey _notesKeyForTab(String userId, int tabIndex) =>
     };
 
 // ---- フォロー/フォロワー リスト ----
-class _FollowListNotifier extends PagedNotifier<UserModel> {
+class _FollowListNotifier extends PagedNotifier<FollowingModel> {
   final Ref _ref;
   final String userId;
   final bool isFollowing; // true=フォロー一覧, false=フォロワー一覧
@@ -124,36 +124,40 @@ class _FollowListNotifier extends PagedNotifier<UserModel> {
   @override
   int get pageSize => 30;
 
+  /// カーソルはユーザーIDではなくフォロー関係レコードのID。
+  /// 取り違えるとページングが壊れる（[FollowingModel] のコメント参照）。
   @override
-  String cursorOf(UserModel item) => item.id;
+  String cursorOf(FollowingModel item) => item.id;
 
   @override
-  Future<List<UserModel>> fetchPage({String? untilId}) async {
+  Future<List<FollowingModel>> fetchPage({String? untilId}) async {
     final api = _ref.read(misskeyApiProvider);
     if (api == null) return [];
-    final users = isFollowing
+    final items = isFollowing
         ? await api.getFollowing(userId, limit: pageSize, untilId: untilId)
         : await api.getFollowers(userId, limit: pageSize, untilId: untilId);
 
     // users/relation で一括取得したリレーション情報を各 UserModel に反映する。
-    // 失敗した場合は元の users をそのまま使う。
+    // 失敗した場合は元の items をそのまま使う。
     try {
       final relations = await api.getUsersRelation(
-        users.map((u) => u.id).toList(),
+        items.map((f) => f.user.id).toList(),
       );
-      if (relations.isEmpty) return users;
-      return users.map((u) {
-        final rel = relations[u.id];
-        if (rel == null) return u;
-        return u.copyWith(
-          isFollowing: rel['isFollowing'] as bool? ?? u.isFollowing,
-          isFollowed: rel['isFollowed'] as bool? ?? u.isFollowed,
-          isBlocking: rel['isBlocking'] as bool? ?? u.isBlocking,
-          isMuted: rel['isMuted'] as bool? ?? u.isMuted,
+      if (relations.isEmpty) return items;
+      return items.map((f) {
+        final rel = relations[f.user.id];
+        if (rel == null) return f;
+        return f.copyWith(
+          user: f.user.copyWith(
+            isFollowing: rel['isFollowing'] as bool? ?? f.user.isFollowing,
+            isFollowed: rel['isFollowed'] as bool? ?? f.user.isFollowed,
+            isBlocking: rel['isBlocking'] as bool? ?? f.user.isBlocking,
+            isMuted: rel['isMuted'] as bool? ?? f.user.isMuted,
+          ),
         );
       }).toList();
     } catch (_) {
-      return users;
+      return items;
     }
   }
 }
@@ -161,7 +165,7 @@ class _FollowListNotifier extends PagedNotifier<UserModel> {
 typedef _FollowListKey = ({String userId, bool isFollowing});
 
 final _followListProvider = StateNotifierProvider.autoDispose
-    .family<_FollowListNotifier, PagedState<UserModel>, _FollowListKey>(
+    .family<_FollowListNotifier, PagedState<FollowingModel>, _FollowListKey>(
       (ref, p) =>
           _FollowListNotifier(ref, p.userId, isFollowing: p.isFollowing),
     );
@@ -1150,9 +1154,10 @@ class _FollowListSheet extends ConsumerWidget {
                         )
                       : const SizedBox.shrink();
                 }
-                final u = state.items[i];
+                final f = state.items[i];
                 return _FollowUserTile(
-                  user: u,
+                  key: ValueKey(f.id),
+                  user: f.user,
                   isFollowersList: !isFollowing,
                   profileOwnerId: userId,
                 );
@@ -1170,6 +1175,7 @@ class _FollowUserTile extends ConsumerStatefulWidget {
   final bool isFollowersList;
   final String profileOwnerId;
   const _FollowUserTile({
+    super.key,
     required this.user,
     required this.isFollowersList,
     required this.profileOwnerId,

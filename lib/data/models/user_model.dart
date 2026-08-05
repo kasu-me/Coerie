@@ -111,3 +111,41 @@ class UserModel {
     );
   }
 }
+
+/// `users/following` / `users/followers` の戻り値のラッパー
+/// （`{ id, createdAt, followee }` または `{ id, createdAt, follower }`）。
+///
+/// [user] はエンドポイントに応じてフォローされている側／している側になる。
+///
+/// **ページングのカーソルには [UserModel.id] ではなく、フォロー関係レコードの
+/// [id] を使うこと。** `user.id` を使うとページングが壊れる。
+///
+/// フォロー関係レコードの ID は「フォローした時刻」から、ユーザーの ID は
+/// 「アカウントを作成した時刻」から採番される。どちらも同じ aid 形式なので
+/// サーバーはエラーを返さず、アカウント作成日時を基準に切った別の窓が
+/// 返ってくるため、2ページ目以降で重複・欠落が静かに起きる。
+class FollowingModel {
+  final String id;
+  final UserModel user;
+
+  const FollowingModel({required this.id, required this.user});
+
+  /// [userKey] は `users/following` なら `'followee'`、
+  /// `users/followers` なら `'follower'`。
+  factory FollowingModel.fromJson(
+    Map<String, dynamic> json, {
+    required String userKey,
+    String host = '',
+  }) {
+    return FollowingModel(
+      id: json['id'] as String,
+      user: UserModel.fromJson(
+        json[userKey] as Map<String, dynamic>,
+        host: host,
+      ),
+    );
+  }
+
+  FollowingModel copyWith({UserModel? user}) =>
+      FollowingModel(id: id, user: user ?? this.user);
+}

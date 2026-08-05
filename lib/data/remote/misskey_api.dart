@@ -297,40 +297,56 @@ class MisskeyApi {
     return Future.wait(futures);
   }
 
-  Future<List<UserModel>> getFollowing(
+  /// フォロー一覧を取得する（users/following）
+  ///
+  /// [untilId] には [FollowingModel.id]（フォロー関係レコードのID）を渡すこと。
+  /// ユーザーのIDを渡すとページングが壊れる（[FollowingModel] のコメント参照）。
+  Future<List<FollowingModel>> getFollowing(
     String userId, {
     int limit = 30,
     String? untilId,
-  }) async {
-    final params = <String, dynamic>{'userId': userId, 'limit': limit};
-    if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('users/following', data: _body(params));
-    final list = res.data as List<dynamic>;
-    return list.map((e) {
-      final map = e as Map<String, dynamic>;
-      return UserModel.fromJson(
-        map['followee'] as Map<String, dynamic>,
-        host: host,
-      );
-    }).toList();
-  }
+  }) => _fetchFollowRelations(
+    'users/following',
+    userKey: 'followee',
+    userId: userId,
+    limit: limit,
+    untilId: untilId,
+  );
 
-  Future<List<UserModel>> getFollowers(
+  /// フォロワー一覧を取得する（users/followers）
+  ///
+  /// [untilId] の扱いは [getFollowing] と同じ。
+  Future<List<FollowingModel>> getFollowers(
     String userId, {
     int limit = 30,
+    String? untilId,
+  }) => _fetchFollowRelations(
+    'users/followers',
+    userKey: 'follower',
+    userId: userId,
+    limit: limit,
+    untilId: untilId,
+  );
+
+  Future<List<FollowingModel>> _fetchFollowRelations(
+    String endpoint, {
+    required String userKey,
+    required String userId,
+    required int limit,
     String? untilId,
   }) async {
     final params = <String, dynamic>{'userId': userId, 'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('users/followers', data: _body(params));
-    final list = res.data as List<dynamic>;
-    return list.map((e) {
-      final map = e as Map<String, dynamic>;
-      return UserModel.fromJson(
-        map['follower'] as Map<String, dynamic>,
-        host: host,
-      );
-    }).toList();
+    final res = await _dio.post(endpoint, data: _body(params));
+    return (res.data as List<dynamic>)
+        .map(
+          (e) => FollowingModel.fromJson(
+            e as Map<String, dynamic>,
+            userKey: userKey,
+            host: host,
+          ),
+        )
+        .toList();
   }
 
   /// 指定ユーザー群に対するリレーションを一括取得する。
