@@ -1,90 +1,51 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'misskey_api_provider.dart';
-import 'shared_preferences_provider.dart';
+import '../../data/models/announcement_model.dart';
 import '../../data/remote/misskey_api.dart';
+import 'last_seen_badge_notifier.dart';
 
-class _AnnouncementsBadgeNotifier extends StateNotifier<int> {
-  final Ref _ref;
-  final String _accountId;
+/// ホーム画面のアイコンに付ける「未読のお知らせ」バッジの状態。
+///
+/// 通知・DM と違い、サーバー側にも既読を書き戻す（`readAnnouncement`）。
+/// ただし書き戻しが反映されるまでの間はローカルの [_locallyReadIds] で補う。
+class _AnnouncementsBadgeNotifier
+    extends LastSeenBadgeNotifier<AnnouncementModel> {
+  /// 個別に既読にしたお知らせ。サーバーの既読状態が追いつくまでの繋ぎ。
   final Set<String> _locallyReadIds = {};
 
-  _AnnouncementsBadgeNotifier(this._ref, this._accountId) : super(0) {
-    // If Misskey API isn't ready at construction time, listen and refresh when it becomes available.
-    _ref.listen<MisskeyApi?>(misskeyApiProvider, (prev, next) {
-      if (next != null) {
-        refreshFromApi();
-      }
-    });
-    _init();
-  }
+  _AnnouncementsBadgeNotifier(super.ref, super.accountId);
 
-  Future<void> _init() async {
-    await refreshFromApi();
-  }
+  @override
+  String get prefsKeyPrefix => 'announcements_last_seen';
 
-  Future<void> refreshFromApi() async {
-    final api = _ref.read(misskeyApiProvider);
-    if (api == null) return;
+  @override
+  Future<List<AnnouncementModel>> fetchItems(MisskeyApi api) =>
+      api.getAnnouncements(limit: 50);
 
-    try {
-      final prefs = _ref.read(sharedPreferencesProvider);
-      final lastSeenKey = 'announcements_last_seen_$_accountId';
-      final lastSeenStr = prefs.getString(lastSeenKey);
-      DateTime? lastSeen;
-      if (lastSeenStr != null) {
-        try {
-          lastSeen = DateTime.parse(lastSeenStr);
-        } catch (_) {}
-      }
+  @override
+  DateTime createdAtOf(AnnouncementModel item) => item.createdAt;
 
-      final items = await api.getAnnouncements(limit: 50);
-      final unread = items.where((a) {
-        final serverRead = a.isRead;
-        final afterLastSeen = lastSeen == null || a.createdAt.isAfter(lastSeen);
-        final locallyRead = _locallyReadIds.contains(a.id);
-        return !serverRead && !locallyRead && afterLastSeen;
-      }).length;
-      state = unread;
-    } catch (_) {}
-  }
+  @override
+  bool isUnread(AnnouncementModel item) =>
+      !item.isRead && !_locallyReadIds.contains(item.id);
 
-  /// Clear badge: persist last-seen timestamp and mark announcements read on server.
-  Future<void> clear() async {
-    final prefs = _ref.read(sharedPreferencesProvider);
-    final lastSeenKey = 'announcements_last_seen_$_accountId';
-    await prefs.setString(lastSeenKey, DateTime.now().toIso8601String());
-    final api = _ref.read(misskeyApiProvider);
-    if (api != null) {
+  /// すべてのお知らせをサーバー側でも既読にする。
+  /// 大量にあると重いため、順に待って一度に流さない。
+  @override
+  Future<void> onClear(MisskeyApi api) async {
+    final items = await api.getAnnouncements(limit: 50);
+    for (final a in items) {
       try {
-        final items = await api.getAnnouncements(limit: 50);
-        // Try to mark each announcement as read on server. Await sequentially to avoid flooding.
-        for (final a in items) {
-          try {
-            await api.readAnnouncement(a.id);
-          } catch (_) {}
-        }
-        // Re-fetch to reflect server-side read flags.
-        // clear local temporary read ids because server-side should now reflect reads
-        _locallyReadIds.clear();
-        await refreshFromApi();
-      } catch (_) {}
-    } else {
-      // No API available; just set local badge to zero.
-      state = 0;
-      return;
+        await api.readAnnouncement(a.id);
+      } catch (_) {
+        // 1件失敗しても残りは既読にする
+      }
     }
-
-    // If server-side marking succeeded, refreshFromApi() should update state to 0.
-    // Ensure client shows cleared badge at minimum.
-    if (state != 0) state = 0;
+    // サーバー側に反映できたので、繋ぎのローカル既読は不要になる。
+    _locallyReadIds.clear();
   }
 
-  /// Mark a single announcement read locally (decrement badge count).
-  /// Provide the announcement id to remember the local read state until
-  /// the server-side state syncs.
+  /// 1件だけ既読にする（詳細画面での操作）。バッジを1つ減らす。
   void markOneRead([String? announcementId]) {
     if (announcementId != null) _locallyReadIds.add(announcementId);
     if (state > 0) state = state - 1;
