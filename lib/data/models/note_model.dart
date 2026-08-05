@@ -165,10 +165,16 @@ class FavoriteModel {
 
   const FavoriteModel({required this.id, required this.note});
 
-  factory FavoriteModel.fromJson(Map<String, dynamic> json, {String host = ''}) {
+  factory FavoriteModel.fromJson(
+    Map<String, dynamic> json, {
+    String host = '',
+  }) {
     return FavoriteModel(
       id: json['id'] as String,
-      note: NoteModel.fromJson(json['note'] as Map<String, dynamic>, host: host),
+      note: NoteModel.fromJson(
+        json['note'] as Map<String, dynamic>,
+        host: host,
+      ),
     );
   }
 }

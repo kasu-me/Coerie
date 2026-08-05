@@ -262,10 +262,7 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen>
                   ? null
                   : () => _toggleSortOrder(state.hasMore),
             ),
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _refresh,
-            ),
+            IconButton(icon: const Icon(Icons.refresh), onPressed: _refresh),
             PopupMenuButton<String>(
               onSelected: (v) {
                 if (v == 'open_browser') _openInBrowser();

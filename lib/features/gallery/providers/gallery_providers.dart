@@ -17,7 +17,8 @@ class GalleryDetailResult {
   final GalleryPostModel? post;
   final String? deletedId;
 
-  const GalleryDetailResult.updated(GalleryPostModel this.post) : deletedId = null;
+  const GalleryDetailResult.updated(GalleryPostModel this.post)
+    : deletedId = null;
   const GalleryDetailResult.deleted(String this.deletedId) : post = null;
 }
 

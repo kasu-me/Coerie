@@ -16,10 +16,7 @@ void main() {
     test('accountsBox を破棄したら accountsReset', () {
       HiveService.debugSetStartupState(reset: const {accounts});
 
-      expect(
-        HiveService.consumeStartupIssue(),
-        HiveStartupIssue.accountsReset,
-      );
+      expect(HiveService.consumeStartupIssue(), HiveStartupIssue.accountsReset);
     });
 
     test('accountsBox がメモリ上のみなら storageUnavailable', () {
@@ -102,10 +99,7 @@ void main() {
         recovered: const {accounts},
       );
 
-      expect(
-        HiveService.consumeStartupIssue(),
-        HiveStartupIssue.accountsReset,
-      );
+      expect(HiveService.consumeStartupIssue(), HiveStartupIssue.accountsReset);
     });
 
     test('accountsBox が破棄のみなら draftsBox の非永続より優先される', () {
@@ -114,10 +108,7 @@ void main() {
         volatile: const {drafts},
       );
 
-      expect(
-        HiveService.consumeStartupIssue(),
-        HiveStartupIssue.accountsReset,
-      );
+      expect(HiveService.consumeStartupIssue(), HiveStartupIssue.accountsReset);
     });
   });
 
@@ -125,10 +116,7 @@ void main() {
     test('一度取り出すと2回目以降は null', () {
       HiveService.debugSetStartupState(reset: const {accounts});
 
-      expect(
-        HiveService.consumeStartupIssue(),
-        HiveStartupIssue.accountsReset,
-      );
+      expect(HiveService.consumeStartupIssue(), HiveStartupIssue.accountsReset);
       expect(HiveService.consumeStartupIssue(), isNull);
       expect(HiveService.consumeStartupIssue(), isNull);
     });
@@ -202,10 +190,7 @@ void main() {
     });
 
     test('アダプターの読み取り超過（RangeError）は破棄する', () {
-      expect(
-        HiveService.shouldDiscardOnFailure(RangeError('offset')),
-        isTrue,
-      );
+      expect(HiveService.shouldDiscardOnFailure(RangeError('offset')), isTrue);
     });
 
     test('未知の例外は破棄側に倒す', () {
@@ -242,10 +227,7 @@ void main() {
         recovered: const {drafts},
       );
 
-      expect(
-        () => HiveService.resetBoxNames.add('x'),
-        throwsUnsupportedError,
-      );
+      expect(() => HiveService.resetBoxNames.add('x'), throwsUnsupportedError);
       expect(
         () => HiveService.volatileBoxNames.add('x'),
         throwsUnsupportedError,

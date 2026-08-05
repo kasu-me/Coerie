@@ -19,11 +19,7 @@ sealed class PageBlock {
   /// サーバーから受け取った元の JSON。往復で情報を落とさないために保持する。
   final Map<String, dynamic> raw;
 
-  const PageBlock({
-    required this.id,
-    required this.type,
-    this.raw = const {},
-  });
+  const PageBlock({required this.id, required this.type, this.raw = const {}});
 
   factory PageBlock.fromJson(Map<String, dynamic> json) {
     final id = json['id'] as String? ?? '';
@@ -84,11 +80,8 @@ sealed class PageBlock {
 class PageTextBlock extends PageBlock {
   final String text;
 
-  const PageTextBlock({
-    required super.id,
-    required this.text,
-    super.raw,
-  }) : super(type: 'text');
+  const PageTextBlock({required super.id, required this.text, super.raw})
+    : super(type: 'text');
 
   PageTextBlock copyWith({String? text}) =>
       PageTextBlock(id: id, text: text ?? this.text, raw: raw);
@@ -169,11 +162,7 @@ class PageNoteBlock extends PageBlock {
 /// 「このブロックは表示できません」のプレースホルダを出し、
 /// 保存時は元 JSON をそのまま送り返す。
 class PageUnknownBlock extends PageBlock {
-  const PageUnknownBlock({
-    required super.id,
-    required super.type,
-    super.raw,
-  });
+  const PageUnknownBlock({required super.id, required super.type, super.raw});
 
   @override
   Map<String, dynamic> toJson() => mergedJson(const {});

@@ -1632,7 +1632,9 @@ class MisskeyApi {
     if (untilId != null) params['untilId'] = untilId;
     final res = await _dio.post('i/favorites', data: _body(params));
     return (res.data as List<dynamic>)
-        .map((e) => FavoriteModel.fromJson(e as Map<String, dynamic>, host: host))
+        .map(
+          (e) => FavoriteModel.fromJson(e as Map<String, dynamic>, host: host),
+        )
         .toList();
   }
 

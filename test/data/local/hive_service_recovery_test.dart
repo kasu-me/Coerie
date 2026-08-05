@@ -29,14 +29,14 @@ class _ReorderedAccountAdapter extends TypeAdapter<AccountModel> {
 }
 
 AccountModel _account(String id) => AccountModel(
-      id: id,
-      host: 'misskey.kasu.me',
-      token: 'token-$id',
-      userId: 'user-$id',
-      username: 'name$id',
-      name: '表示名$id',
-      isActive: false,
-    );
+  id: id,
+  host: 'misskey.kasu.me',
+  token: 'token-$id',
+  userId: 'user-$id',
+  username: 'name$id',
+  name: '表示名$id',
+  isActive: false,
+);
 
 void main() {
   late Directory dir;
@@ -88,10 +88,7 @@ void main() {
         lessThan(sizeBefore),
         reason: 'crashRecovery が truncate しているはず',
       );
-      expect(
-        HiveService.recoveredBoxNames,
-        contains(AppConstants.accountsBox),
-      );
+      expect(HiveService.recoveredBoxNames, contains(AppConstants.accountsBox));
       expect(
         HiveService.consumeStartupIssue(),
         HiveStartupIssue.accountsPartiallyLost,

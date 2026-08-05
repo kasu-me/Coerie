@@ -21,8 +21,7 @@ class UserListModel {
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
       isPublic: json['isPublic'] as bool? ?? false,
-      userIds:
-          (json['userIds'] as List<dynamic>?)?.cast<String>() ?? const [],
+      userIds: (json['userIds'] as List<dynamic>?)?.cast<String>() ?? const [],
     );
   }
 }

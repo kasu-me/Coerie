@@ -6,11 +6,7 @@ class DriveFolderModel {
   /// 親フォルダ。ルート直下のフォルダでは null。
   final String? parentId;
 
-  const DriveFolderModel({
-    required this.id,
-    required this.name,
-    this.parentId,
-  });
+  const DriveFolderModel({required this.id, required this.name, this.parentId});
 
   factory DriveFolderModel.fromJson(Map<String, dynamic> json) {
     return DriveFolderModel(

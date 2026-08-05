@@ -37,9 +37,7 @@ Uint8List writeLegacyFormat(
 
   // 第2世代: files を追加。
   if (!withFiles) return writer.toBytes();
-  writer.writeStringList(
-    obj.files.map((f) => jsonEncode(f.toJson())).toList(),
-  );
+  writer.writeStringList(obj.files.map((f) => jsonEncode(f.toJson())).toList());
 
   // 第3世代: cw を追加（null は空文字として保存される）。
   if (!withCw) return writer.toBytes();

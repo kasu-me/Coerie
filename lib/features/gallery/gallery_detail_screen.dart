@@ -310,10 +310,7 @@ class _GalleryDetailScreenState extends ConsumerState<GalleryDetailScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  post.title,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
+                Text(post.title, style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 4),
                 Text(
                   formatRelativeTime(post.createdAt),

@@ -65,7 +65,9 @@ void main() {
       );
 
       // リレーション情報の反映（users/relation）で通る経路。
-      final updated = item.copyWith(user: item.user.copyWith(isFollowing: true));
+      final updated = item.copyWith(
+        user: item.user.copyWith(isFollowing: true),
+      );
 
       expect(updated.id, 'following-3');
       expect(updated.user.id, 'user-3');

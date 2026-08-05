@@ -190,11 +190,7 @@ class GalleryPostTile extends StatelessWidget {
                     ),
                     if (post.likedCount > 0) ...[
                       const SizedBox(width: 4),
-                      const Icon(
-                        Icons.favorite,
-                        color: Colors.white,
-                        size: 11,
-                      ),
+                      const Icon(Icons.favorite, color: Colors.white, size: 11),
                       const SizedBox(width: 2),
                       Text(
                         '${post.likedCount}',

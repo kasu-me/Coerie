@@ -85,4 +85,3 @@ class AppearanceSettingsScreen extends ConsumerWidget {
     );
   }
 }
-

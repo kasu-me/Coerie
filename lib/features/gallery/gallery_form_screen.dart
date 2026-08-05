@@ -190,9 +190,9 @@ class _GalleryFormScreenState extends ConsumerState<GalleryFormScreen> {
       if (skippedDuplicate) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('すでに追加されている画像は除外しました')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('すでに追加されている画像は除外しました')));
         });
       }
     });
@@ -290,9 +290,9 @@ class _GalleryFormScreenState extends ConsumerState<GalleryFormScreen> {
       return;
     }
     if (_isUploadingAny) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('画像をアップロード中です。完了までお待ちください')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('画像をアップロード中です。完了までお待ちください')));
       return;
     }
 
@@ -378,8 +378,10 @@ class _GalleryFormScreenState extends ConsumerState<GalleryFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text('画像 (${_images.length}/$_maxImages)',
-                style: Theme.of(context).textTheme.labelLarge),
+            Text(
+              '画像 (${_images.length}/$_maxImages)',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
             const SizedBox(height: 8),
             _buildImageRow(),
             const SizedBox(height: 20),
@@ -501,7 +503,10 @@ class _AddImageButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: theme.colorScheme.outlineVariant),
         ),
-        child: Icon(Icons.add_photo_alternate_outlined, color: theme.colorScheme.primary),
+        child: Icon(
+          Icons.add_photo_alternate_outlined,
+          color: theme.colorScheme.primary,
+        ),
       ),
     );
   }
@@ -531,7 +536,10 @@ class _ImageTile extends StatelessWidget {
         fit: BoxFit.cover,
         errorWidget: (_, _, _) => Container(
           color: theme.colorScheme.surfaceContainerHighest,
-          child: Icon(Icons.broken_image_outlined, color: theme.colorScheme.outline),
+          child: Icon(
+            Icons.broken_image_outlined,
+            color: theme.colorScheme.outline,
+          ),
         ),
       );
     } else {
