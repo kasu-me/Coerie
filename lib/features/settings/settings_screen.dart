@@ -84,16 +84,16 @@ class SettingsScreen extends ConsumerWidget {
           const Divider(indent: 16, endIndent: 16),
 
           // --- 通知 ---
-          ListTile(
-            leading: const Icon(Icons.notifications_outlined),
-            title: const Text('通知'),
-            subtitle: Text(
-              settings.notificationsEnabled ? 'プッシュ通知: オン' : 'プッシュ通知: オフ',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.push('/settings/notifications'),
-          ),
-          const Divider(indent: 16, endIndent: 16),
+          // ListTile(
+          //   leading: const Icon(Icons.notifications_outlined),
+          //   title: const Text('通知'),
+          //   subtitle: Text(
+          //     settings.notificationsEnabled ? 'プッシュ通知: オン' : 'プッシュ通知: オフ',
+          //   ),
+          //   trailing: const Icon(Icons.chevron_right),
+          //   onTap: () => context.push('/settings/notifications'),
+          // ),
+          // const Divider(indent: 16, endIndent: 16),
 
           // --- 操作 ---
           SectionHeader('操作'),
