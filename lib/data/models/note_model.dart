@@ -149,3 +149,26 @@ class NoteModel {
     );
   }
 }
+
+/// `i/favorites` の戻り値のラッパー（`{ id, createdAt, note }`）。
+///
+/// **ページングのカーソルには [NoteModel.id] ではなく、お気に入りレコードの
+/// [id] を使うこと。** `note.id` を使うとページングが壊れる。
+///
+/// お気に入りレコードの ID は「お気に入りに登録した時刻」から、ノートの ID は
+/// 「投稿された時刻」から採番される。どちらも同じ aid 形式なのでサーバーは
+/// エラーを返さず、投稿日時を基準に切った別の窓が返ってくるため、
+/// 2ページ目以降で重複・欠落が静かに起きる。
+class FavoriteModel {
+  final String id;
+  final NoteModel note;
+
+  const FavoriteModel({required this.id, required this.note});
+
+  factory FavoriteModel.fromJson(Map<String, dynamic> json, {String host = ''}) {
+    return FavoriteModel(
+      id: json['id'] as String,
+      note: NoteModel.fromJson(json['note'] as Map<String, dynamic>, host: host),
+    );
+  }
+}

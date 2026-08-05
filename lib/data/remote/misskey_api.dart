@@ -1605,20 +1605,19 @@ class MisskeyApi {
   }
 
   /// お気に入り一覧を取得する（i/favorites）
-  /// 戻り値: [{ id, createdAt, note: NoteObject }, ...]
-  Future<List<NoteModel>> getFavorites({
+  ///
+  /// [untilId] には [FavoriteModel.id]（お気に入りレコードのID）を渡すこと。
+  /// ノートのIDを渡すとページングが壊れる（[FavoriteModel] のコメント参照）。
+  Future<List<FavoriteModel>> getFavorites({
     int limit = 20,
     String? untilId,
   }) async {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
     final res = await _dio.post('i/favorites', data: _body(params));
-    final list = res.data as List<dynamic>;
-    return list.map((e) {
-      final map = e as Map<String, dynamic>;
-      final noteMap = map['note'] as Map<String, dynamic>;
-      return NoteModel.fromJson(noteMap, host: host);
-    }).toList();
+    return (res.data as List<dynamic>)
+        .map((e) => FavoriteModel.fromJson(e as Map<String, dynamic>, host: host))
+        .toList();
   }
 
   // ---- ページ ----

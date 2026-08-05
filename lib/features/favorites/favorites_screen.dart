@@ -15,18 +15,17 @@ class FavoritesScreen extends ConsumerStatefulWidget {
 }
 
 class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
-  List<NoteModel> _notes = [];
+  List<FavoriteModel> _favorites = [];
   bool _isLoading = false;
   bool _hasMore = true;
   String? _error;
   final _scrollController = ScrollController();
 
-  String? get _oldestNoteId {
-    if (_notes.isEmpty) return null;
-    return _notes
-        .reduce((a, b) => a.createdAt.isBefore(b.createdAt) ? a : b)
-        .id;
-  }
+  /// 次ページの取得に使うカーソル。
+  /// ノートのIDではなくお気に入りレコードのIDを渡す（[FavoriteModel] 参照）。
+  /// `i/favorites` は新しい順に返すため、末尾が最も古いレコードになる。
+  String? get _oldestFavoriteId =>
+      _favorites.isEmpty ? null : _favorites.last.id;
 
   @override
   void initState() {
@@ -52,7 +51,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
 
   Future<void> _load() async {
     setState(() {
-      _notes = [];
+      _favorites = [];
       _hasMore = true;
       _error = null;
       _isLoading = true;
@@ -63,11 +62,11 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       return;
     }
     try {
-      final notes = await api.getFavorites(limit: 20);
+      final favorites = await api.getFavorites(limit: 20);
       if (mounted) {
         setState(() {
-          _notes = notes;
-          _hasMore = notes.length >= 20;
+          _favorites = favorites;
+          _hasMore = favorites.length >= 20;
         });
       }
     } catch (e) {
@@ -82,7 +81,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   }
 
   Future<void> _loadMore() async {
-    if (_notes.isEmpty) return;
+    if (_favorites.isEmpty) return;
     setState(() => _isLoading = true);
     final api = ref.read(misskeyApiProvider);
     // ここで return する場合は try/finally を通らないため、
@@ -92,10 +91,13 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       return;
     }
     try {
-      final more = await api.getFavorites(limit: 20, untilId: _oldestNoteId);
+      final more = await api.getFavorites(
+        limit: 20,
+        untilId: _oldestFavoriteId,
+      );
       if (mounted) {
         setState(() {
-          _notes = [..._notes, ...more];
+          _favorites = [..._favorites, ...more];
           _hasMore = more.length >= 20;
         });
       }
@@ -126,13 +128,13 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   }
 
   Widget _buildBody() {
-    if (_isLoading && _notes.isEmpty) {
+    if (_isLoading && _favorites.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_error != null && _notes.isEmpty) {
+    if (_error != null && _favorites.isEmpty) {
       return ErrorView(message: _error!, onRetry: _load);
     }
-    if (_notes.isEmpty) {
+    if (_favorites.isEmpty) {
       return const Center(child: Text('お気に入りがありません'));
     }
     return RefreshIndicator(
@@ -140,22 +142,24 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       child: ListView.separated(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: _notes.length + (_isLoading || _hasMore ? 1 : 0),
+        itemCount: _favorites.length + (_isLoading || _hasMore ? 1 : 0),
         separatorBuilder: (context, index) => const Divider(height: 1),
         itemBuilder: (context, index) {
-          if (index >= _notes.length) {
+          if (index >= _favorites.length) {
             return const Padding(
               padding: EdgeInsets.all(16),
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          final note = _notes[index];
+          final favorite = _favorites[index];
           return NoteCard(
-            key: ValueKey(note.id),
-            note: note,
+            key: ValueKey(favorite.id),
+            note: favorite.note,
             onUnfavorited: () {
               if (mounted) {
-                setState(() => _notes.removeWhere((n) => n.id == note.id));
+                setState(
+                  () => _favorites.removeWhere((f) => f.id == favorite.id),
+                );
               }
             },
           );
