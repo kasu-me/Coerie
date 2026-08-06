@@ -21,7 +21,6 @@ import '../../features/draft/draft_screen.dart';
 import '../../features/settings/appearance_settings_screen.dart';
 import '../../features/settings/timeline_settings_screen.dart';
 import '../../features/settings/image_posting_settings_screen.dart';
-import '../../features/settings/notification_settings_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/settings/tabs_settings_screen.dart';
 import '../../features/settings/drawer_button_settings_screen.dart';
@@ -299,10 +298,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'image-posting',
             builder: (context, state) => const ImagePostingSettingsScreen(),
-          ),
-          GoRoute(
-            path: 'notifications',
-            builder: (context, state) => const NotificationSettingsScreen(),
           ),
           GoRoute(
             path: 'drawer-buttons',

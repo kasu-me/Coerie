@@ -94,16 +94,14 @@ class SettingsScreen extends ConsumerWidget {
           const Divider(indent: 16, endIndent: 16),
 
           // --- 通知 ---
-          // ListTile(
-          //   leading: const Icon(Icons.notifications_outlined),
-          //   title: const Text('通知'),
-          //   subtitle: Text(
-          //     settings.notificationsEnabled ? 'プッシュ通知: オン' : 'プッシュ通知: オフ',
-          //   ),
-          //   trailing: const Icon(Icons.chevron_right),
-          //   onTap: () => context.push('/settings/notifications'),
-          // ),
-          // const Divider(indent: 16, endIndent: 16),
+          // Misskey サーバーはブラウザ向けの Web Push（RFC 8030 / VAPID / RFC 8291 暗号化） しか送信手段を持たず、FCM に直接送る口はない。
+          // つまり 「Web Push をどうやって Android アプリで受けるか」が最大の設計判断になる。
+          // 手段は大きく分けて4つ (UnifiedPush/自前リレーサーバー/WebSocket常駐/定期ポーリング) あるが、どれも決定打に欠ける。
+          // UnifiedPushを利用すると、自前サーバー不要・Google 非依存・Misskey の仕様にそのまま乗るが、ユーザーに別アプリ（ntfy）の導入が必要で、スタンドアロンなアプリを作る方針に合わない。
+          // 自前リレーサーバーを用意するのは、挙動は素直だが、コスト面･全ユーザーのトークンを一元管理する安全面で現実的ではない。
+          // WebSocketを常駐させるのは、サーバー不要でリアルタイム性が高いが、バッテリー消費の問題で現実的でない。
+          // 定期ポーリングは、最短15分の遅延が発生するため、一般にプッシュ通知として期待される要件を満たさない。
+          // 上述の理由により、プッシュ通知の機能の実装は当面の間見送りとし、設定画面から削除する。
 
           // --- 操作 ---
           SectionHeader('操作'),
