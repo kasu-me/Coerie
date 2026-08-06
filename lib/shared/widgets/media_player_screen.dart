@@ -81,7 +81,13 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen> {
             elevation: 8,
             offset: const Offset(0, 8),
             onSelected: (v) {
-              if (v == 'download') _downloadMedia();
+              if (v == 'download') {
+                downloadWithFeedback(
+                  context,
+                  url: widget.url,
+                  fileName: widget.title,
+                );
+              }
             },
             itemBuilder: (_) => [
               PopupMenuItem(
@@ -112,28 +118,6 @@ class _MediaPlayerScreenState extends State<MediaPlayerScreen> {
                   )
           : const Center(child: CircularProgressIndicator(color: Colors.white)),
     );
-  }
-
-  Future<void> _downloadMedia() async {
-    final url = widget.url;
-    final filename = widget.title;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(const SnackBar(content: Text('ダウンロードを開始します...')));
-    try {
-      await DownloadHelper.downloadToPublicDownloads(
-        url: url,
-        fileName: filename,
-      );
-      if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(content: Text('「$filename」をDownloadフォルダに保存しました')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        messenger.showSnackBar(const SnackBar(content: Text('ダウンロードに失敗しました')));
-      }
-    }
   }
 
   Widget _buildAudioPlayer() {

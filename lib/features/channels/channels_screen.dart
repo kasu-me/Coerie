@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/errors/api_error_message.dart';
 import '../../data/models/channel_model.dart';
+import '../../data/remote/misskey_api.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/utils/color_utils.dart';
 import '../../shared/widgets/api_error_snack_bar.dart';
@@ -52,9 +53,18 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen>
         controller: _tabController,
         children: [
           const _SearchTab(),
-          const _FeaturedTab(),
-          const _FavoritesTab(),
-          const _FollowedTab(),
+          _ChannelListTab(
+            fetch: (api) => api.getChannelsFeatured(),
+            emptyMessage: 'トレンドのチャンネルはありません',
+          ),
+          _ChannelListTab(
+            fetch: (api) => api.getChannelsMyFavorites(),
+            emptyMessage: 'お気に入りのチャンネルはありません',
+          ),
+          _ChannelListTab(
+            fetch: (api) => api.getChannelsFollowed(),
+            emptyMessage: 'フォロー中のチャンネルはありません',
+          ),
           const _OwnedTab(),
         ],
       ),
@@ -272,16 +282,24 @@ class _SearchTabState extends ConsumerState<_SearchTab>
   }
 }
 
-// ---- Trending tab ----
+// ---- Common channel list tab (トレンド／お気に入り／フォロー中で共用) ----
 
-class _FeaturedTab extends ConsumerStatefulWidget {
-  const _FeaturedTab();
+/// チャンネル一覧タブの共通実装。
+///
+/// トレンド／お気に入り／フォロー中の3タブは、取得APIと空表示の文言以外が
+/// すべて同じだったため1クラスにまとめている。管理中タブ（[_OwnedTab]）は
+/// チャンネル作成・編集・アーカイブの導線が加わり構造が異なるため対象外とした。
+class _ChannelListTab extends ConsumerStatefulWidget {
+  final Future<List<ChannelModel>> Function(MisskeyApi api) fetch;
+  final String emptyMessage;
+
+  const _ChannelListTab({required this.fetch, required this.emptyMessage});
 
   @override
-  ConsumerState<_FeaturedTab> createState() => _FeaturedTabState();
+  ConsumerState<_ChannelListTab> createState() => _ChannelListTabState();
 }
 
-class _FeaturedTabState extends ConsumerState<_FeaturedTab>
+class _ChannelListTabState extends ConsumerState<_ChannelListTab>
     with AutomaticKeepAliveClientMixin {
   List<ChannelModel> _items = [];
   bool _isLoading = false;
@@ -309,7 +327,7 @@ class _FeaturedTabState extends ConsumerState<_FeaturedTab>
       _error = null;
     });
     try {
-      final items = await api.getChannelsFeatured();
+      final items = await widget.fetch(api);
       if (mounted) setState(() => _items = items);
     } catch (e) {
       if (mounted) {
@@ -330,157 +348,7 @@ class _FeaturedTabState extends ConsumerState<_FeaturedTab>
       return ErrorView(message: _error!, onRetry: _load);
     }
     if (_items.isEmpty) {
-      return const Center(child: Text('トレンドのチャンネルはありません'));
-    }
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.separated(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.viewPaddingOf(context).bottom + 8,
-        ),
-        itemCount: _items.length,
-        separatorBuilder: (_, _) => const Divider(height: 1),
-        itemBuilder: (_, i) => _ChannelTile(channel: _items[i]),
-      ),
-    );
-  }
-}
-
-// ---- Favorites tab ----
-
-class _FavoritesTab extends ConsumerStatefulWidget {
-  const _FavoritesTab();
-
-  @override
-  ConsumerState<_FavoritesTab> createState() => _FavoritesTabState();
-}
-
-class _FavoritesTabState extends ConsumerState<_FavoritesTab>
-    with AutomaticKeepAliveClientMixin {
-  List<ChannelModel> _items = [];
-  bool _isLoading = false;
-  String? _error;
-
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final api = ref.read(misskeyApiProvider);
-    if (api == null) {
-      if (mounted) {
-        setState(() => _error = 'ログインが必要です');
-      }
-      return;
-    }
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-    try {
-      final items = await api.getChannelsMyFavorites();
-      if (mounted) setState(() => _items = items);
-    } catch (e) {
-      if (mounted) {
-        setState(
-          () => _error = apiErrorMessage(e, fallback: 'チャンネルを取得できませんでした'),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) {
-      return ErrorView(message: _error!, onRetry: _load);
-    }
-    if (_items.isEmpty) {
-      return const Center(child: Text('お気に入りのチャンネルはありません'));
-    }
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.separated(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.viewPaddingOf(context).bottom + 8,
-        ),
-        itemCount: _items.length,
-        separatorBuilder: (_, _) => const Divider(height: 1),
-        itemBuilder: (_, i) => _ChannelTile(channel: _items[i]),
-      ),
-    );
-  }
-}
-
-// ---- Followed tab ----
-
-class _FollowedTab extends ConsumerStatefulWidget {
-  const _FollowedTab();
-
-  @override
-  ConsumerState<_FollowedTab> createState() => _FollowedTabState();
-}
-
-class _FollowedTabState extends ConsumerState<_FollowedTab>
-    with AutomaticKeepAliveClientMixin {
-  List<ChannelModel> _items = [];
-  bool _isLoading = false;
-  String? _error;
-
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final api = ref.read(misskeyApiProvider);
-    if (api == null) {
-      if (mounted) {
-        setState(() => _error = 'ログインが必要です');
-      }
-      return;
-    }
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-    try {
-      final items = await api.getChannelsFollowed();
-      if (mounted) setState(() => _items = items);
-    } catch (e) {
-      if (mounted) {
-        setState(
-          () => _error = apiErrorMessage(e, fallback: 'チャンネルを取得できませんでした'),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) {
-      return ErrorView(message: _error!, onRetry: _load);
-    }
-    if (_items.isEmpty) {
-      return const Center(child: Text('フォロー中のチャンネルはありません'));
+      return Center(child: Text(widget.emptyMessage));
     }
     return RefreshIndicator(
       onRefresh: _load,

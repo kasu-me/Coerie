@@ -9,14 +9,13 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/errors/api_error_message.dart';
 import '../../core/services/cache_service.dart';
-import '../../data/models/drive_file_model.dart';
 import '../../data/models/gallery_post_model.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
-import '../../shared/utils/download_helper.dart';
 import '../../shared/utils/format_utils.dart';
 import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/confirm_dialog.dart';
+import '../../shared/widgets/image_viewer_screen.dart';
 import '../../shared/widgets/mfm_content.dart';
 import '../../shared/widgets/user_avatar.dart';
 import 'providers/gallery_providers.dart';
@@ -243,7 +242,7 @@ class _GalleryDetailScreenState extends ConsumerState<GalleryDetailScreen> {
     if (post == null) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => _GalleryFullscreenViewer(
+        builder: (_) => ImageViewerScreen(
           files: post.files,
           initialIndex: initialIndex,
           title: post.title,
@@ -594,147 +593,6 @@ class _GalleryDetailScreenState extends ConsumerState<GalleryDetailScreen> {
           ),
         ],
       ],
-    );
-  }
-}
-
-/// 画像の全画面ビューア（拡大縮小・ダウンロード対応）。
-///
-/// 計画書では既存の `media_player_screen.dart` の流用が指示されているが、
-/// 同ファイルは動画/音声専用（VideoPlayerController ベース）で画像を
-/// 再生できないため、drive_screen.dart の `_DriveImagePreviewScreen` と
-/// 同様のパターンで専用ビューアを実装した。
-class _GalleryFullscreenViewer extends StatefulWidget {
-  final List<DriveFileModel> files;
-  final int initialIndex;
-  final String title;
-
-  const _GalleryFullscreenViewer({
-    required this.files,
-    required this.initialIndex,
-    required this.title,
-  });
-
-  @override
-  State<_GalleryFullscreenViewer> createState() =>
-      _GalleryFullscreenViewerState();
-}
-
-class _GalleryFullscreenViewerState extends State<_GalleryFullscreenViewer> {
-  late final PageController _pageController;
-  late int _index;
-
-  @override
-  void initState() {
-    super.initState();
-    _index = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _download(DriveFileModel file) async {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(const SnackBar(content: Text('ダウンロードを開始します...')));
-    try {
-      await DownloadHelper.downloadToPublicDownloads(
-        url: file.url,
-        fileName: file.name,
-      );
-      if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(content: Text('「${file.name}」をDownloadフォルダに保存しました')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        messenger.showSnackBar(const SnackBar(content: Text('ダウンロードに失敗しました')));
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        title: Text(
-          widget.files.length > 1
-              ? '${widget.title} (${_index + 1}/${widget.files.length})'
-              : widget.title,
-        ),
-        actions: [
-          PopupMenuButton<String>(
-            color: theme.colorScheme.surface,
-            icon: const Icon(Icons.more_vert, color: Colors.white),
-            onSelected: (v) {
-              final file = widget.files[_index];
-              if (v == 'download') _download(file);
-              if (v == 'open') {
-                launchUrl(
-                  Uri.parse(file.url),
-                  mode: LaunchMode.externalApplication,
-                );
-              }
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: 'download',
-                child: Row(
-                  children: [
-                    Icon(Icons.download_rounded),
-                    SizedBox(width: 12),
-                    Text('ダウンロード'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'open',
-                child: Row(
-                  children: [
-                    Icon(Icons.open_in_browser),
-                    SizedBox(width: 12),
-                    Text('ブラウザで開く'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-      body: PageView.builder(
-        controller: _pageController,
-        itemCount: widget.files.length,
-        onPageChanged: (i) => setState(() => _index = i),
-        itemBuilder: (context, i) {
-          final file = widget.files[i];
-          return InteractiveViewer(
-            minScale: 0.5,
-            maxScale: 5,
-            child: Center(
-              child: CachedNetworkImage(
-                cacheManager: AppCacheManager(),
-                imageUrl: file.url,
-                fit: BoxFit.contain,
-                placeholder: (_, _) =>
-                    const CircularProgressIndicator(color: Colors.white),
-                errorWidget: (_, _, _) => const Icon(
-                  Icons.broken_image_outlined,
-                  color: Colors.white54,
-                  size: 64,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
     );
   }
 }

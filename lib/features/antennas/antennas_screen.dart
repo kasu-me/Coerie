@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:uuid/uuid.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/errors/api_error_message.dart';
 import '../../data/models/antenna_model.dart';
-import '../../data/models/app_settings_model.dart';
 import '../../data/models/user_model.dart';
-import '../../shared/providers/account_provider.dart';
-import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/utils/home_tab_helper.dart';
 import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/confirm_dialog.dart';
 import '../../shared/widgets/error_view.dart';
@@ -96,56 +93,13 @@ class _AntennasScreenState extends ConsumerState<AntennasScreen> {
 
   Future<void> _addToHomeTab(AntennaModel antenna) async {
     final name = antenna.name.isEmpty ? 'アンテナ' : antenna.name;
-    final id = antenna.id;
-    final labelController = TextEditingController(text: name);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('ホームタブに追加'),
-        content: TextField(
-          controller: labelController,
-          decoration: const InputDecoration(
-            labelText: 'タブ名',
-            border: OutlineInputBorder(),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('キャンセル'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('追加'),
-          ),
-        ],
-      ),
+    await addToHomeTab(
+      context,
+      ref,
+      tabType: AppConstants.tabTypeAntenna,
+      sourceId: antenna.id,
+      defaultLabel: name,
     );
-    if (confirmed != true || !mounted) return;
-    final label = labelController.text.trim().isEmpty
-        ? name
-        : labelController.text.trim();
-    final accountId = ref.read(activeAccountProvider)?.id ?? '';
-    final currentTabs = List<TabConfigModel>.from(
-      ref.read(accountTabsProvider(accountId)),
-    );
-    currentTabs.add(
-      TabConfigModel(
-        id: const Uuid().v4(),
-        label: label,
-        type: AppConstants.tabTypeAntenna,
-        sourceId: id,
-      ),
-    );
-    await ref
-        .read(accountTabsProvider(accountId).notifier)
-        .setTabs(currentTabs);
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('「$label」タブを追加しました')));
-    }
   }
 
   @override

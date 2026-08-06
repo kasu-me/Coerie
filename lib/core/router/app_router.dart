@@ -1,19 +1,10 @@
-import '../../data/models/antenna_model.dart';
 import '../../data/models/channel_model.dart';
 import '../../data/models/drive_file_model.dart';
 import '../../data/models/note_model.dart';
-import '../../data/models/user_list_model.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:uuid/uuid.dart';
 import '../../core/constants/app_constants.dart';
-import '../../data/models/app_settings_model.dart';
 import '../../shared/providers/account_provider.dart';
-import '../../shared/providers/account_tabs_provider.dart';
-import '../../shared/providers/misskey_api_provider.dart';
-import '../../data/remote/misskey_api.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/clips/clips_screen.dart';
 import '../../features/clips/clip_notes_screen.dart';
@@ -21,7 +12,7 @@ import '../../data/models/clip_model.dart';
 import '../../features/favorites/favorites_screen.dart';
 import '../../features/lists/lists_screen.dart';
 import '../../features/antennas/antennas_screen.dart';
-import '../../features/timeline/timeline_screen.dart';
+import 'route_loaders.dart';
 import '../../features/drive/drive_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/compose/compose_screen.dart';
@@ -145,14 +136,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           final listId = state.pathParameters['listId']!;
           if (extra is Map<String, dynamic>) {
             final name = extra['name'] as String? ?? 'リスト';
-            return _SourceTimelineScreen(
+            return SourceTimelineScreen(
               sourceId: listId,
               name: name,
               tabType: AppConstants.tabTypeList,
               timelinePrefix: 'list',
             );
           }
-          return _ListLoader(listId: listId);
+          return ListLoader(listId: listId);
         },
       ),
       GoRoute(
@@ -162,7 +153,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           if (extra is ClipModel) return ClipNotesScreen(clip: extra);
           final clipId = state.pathParameters['clipId']!;
           final host = state.uri.queryParameters['host'];
-          return _ClipLoader(clipId: clipId, host: host);
+          return ClipLoader(clipId: clipId, host: host);
         },
       ),
       GoRoute(
@@ -197,7 +188,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // pages/show を name + username で引いてから閲覧画面へ渡す。
       GoRoute(
         path: '/pages/by-name/:username/:pageName',
-        builder: (context, state) => _PageByNameLoader(
+        builder: (context, state) => PageByNameLoader(
           username: state.pathParameters['username']!,
           pageName: state.pathParameters['pageName']!,
           host: state.uri.queryParameters['host'],
@@ -278,14 +269,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           final antennaId = state.pathParameters['antennaId']!;
           if (extra is Map<String, dynamic>) {
             final name = extra['name'] as String? ?? 'アンテナ';
-            return _SourceTimelineScreen(
+            return SourceTimelineScreen(
               sourceId: antennaId,
               name: name,
               tabType: AppConstants.tabTypeAntenna,
               timelinePrefix: 'antenna',
             );
           }
-          return _AntennaLoader(antennaId: antennaId);
+          return AntennaLoader(antennaId: antennaId);
         },
       ),
       GoRoute(
@@ -414,342 +405,3 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
-
-class _ClipLoader extends ConsumerWidget {
-  final String clipId;
-  final String? host;
-  const _ClipLoader({required this.clipId, this.host});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final MisskeyApi? api = (host != null && host!.isNotEmpty)
-        ? MisskeyApi(host: host!)
-        : ref.read(misskeyApiProvider);
-
-    if (api == null) {
-      return Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: Text('読み込むにはアカウントが必要です')),
-      );
-    }
-
-    return FutureBuilder<ClipModel>(
-      future: api.getClip(clipId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
-            appBar: AppBar(),
-            body: const Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (snapshot.hasError) {
-          return Scaffold(
-            appBar: AppBar(),
-            body: Center(child: Text('クリップの読み込みに失敗しました: ${snapshot.error}')),
-          );
-        }
-        final clip = snapshot.data!;
-        return ClipNotesScreen(clip: clip, host: host);
-      },
-    );
-  }
-}
-
-/// `@user/pages/<name>` 形式のURLからページを解決して閲覧画面を出す。
-///
-/// `pages/show` は自インスタンスのページしか返さないため、[host] が
-/// アクティブアカウントと異なる場合はそのホストへ未認証で問い合わせる。
-class _PageByNameLoader extends ConsumerStatefulWidget {
-  final String username;
-  final String pageName;
-  final String? host;
-
-  const _PageByNameLoader({
-    required this.username,
-    required this.pageName,
-    this.host,
-  });
-
-  @override
-  ConsumerState<_PageByNameLoader> createState() => _PageByNameLoaderState();
-}
-
-class _PageByNameLoaderState extends ConsumerState<_PageByNameLoader> {
-  late Future<PageModel> _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = _fetch();
-  }
-
-  Future<PageModel> _fetch() async {
-    final api = ref.apiForHost(widget.host);
-    if (api == null) throw Exception('読み込むにはアカウントが必要です');
-    return api.getPage(name: widget.pageName, username: widget.username);
-  }
-
-  /// 取得に失敗したときの逃げ道として元のページURLを組み立てる。
-  String? get _sourceUrl {
-    final host = widget.host ?? ref.read(activeAccountProvider)?.host;
-    if (host == null || host.isEmpty) return null;
-    return 'https://$host/@${widget.username}/pages/${widget.pageName}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<PageModel>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
-            appBar: AppBar(),
-            body: const Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (snapshot.hasError) {
-          final url = _sourceUrl;
-          return Scaffold(
-            appBar: AppBar(),
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'ページの読み込みに失敗しました\n${snapshot.error}',
-                      textAlign: TextAlign.center,
-                    ),
-                    if (url != null) ...[
-                      const SizedBox(height: 16),
-                      FilledButton.icon(
-                        onPressed: () => launchUrl(
-                          Uri.parse(url),
-                          mode: LaunchMode.externalApplication,
-                        ),
-                        icon: const Icon(Icons.open_in_browser),
-                        label: const Text('ブラウザで開く'),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-        final page = snapshot.data!;
-        return PageViewScreen(
-          pageId: page.id,
-          initialPage: page,
-          host: widget.host,
-        );
-      },
-    );
-  }
-}
-
-class _ListLoader extends ConsumerWidget {
-  final String listId;
-  const _ListLoader({required this.listId});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final MisskeyApi? api = ref.read(misskeyApiProvider);
-
-    if (api == null) {
-      return Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: Text('読み込むにはアカウントが必要です')),
-      );
-    }
-
-    return FutureBuilder<UserListModel?>(
-      future: () async {
-        final lists = await api.getLists();
-        for (final l in lists) {
-          if (l.id == listId) return l;
-        }
-        return null;
-      }(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
-            appBar: AppBar(),
-            body: const Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (snapshot.hasError) {
-          return Scaffold(
-            appBar: AppBar(),
-            body: Center(child: Text('リストの読み込みに失敗しました: ${snapshot.error}')),
-          );
-        }
-        final item = snapshot.data;
-        final title = (item?.name.isNotEmpty ?? false) ? item!.name : 'リスト';
-        return _SourceTimelineScreen(
-          sourceId: listId,
-          name: title,
-          tabType: AppConstants.tabTypeList,
-          timelinePrefix: 'list',
-        );
-      },
-    );
-  }
-}
-
-class _AntennaLoader extends ConsumerWidget {
-  final String antennaId;
-  const _AntennaLoader({required this.antennaId});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final MisskeyApi? api = ref.read(misskeyApiProvider);
-
-    if (api == null) {
-      return Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: Text('読み込むにはアカウントが必要です')),
-      );
-    }
-
-    return FutureBuilder<AntennaModel?>(
-      future: () async {
-        final items = await api.getAntennas();
-        for (final a in items) {
-          if (a.id == antennaId) return a;
-        }
-        return null;
-      }(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
-            appBar: AppBar(),
-            body: const Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (snapshot.hasError) {
-          return Scaffold(
-            appBar: AppBar(),
-            body: Center(child: Text('アンテナの読み込みに失敗しました: ${snapshot.error}')),
-          );
-        }
-        final item = snapshot.data;
-        final title = (item?.name.isNotEmpty ?? false) ? item!.name : 'アンテナ';
-        return _SourceTimelineScreen(
-          sourceId: antennaId,
-          name: title,
-          tabType: AppConstants.tabTypeAntenna,
-          timelinePrefix: 'antenna',
-        );
-      },
-    );
-  }
-}
-
-// ─── List/Antenna timeline screen with "add to home tab" menu ───────────────
-
-/// リスト・アンテナ共通の「ホームタブに追加」メニュー付きタイムライン画面。
-/// [timelinePrefix] は timelineType の接頭辞（'list' / 'antenna'）、
-/// [tabType] はタブ設定に保存する種別（AppConstants.tabTypeList など）。
-class _SourceTimelineScreen extends ConsumerStatefulWidget {
-  final String sourceId;
-  final String name;
-  final String tabType;
-  final String timelinePrefix;
-  const _SourceTimelineScreen({
-    required this.sourceId,
-    required this.name,
-    required this.tabType,
-    required this.timelinePrefix,
-  });
-
-  @override
-  ConsumerState<_SourceTimelineScreen> createState() =>
-      _SourceTimelineScreenState();
-}
-
-class _SourceTimelineScreenState extends ConsumerState<_SourceTimelineScreen> {
-  Future<void> _addToHomeTab() async {
-    final labelController = TextEditingController(text: widget.name);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('ホームタブに追加'),
-        content: TextField(
-          controller: labelController,
-          decoration: const InputDecoration(
-            labelText: 'タブ名',
-            border: OutlineInputBorder(),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('キャンセル'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('追加'),
-          ),
-        ],
-      ),
-    );
-    final input = labelController.text.trim();
-    labelController.dispose();
-    if (confirmed != true || !mounted) return;
-    final label = input.isEmpty ? widget.name : input;
-    final accountId = ref.read(activeAccountProvider)?.id ?? '';
-    final currentTabs = List<TabConfigModel>.from(
-      ref.read(accountTabsProvider(accountId)),
-    );
-    currentTabs.add(
-      TabConfigModel(
-        id: const Uuid().v4(),
-        label: label,
-        type: widget.tabType,
-        sourceId: widget.sourceId,
-      ),
-    );
-    await ref
-        .read(accountTabsProvider(accountId).notifier)
-        .setTabs(currentTabs);
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('「$label」タブを追加しました')));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.name),
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'add_tab') _addToHomeTab();
-            },
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'add_tab',
-                child: Row(
-                  children: [
-                    Icon(Icons.add_to_photos_outlined),
-                    SizedBox(width: 8),
-                    Text('ホームタブに追加'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-      body: TimelineScreen(
-        timelineType: '${widget.timelinePrefix}:${widget.sourceId}',
-      ),
-    );
-  }
-}
