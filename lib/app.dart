@@ -8,8 +8,8 @@ import 'core/auth/miauth_service.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'data/models/account_model.dart';
-import 'features/compose/emoji_picker_sheet.dart';
 import 'shared/providers/account_provider.dart';
+import 'shared/providers/custom_emoji_provider.dart';
 import 'shared/providers/settings_provider.dart';
 import 'shared/providers/is_locked_provider.dart';
 

@@ -26,6 +26,7 @@ import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_visibility_provider.dart';
 import '../../shared/utils/visibility_utils.dart';
 import '../../shared/providers/settings_provider.dart';
+import '../../shared/providers/custom_emoji_provider.dart';
 import '../draft/draft_provider.dart';
 import 'emoji_picker_sheet.dart';
 import '../../shared/utils/emoji_utils.dart';

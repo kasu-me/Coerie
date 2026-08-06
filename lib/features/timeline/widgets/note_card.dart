@@ -26,6 +26,7 @@ import '../../../shared/widgets/mfm_content.dart';
 import '../../../shared/widgets/report_abuse_sheet.dart';
 import '../../../core/router/app_router.dart';
 import '../../compose/emoji_picker_sheet.dart';
+import '../../../shared/providers/custom_emoji_provider.dart';
 import '../../../shared/utils/emoji_utils.dart';
 import '../ogp_provider.dart';
 import '../timeline_provider.dart';
