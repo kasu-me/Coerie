@@ -7,7 +7,9 @@ import 'misskey_api_provider.dart';
 ///
 /// 絵文字ピッカーだけでなく、ノート・通知・ページの MFM 描画からも参照される
 /// アプリ横断のプロバイダー。アカウント切り替え時は [app.dart] で invalidate される。
-final customEmojisProvider = FutureProvider<List<CustomEmojiModel>>((ref) async {
+final customEmojisProvider = FutureProvider<List<CustomEmojiModel>>((
+  ref,
+) async {
   final api = ref.watch(misskeyApiProvider);
   if (api == null) return [];
   return api.getEmojis();

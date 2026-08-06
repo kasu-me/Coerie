@@ -37,7 +37,10 @@ class RouteErrorScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(appBar: AppBar(), body: Center(child: Text(message)));
+    return Scaffold(
+      appBar: AppBar(),
+      body: Center(child: Text(message)),
+    );
   }
 }
 
@@ -216,7 +219,9 @@ class SourceLookupLoader<T> extends ConsumerWidget {
           return const RouteLoadingScaffold();
         }
         if (snapshot.hasError) {
-          return RouteErrorScaffold(message: '$errorMessage: ${snapshot.error}');
+          return RouteErrorScaffold(
+            message: '$errorMessage: ${snapshot.error}',
+          );
         }
         final item = snapshot.data;
         final name = item != null ? nameOf(item) : '';

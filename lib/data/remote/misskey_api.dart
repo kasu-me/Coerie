@@ -18,6 +18,11 @@ import '../../data/models/user_list_model.dart';
 import '../../data/models/user_model.dart';
 import '../../data/models/announcement_model.dart';
 
+/// Misskey API クライアント。
+///
+/// エンドポイントはドメインごとにセクションコメント（`// ---- 〜 ----`）で
+/// 区切っている。HTTP の定型処理は [_body] / [_post] / [_postOne] / [_postList]
+/// に集約しており、各メソッドはエンドポイント名・パラメータ・パース方法だけを書く。
 class MisskeyApi {
   final String host;
   final String? token;
@@ -44,9 +49,50 @@ class MisskeyApi {
         ),
       );
 
-  Map<String, dynamic> _body(Map<String, dynamic> params) {
-    if (token != null) params['i'] = token;
-    return params;
+  /// 認証トークンを添えたリクエストボディを組み立てる。
+  ///
+  /// 引数の [params] は書き換えない。以前は受け取った Map に直接 `i` を
+  /// 差し込んでいたため、const マップや使い回すマップを渡せなかった。
+  Map<String, dynamic> _body([Map<String, dynamic> params = const {}]) {
+    if (token == null) return params;
+    return {...params, 'i': token};
+  }
+
+  /// 副作用だけのエンドポイントを叩く。応答は捨てる。
+  Future<void> _post(
+    String path, [
+    Map<String, dynamic> params = const {},
+  ]) async {
+    await _dio.post(path, data: _body(params));
+  }
+
+  /// 単一オブジェクトを返すエンドポイントを叩き、[parse] で変換して返す。
+  ///
+  /// [parse] にはモデルの `fromJson` をそのまま渡せる。`host` を要するモデルは
+  /// `(j) => NoteModel.fromJson(j, host: host)` のように包むこと。
+  Future<T> _postOne<T>(
+    String path,
+    T Function(Map<String, dynamic> json) parse, [
+    Map<String, dynamic> params = const {},
+  ]) async {
+    final res = await _dio.post(path, data: _body(params));
+    return parse(res.data as Map<String, dynamic>);
+  }
+
+  /// 配列を返すエンドポイントを叩き、各要素を [parse] で変換して返す。
+  ///
+  /// 応答が配列ではなく `{ key: [...] }` 形式のエンドポイント（`emojis` など）や、
+  /// 要素から入れ子のオブジェクトを取り出すもの（`mute/list` など）は対象外。
+  /// それらは個別に書くこと。
+  Future<List<T>> _postList<T>(
+    String path,
+    T Function(Map<String, dynamic> json) parse, [
+    Map<String, dynamic> params = const {},
+  ]) async {
+    final res = await _dio.post(path, data: _body(params));
+    return (res.data as List<dynamic>)
+        .map((e) => parse(e as Map<String, dynamic>))
+        .toList();
   }
 
   /// `i` 応答の `policies` を取得する。取得済みの Future を使い回すため、
@@ -66,10 +112,8 @@ class MisskeyApi {
 
   // ---- アカウント ----
 
-  Future<UserModel> getMe() async {
-    final res = await _dio.post('i', data: _body({}));
-    return UserModel.fromJson(res.data as Map<String, dynamic>, host: host);
-  }
+  Future<UserModel> getMe() =>
+      _postOne('i', (j) => UserModel.fromJson(j, host: host));
 
   // ---- タイムライン ----
 
@@ -84,11 +128,11 @@ class MisskeyApi {
     if (untilId != null) params['untilId'] = untilId;
     if (sinceId != null) params['sinceId'] = sinceId;
 
-    final res = await _dio.post(endpoint, data: _body(params));
-    final list = res.data as List<dynamic>;
-    return list
-        .map((n) => NoteModel.fromJson(n as Map<String, dynamic>, host: host))
-        .toList();
+    return _postList(
+      endpoint,
+      (j) => NoteModel.fromJson(j, host: host),
+      params,
+    );
   }
 
   // ---- 投稿 ----
@@ -120,33 +164,33 @@ class MisskeyApi {
       params['channelId'] = channelId;
     }
 
-    final res = await _dio.post('notes/create', data: _body(params));
-    return NoteModel.fromJson(
-      (res.data as Map<String, dynamic>)['createdNote'] as Map<String, dynamic>,
-      host: host,
+    return _postOne(
+      'notes/create',
+      (j) => NoteModel.fromJson(
+        j['createdNote'] as Map<String, dynamic>,
+        host: host,
+      ),
+      params,
     );
   }
 
   // ---- 投票 ----
 
   Future<void> votePoll(String noteId, int choice) async {
-    await _dio.post(
-      'notes/polls/vote',
-      data: _body({'noteId': noteId, 'choice': choice}),
-    );
+    await _post('notes/polls/vote', {'noteId': noteId, 'choice': choice});
   }
 
   // ---- リアクション ----
 
   Future<void> createReaction(String noteId, String reaction) async {
-    await _dio.post(
-      'notes/reactions/create',
-      data: _body({'noteId': noteId, 'reaction': reaction}),
-    );
+    await _post('notes/reactions/create', {
+      'noteId': noteId,
+      'reaction': reaction,
+    });
   }
 
   Future<void> deleteReaction(String noteId) async {
-    await _dio.post('notes/reactions/delete', data: _body({'noteId': noteId}));
+    await _post('notes/reactions/delete', {'noteId': noteId});
   }
 
   /// 指定ノートのリアクションを付けたユーザー一覧を取得する。
@@ -220,18 +264,18 @@ class MisskeyApi {
     String noteId, {
     String visibility = 'public',
   }) async {
-    final res = await _dio.post(
+    return _postOne(
       'notes/create',
-      data: _body({'renoteId': noteId, 'visibility': visibility}),
-    );
-    return NoteModel.fromJson(
-      (res.data as Map<String, dynamic>)['createdNote'] as Map<String, dynamic>,
-      host: host,
+      (j) => NoteModel.fromJson(
+        j['createdNote'] as Map<String, dynamic>,
+        host: host,
+      ),
+      {'renoteId': noteId, 'visibility': visibility},
     );
   }
 
   Future<void> unrenote(String noteId) async {
-    await _dio.post('notes/unrenote', data: _body({'noteId': noteId}));
+    await _post('notes/unrenote', {'noteId': noteId});
   }
 
   /// 指定ノートをリノートしたユーザー一覧を取得する（notes/renotes）。
@@ -253,10 +297,11 @@ class MisskeyApi {
 
   // ---- ユーザー ----
 
-  Future<UserModel> getUser(String userId) async {
-    final res = await _dio.post('users/show', data: _body({'userId': userId}));
-    return UserModel.fromJson(res.data as Map<String, dynamic>, host: host);
-  }
+  Future<UserModel> getUser(String userId) => _postOne(
+    'users/show',
+    (j) => UserModel.fromJson(j, host: host),
+    {'userId': userId},
+  );
 
   Future<UserModel> getUserByUsername(
     String username, {
@@ -264,8 +309,11 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'username': username};
     if (userHost != null) params['host'] = userHost;
-    final res = await _dio.post('users/show', data: _body(params));
-    return UserModel.fromJson(res.data as Map<String, dynamic>, host: host);
+    return _postOne(
+      'users/show',
+      (j) => UserModel.fromJson(j, host: host),
+      params,
+    );
   }
 
   Future<List<NoteModel>> getUserNotes({
@@ -280,20 +328,21 @@ class MisskeyApi {
     if (withFiles) params['withFiles'] = true;
     // withReplies を有効にすると他ユーザーへのリプライも含まれる
     if (withReplies) params['withReplies'] = true;
-    final res = await _dio.post('users/notes', data: _body(params));
-    final list = res.data as List<dynamic>;
-    return list
-        .map((n) => NoteModel.fromJson(n as Map<String, dynamic>, host: host))
-        .toList();
+    return _postList(
+      'users/notes',
+      (j) => NoteModel.fromJson(j, host: host),
+      params,
+    );
   }
 
   Future<List<NoteModel>> getUserPinnedNotes(String userId) async {
     final user = await getUser(userId);
     if (user.pinnedNoteIds.isEmpty) return [];
-    final futures = user.pinnedNoteIds.map((id) async {
-      final res = await _dio.post('notes/show', data: _body({'noteId': id}));
-      return NoteModel.fromJson(res.data as Map<String, dynamic>, host: host);
-    });
+    final futures = user.pinnedNoteIds.map(
+      (id) => _postOne('notes/show', (j) => NoteModel.fromJson(j, host: host), {
+        'noteId': id,
+      }),
+    );
     return Future.wait(futures);
   }
 
@@ -337,16 +386,11 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'userId': userId, 'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post(endpoint, data: _body(params));
-    return (res.data as List<dynamic>)
-        .map(
-          (e) => FollowingModel.fromJson(
-            e as Map<String, dynamic>,
-            userKey: userKey,
-            host: host,
-          ),
-        )
-        .toList();
+    return _postList(
+      endpoint,
+      (j) => FollowingModel.fromJson(j, userKey: userKey, host: host),
+      params,
+    );
   }
 
   /// 指定ユーザー群に対するリレーションを一括取得する。
@@ -394,18 +438,15 @@ class MisskeyApi {
     return result;
   }
 
-  Future<void> followUser(String userId) async {
-    await _dio.post('following/create', data: _body({'userId': userId}));
-  }
+  Future<void> followUser(String userId) =>
+      _post('following/create', {'userId': userId});
 
-  Future<void> unfollowUser(String userId) async {
-    await _dio.post('following/delete', data: _body({'userId': userId}));
-  }
+  Future<void> unfollowUser(String userId) =>
+      _post('following/delete', {'userId': userId});
 
   /// フォロワーを解除する（following/invalidate）
-  Future<void> invalidateFollower(String userId) async {
-    await _dio.post('following/invalidate', data: _body({'userId': userId}));
-  }
+  Future<void> invalidateFollower(String userId) =>
+      _post('following/invalidate', {'userId': userId});
 
   /// フォローリクエスト一覧を取得する（following/requests/list）
   Future<List<UserModel>> getFollowRequests() async {
@@ -469,30 +510,23 @@ class MisskeyApi {
   }
 
   /// フォローリクエストを許可する（following/requests/accept）
-  Future<void> acceptFollowRequest(String userId) async {
-    await _dio.post(
-      'following/requests/accept',
-      data: _body({'userId': userId}),
-    );
-  }
+  Future<void> acceptFollowRequest(String userId) =>
+      _post('following/requests/accept', {'userId': userId});
 
   /// フォローリクエストを拒否する（following/requests/reject）
-  Future<void> rejectFollowRequest(String userId) async {
-    await _dio.post(
-      'following/requests/reject',
-      data: _body({'userId': userId}),
-    );
-  }
+  Future<void> rejectFollowRequest(String userId) =>
+      _post('following/requests/reject', {'userId': userId});
 
   // ---- ドライブ ----
 
   /// ドライブの使用状況（容量・使用量、単位バイト）を取得する。
   Future<({int capacity, int usage})> getDriveInfo() async {
-    final res = await _dio.post('drive', data: _body({}));
-    final data = res.data as Map<String, dynamic>;
-    return (
-      capacity: (data['capacity'] as num).toInt(),
-      usage: (data['usage'] as num).toInt(),
+    return _postOne(
+      'drive',
+      (j) => (
+        capacity: (j['capacity'] as num).toInt(),
+        usage: (j['usage'] as num).toInt(),
+      ),
     );
   }
 
@@ -500,10 +534,7 @@ class MisskeyApi {
   Future<List<DriveFolderModel>> getDriveFolders({String? folderId}) async {
     final params = <String, dynamic>{};
     if (folderId != null) params['folderId'] = folderId;
-    final res = await _dio.post('drive/folders', data: _body(params));
-    return (res.data as List<dynamic>)
-        .map((e) => DriveFolderModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _postList('drive/folders', DriveFolderModel.fromJson, params);
   }
 
   /// ドライブのファイル一覧を取得する。
@@ -517,22 +548,18 @@ class MisskeyApi {
     if (untilId != null) params['untilId'] = untilId;
     if (type != null) params['type'] = type;
     if (folderId != null) params['folderId'] = folderId;
-    final res = await _dio.post('drive/files', data: _body(params));
-    final list = res.data as List<dynamic>;
-    return list
-        .map((f) => DriveFileModel.fromJson(f as Map<String, dynamic>))
-        .toList();
+    return _postList('drive/files', DriveFileModel.fromJson, params);
   }
 
   /// ドライブファイルを削除する。
   Future<void> deleteFile(String fileId) async {
-    await _dio.post('drive/files/delete', data: _body({'fileId': fileId}));
+    await _post('drive/files/delete', {'fileId': fileId});
   }
 
   /// ドライブファイルを指定フォルダに移動する（nullでルートに移動）。
   Future<void> moveFile(String fileId, {String? folderId}) async {
     final params = <String, dynamic>{'fileId': fileId, 'folderId': folderId};
-    await _dio.post('drive/files/update', data: _body(params));
+    await _post('drive/files/update', params);
   }
 
   /// ドライブファイルのセンシティブ設定を更新する。
@@ -540,10 +567,10 @@ class MisskeyApi {
     String fileId, {
     required bool isSensitive,
   }) async {
-    await _dio.post(
-      'drive/files/update',
-      data: _body({'fileId': fileId, 'isSensitive': isSensitive}),
-    );
+    await _post('drive/files/update', {
+      'fileId': fileId,
+      'isSensitive': isSensitive,
+    });
   }
 
   /// ドライブフォルダを指定フォルダに移動する（nullでルートに移動）。
@@ -552,7 +579,7 @@ class MisskeyApi {
       'folderId': folderId,
       'parentId': parentId,
     };
-    await _dio.post('drive/folders/update', data: _body(params));
+    await _post('drive/folders/update', params);
   }
 
   /// ドライブのフォルダを作成する。parent は null でルート。
@@ -562,23 +589,19 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'name': name};
     if (parentId != null) params['parentId'] = parentId;
-    final res = await _dio.post('drive/folders/create', data: _body(params));
-    return DriveFolderModel.fromJson(res.data as Map<String, dynamic>);
+    return _postOne('drive/folders/create', DriveFolderModel.fromJson, params);
   }
 
   /// ドライブのフォルダ情報を更新する（名前変更など）。
   Future<void> updateDriveFolder(String folderId, {String? name}) async {
     final params = <String, dynamic>{'folderId': folderId};
     if (name != null) params['name'] = name;
-    await _dio.post('drive/folders/update', data: _body(params));
+    await _post('drive/folders/update', params);
   }
 
   /// ドライブフォルダを削除する。
   Future<void> deleteDriveFolder(String folderId) async {
-    await _dio.post(
-      'drive/folders/delete',
-      data: _body({'folderId': folderId}),
-    );
+    await _post('drive/folders/delete', {'folderId': folderId});
   }
 
   /// 実効的な最大ファイルサイズ（バイト）を取得する。
@@ -699,18 +722,15 @@ class MisskeyApi {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
     if (sinceId != null) params['sinceId'] = sinceId;
-    final res = await _dio.post('i/notifications', data: _body(params));
-    final list = res.data as List<dynamic>;
-    return list
-        .map(
-          (n) =>
-              NotificationModel.fromJson(n as Map<String, dynamic>, host: host),
-        )
-        .toList();
+    return _postList(
+      'i/notifications',
+      (n) => NotificationModel.fromJson(n, host: host),
+      params,
+    );
   }
 
   Future<void> markNotificationsRead() async {
-    await _dio.post('notifications/mark-all-as-read', data: _body({}));
+    await _post('notifications/mark-all-as-read');
   }
 
   /// サーバお知らせ一覧を取得する。
@@ -721,11 +741,7 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('announcements', data: _body(params));
-    final list = res.data as List<dynamic>;
-    return list
-        .map((e) => AnnouncementModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _postList('announcements', AnnouncementModel.fromJson, params);
   }
 
   /// お知らせを既読にする（i/read-announcement）。
@@ -733,24 +749,19 @@ class MisskeyApi {
     // Some Misskey server implementations may expect either 'id' or 'announcementId'.
     // Send both keys to increase compatibility.
     final params = {'id': announcementId, 'announcementId': announcementId};
-    await _dio.post('i/read-announcement', data: _body(params));
+    await _post('i/read-announcement', params);
   }
 
   // ---- リスト ----
 
   Future<List<UserListModel>> getLists() async {
-    final res = await _dio.post('users/lists/list', data: _body({}));
-    return (res.data as List<dynamic>)
-        .map((e) => UserListModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _postList('users/lists/list', UserListModel.fromJson);
   }
 
   Future<UserListModel> createList({required String name}) async {
-    final res = await _dio.post(
-      'users/lists/create',
-      data: _body({'name': name}),
-    );
-    return UserListModel.fromJson(res.data as Map<String, dynamic>);
+    return _postOne('users/lists/create', UserListModel.fromJson, {
+      'name': name,
+    });
   }
 
   Future<UserListModel> updateList({
@@ -761,54 +772,42 @@ class MisskeyApi {
     final params = <String, dynamic>{'listId': listId};
     if (name != null) params['name'] = name;
     if (isPublic != null) params['isPublic'] = isPublic;
-    final res = await _dio.post('users/lists/update', data: _body(params));
-    return UserListModel.fromJson(res.data as Map<String, dynamic>);
+    return _postOne('users/lists/update', UserListModel.fromJson, params);
   }
 
   Future<void> deleteList({required String listId}) async {
-    await _dio.post('users/lists/delete', data: _body({'listId': listId}));
+    await _post('users/lists/delete', {'listId': listId});
   }
 
   Future<List<UserListMembershipModel>> getListMembers({
     required String listId,
     int limit = 100,
   }) async {
-    final res = await _dio.post(
+    return _postList(
       'users/lists/get-memberships',
-      data: _body({'listId': listId, 'forPublic': false, 'limit': limit}),
+      UserListMembershipModel.fromJson,
+      {'listId': listId, 'forPublic': false, 'limit': limit},
     );
-    return (res.data as List<dynamic>)
-        .map((e) => UserListMembershipModel.fromJson(e as Map<String, dynamic>))
-        .toList();
   }
 
   Future<void> addListMember({
     required String listId,
     required String userId,
   }) async {
-    await _dio.post(
-      'users/lists/push',
-      data: _body({'listId': listId, 'userId': userId}),
-    );
+    await _post('users/lists/push', {'listId': listId, 'userId': userId});
   }
 
   Future<void> removeListMember({
     required String listId,
     required String userId,
   }) async {
-    await _dio.post(
-      'users/lists/pull',
-      data: _body({'listId': listId, 'userId': userId}),
-    );
+    await _post('users/lists/pull', {'listId': listId, 'userId': userId});
   }
 
   // ---- アンテナ ----
 
   Future<List<AntennaModel>> getAntennas() async {
-    final res = await _dio.post('antennas/list', data: _body({}));
-    return (res.data as List<dynamic>)
-        .map((e) => AntennaModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _postList('antennas/list', AntennaModel.fromJson);
   }
 
   Future<AntennaModel> createAntenna({
@@ -839,8 +838,7 @@ class MisskeyApi {
       'excludeNotesInSensitiveChannel': excludeNotesInSensitiveChannel,
     };
     if (userListId != null) params['userListId'] = userListId;
-    final res = await _dio.post('antennas/create', data: _body(params));
-    return AntennaModel.fromJson(res.data as Map<String, dynamic>);
+    return _postOne('antennas/create', AntennaModel.fromJson, params);
   }
 
   Future<AntennaModel> updateAntenna({
@@ -873,46 +871,44 @@ class MisskeyApi {
       'excludeNotesInSensitiveChannel': excludeNotesInSensitiveChannel,
     };
     if (userListId != null) params['userListId'] = userListId;
-    final res = await _dio.post('antennas/update', data: _body(params));
-    return AntennaModel.fromJson(res.data as Map<String, dynamic>);
+    return _postOne('antennas/update', AntennaModel.fromJson, params);
   }
 
   Future<void> deleteAntenna({required String antennaId}) async {
-    await _dio.post('antennas/delete', data: _body({'antennaId': antennaId}));
+    await _post('antennas/delete', {'antennaId': antennaId});
   }
 
   // ---- ノート操作 ----
 
   Future<NoteModel> getNote(String noteId) async {
-    final res = await _dio.post('notes/show', data: _body({'noteId': noteId}));
-    return NoteModel.fromJson(res.data as Map<String, dynamic>, host: host);
+    return _postOne('notes/show', (j) => NoteModel.fromJson(j, host: host), {
+      'noteId': noteId,
+    });
   }
 
   Future<void> deleteNote(String noteId) async {
-    await _dio.post('notes/delete', data: _body({'noteId': noteId}));
+    await _post('notes/delete', {'noteId': noteId});
   }
 
   /// ノートをピン留めする（i/pin）
   Future<void> pinNote(String noteId) async {
-    await _dio.post('i/pin', data: _body({'noteId': noteId}));
+    await _post('i/pin', {'noteId': noteId});
   }
 
   /// ノートのピンを解除する（i/unpin）
   Future<void> unpinNote(String noteId) async {
-    await _dio.post('i/unpin', data: _body({'noteId': noteId}));
+    await _post('i/unpin', {'noteId': noteId});
   }
 
   Future<List<NoteModel>> getNoteReplies(
     String noteId, {
     int limit = 50,
   }) async {
-    final res = await _dio.post(
+    return _postList(
       'notes/replies',
-      data: _body({'noteId': noteId, 'limit': limit}),
+      (j) => NoteModel.fromJson(j, host: host),
+      {'noteId': noteId, 'limit': limit},
     );
-    return (res.data as List<dynamic>)
-        .map((e) => NoteModel.fromJson(e as Map<String, dynamic>, host: host))
-        .toList();
   }
 
   // ---- ミュート（ユーザー） ----
@@ -940,13 +936,11 @@ class MisskeyApi {
     return _unwrapUsers(res.data, 'mutee');
   }
 
-  Future<void> muteUser(String userId) async {
-    await _dio.post('mute/create', data: _body({'userId': userId}));
-  }
+  Future<void> muteUser(String userId) =>
+      _post('mute/create', {'userId': userId});
 
-  Future<void> unmuteUser(String userId) async {
-    await _dio.post('mute/delete', data: _body({'userId': userId}));
-  }
+  Future<void> unmuteUser(String userId) =>
+      _post('mute/delete', {'userId': userId});
 
   // ---- ブロック（ユーザー） ----
 
@@ -961,23 +955,17 @@ class MisskeyApi {
     return _unwrapUsers(res.data, 'blockee');
   }
 
-  Future<void> blockUser(String userId) async {
-    await _dio.post('blocking/create', data: _body({'userId': userId}));
-  }
+  Future<void> blockUser(String userId) =>
+      _post('blocking/create', {'userId': userId});
 
-  Future<void> unblockUser(String userId) async {
-    await _dio.post('blocking/delete', data: _body({'userId': userId}));
-  }
+  Future<void> unblockUser(String userId) =>
+      _post('blocking/delete', {'userId': userId});
 
   // ---- 通報 ----
 
   /// ユーザーを通報する（users/report-abuse）
-  Future<void> reportAbuse(String userId, String comment) async {
-    await _dio.post(
-      'users/report-abuse',
-      data: _body({'userId': userId, 'comment': comment}),
-    );
-  }
+  Future<void> reportAbuse(String userId, String comment) =>
+      _post('users/report-abuse', {'userId': userId, 'comment': comment});
 
   // ---- 検索 ----
 
@@ -1003,13 +991,11 @@ class MisskeyApi {
     if (rangeEndAt != null) params['rangeEndAt'] = rangeEndAt;
     if (host != null) params['host'] = host;
     if (userId != null) params['userId'] = userId;
-    final res = await _dio.post('notes/search', data: _body(params));
-    final list = res.data as List<dynamic>;
-    return list
-        .map(
-          (n) => NoteModel.fromJson(n as Map<String, dynamic>, host: this.host),
-        )
-        .toList();
+    return _postList(
+      'notes/search',
+      (n) => NoteModel.fromJson(n, host: this.host),
+      params,
+    );
   }
 
   /// 指定された Drive ファイルが添付されたノート一覧を取得する。
@@ -1021,14 +1007,11 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'fileId': fileId, 'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post(
+    return _postList(
       'drive/files/attached-notes',
-      data: _body(params),
+      (n) => NoteModel.fromJson(n, host: host),
+      params,
     );
-    final list = res.data as List<dynamic>;
-    return list
-        .map((n) => NoteModel.fromJson(n as Map<String, dynamic>, host: host))
-        .toList();
   }
 
   /// notes/search-by-tag: タグでノートを検索する
@@ -1039,11 +1022,11 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'tag': tag, 'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('notes/search-by-tag', data: _body(params));
-    final list = res.data as List<dynamic>;
-    return list
-        .map((n) => NoteModel.fromJson(n as Map<String, dynamic>, host: host))
-        .toList();
+    return _postList(
+      'notes/search-by-tag',
+      (n) => NoteModel.fromJson(n, host: host),
+      params,
+    );
   }
 
   /// users/search: ユーザーをキーワード検索する
@@ -1063,11 +1046,11 @@ class MisskeyApi {
       'origin': origin,
     };
     if (offset != null) params['offset'] = offset;
-    final res = await _dio.post('users/search', data: _body(params));
-    final list = res.data as List<dynamic>;
-    return list
-        .map((u) => UserModel.fromJson(u as Map<String, dynamic>, host: host))
-        .toList();
+    return _postList(
+      'users/search',
+      (u) => UserModel.fromJson(u, host: host),
+      params,
+    );
   }
 
   /// hashtags/search: ハッシュタグを検索する
@@ -1110,13 +1093,12 @@ class MisskeyApi {
     if (name != null) params['name'] = name;
     if (description != null) params['description'] = description;
     if (fields != null) params['fields'] = fields;
-    await _dio.post('i/update', data: _body(params));
+    await _post('i/update', params);
   }
 
   /// ワードミュートを更新する
-  Future<void> setMutedWords(List<List<String>> words) async {
-    await _dio.post('i/update', data: _body({'mutedWords': words}));
-  }
+  Future<void> setMutedWords(List<List<String>> words) =>
+      _post('i/update', {'mutedWords': words});
 
   // ---- クリップ ----
 
@@ -1144,17 +1126,12 @@ class MisskeyApi {
       params = {'limit': cappedLimit};
     }
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post(endpoint, data: _body(params));
-    final list = res.data as List<dynamic>;
-    return list
-        .map((e) => ClipModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _postList(endpoint, ClipModel.fromJson, params);
   }
 
   /// クリップを取得する（clips/show）
   Future<ClipModel> getClip(String clipId) async {
-    final res = await _dio.post('clips/show', data: _body({'clipId': clipId}));
-    return ClipModel.fromJson(res.data as Map<String, dynamic>);
+    return _postOne('clips/show', ClipModel.fromJson, {'clipId': clipId});
   }
 
   /// クリップを作成する（clips/create）
@@ -1167,13 +1144,12 @@ class MisskeyApi {
     if (description != null && description.isNotEmpty) {
       params['description'] = description;
     }
-    final res = await _dio.post('clips/create', data: _body(params));
-    return ClipModel.fromJson(res.data as Map<String, dynamic>);
+    return _postOne('clips/create', ClipModel.fromJson, params);
   }
 
   /// クリップを削除する（clips/delete）
   Future<void> deleteClip(String clipId) async {
-    await _dio.post('clips/delete', data: _body({'clipId': clipId}));
+    await _post('clips/delete', {'clipId': clipId});
   }
 
   /// クリップの情報を更新する（clips/update）
@@ -1189,8 +1165,7 @@ class MisskeyApi {
       'isPublic': isPublic,
       'description': description,
     };
-    final res = await _dio.post('clips/update', data: _body(params));
-    return ClipModel.fromJson(res.data as Map<String, dynamic>);
+    return _postOne('clips/update', ClipModel.fromJson, params);
   }
 
   /// クリップに含まれるノートを取得する（clips/notes）
@@ -1201,11 +1176,11 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'clipId': clipId, 'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('clips/notes', data: _body(params));
-    final list = res.data as List<dynamic>;
-    return list
-        .map((n) => NoteModel.fromJson(n as Map<String, dynamic>, host: host))
-        .toList();
+    return _postList(
+      'clips/notes',
+      (n) => NoteModel.fromJson(n, host: host),
+      params,
+    );
   }
 
   /// ノートをクリップに追加する（clips/add-note）
@@ -1213,10 +1188,7 @@ class MisskeyApi {
     required String clipId,
     required String noteId,
   }) async {
-    await _dio.post(
-      'clips/add-note',
-      data: _body({'clipId': clipId, 'noteId': noteId}),
-    );
+    await _post('clips/add-note', {'clipId': clipId, 'noteId': noteId});
   }
 
   /// ノートをクリップから削除する（clips/remove-note）
@@ -1224,57 +1196,42 @@ class MisskeyApi {
     required String clipId,
     required String noteId,
   }) async {
-    await _dio.post(
-      'clips/remove-note',
-      data: _body({'clipId': clipId, 'noteId': noteId}),
-    );
+    await _post('clips/remove-note', {'clipId': clipId, 'noteId': noteId});
   }
 
   /// お気に入りに登録したクリップ一覧を取得する（clips/my-favorites）
   /// このエンドポイントはページネーションに対応していないため全件返る。
   Future<List<ClipModel>> getMyFavoriteClips() async {
-    final res = await _dio.post('clips/my-favorites', data: _body({}));
-    final list = res.data as List<dynamic>;
-    return list
-        .map((e) => ClipModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _postList('clips/my-favorites', ClipModel.fromJson);
   }
 
   /// クリップをお気に入りに登録する（clips/favorite）
   Future<void> favoriteClip(String clipId) async {
-    await _dio.post('clips/favorite', data: _body({'clipId': clipId}));
+    await _post('clips/favorite', {'clipId': clipId});
   }
 
   /// クリップのお気に入りを解除する（clips/unfavorite）
   Future<void> unfavoriteClip(String clipId) async {
-    await _dio.post('clips/unfavorite', data: _body({'clipId': clipId}));
+    await _post('clips/unfavorite', {'clipId': clipId});
   }
 
   // ---- チャンネル ----
 
-  List<ChannelModel> _toChannels(dynamic data) => (data as List<dynamic>)
-      .map((e) => ChannelModel.fromJson(e as Map<String, dynamic>))
-      .toList();
-
   /// チャンネルの詳細情報を取得する（channels/show）
   Future<ChannelModel> getChannel(String channelId) async {
-    final res = await _dio.post(
-      'channels/show',
-      data: _body({'channelId': channelId}),
-    );
-    return ChannelModel.fromJson(res.data as Map<String, dynamic>);
+    return _postOne('channels/show', ChannelModel.fromJson, {
+      'channelId': channelId,
+    });
   }
 
   /// トレンドのチャンネル一覧を取得する（channels/featured）
   Future<List<ChannelModel>> getChannelsFeatured() async {
-    final res = await _dio.post('channels/featured', data: _body({}));
-    return _toChannels(res.data);
+    return _postList('channels/featured', ChannelModel.fromJson);
   }
 
   /// お気に入りのチャンネル一覧を取得する（channels/my-favorites）
   Future<List<ChannelModel>> getChannelsMyFavorites() async {
-    final res = await _dio.post('channels/my-favorites', data: _body({}));
-    return _toChannels(res.data);
+    return _postList('channels/my-favorites', ChannelModel.fromJson);
   }
 
   /// フォロー中のチャンネル一覧を取得する（channels/followed）
@@ -1284,8 +1241,7 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('channels/followed', data: _body(params));
-    return _toChannels(res.data);
+    return _postList('channels/followed', ChannelModel.fromJson, params);
   }
 
   /// 管理中のチャンネル一覧を取得する（channels/owned）
@@ -1295,8 +1251,7 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('channels/owned', data: _body(params));
-    return _toChannels(res.data);
+    return _postList('channels/owned', ChannelModel.fromJson, params);
   }
 
   /// チャンネルを検索する（channels/search）
@@ -1312,8 +1267,7 @@ class MisskeyApi {
       'type': type,
     };
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('channels/search', data: _body(params));
-    return _toChannels(res.data);
+    return _postList('channels/search', ChannelModel.fromJson, params);
   }
 
   /// チャンネルを作成する（channels/create）
@@ -1334,8 +1288,7 @@ class MisskeyApi {
     if (allowRenoteToExternal != null) {
       params['allowRenoteToExternal'] = allowRenoteToExternal;
     }
-    final res = await _dio.post('channels/create', data: _body(params));
-    return ChannelModel.fromJson(res.data as Map<String, dynamic>);
+    return _postOne('channels/create', ChannelModel.fromJson, params);
   }
 
   /// チャンネル情報を更新する（channels/update）
@@ -1359,8 +1312,7 @@ class MisskeyApi {
     if (allowRenoteToExternal != null) {
       params['allowRenoteToExternal'] = allowRenoteToExternal;
     }
-    final res = await _dio.post('channels/update', data: _body(params));
-    return ChannelModel.fromJson(res.data as Map<String, dynamic>);
+    return _postOne('channels/update', ChannelModel.fromJson, params);
   }
 
   /// チャンネルをアーカイブ（削除相当）する（channels/update で isArchived: true）
@@ -1372,25 +1324,22 @@ class MisskeyApi {
 
   /// チャンネルをフォローする（channels/follow）
   Future<void> followChannel(String channelId) async {
-    await _dio.post('channels/follow', data: _body({'channelId': channelId}));
+    await _post('channels/follow', {'channelId': channelId});
   }
 
   /// チャンネルのフォローを解除する（channels/unfollow）
   Future<void> unfollowChannel(String channelId) async {
-    await _dio.post('channels/unfollow', data: _body({'channelId': channelId}));
+    await _post('channels/unfollow', {'channelId': channelId});
   }
 
   /// チャンネルをお気に入りに登録する（channels/favorite）
   Future<void> favoriteChannel(String channelId) async {
-    await _dio.post('channels/favorite', data: _body({'channelId': channelId}));
+    await _post('channels/favorite', {'channelId': channelId});
   }
 
   /// チャンネルのお気に入りを解除する（channels/unfavorite）
   Future<void> unfavoriteChannel(String channelId) async {
-    await _dio.post(
-      'channels/unfavorite',
-      data: _body({'channelId': channelId}),
-    );
+    await _post('channels/unfavorite', {'channelId': channelId});
   }
 
   // ---- チャット（ダイレクトメッセージ） ----
@@ -1402,11 +1351,7 @@ class MisskeyApi {
     int limit = 20,
   }) async {
     final params = <String, dynamic>{'limit': limit, 'room': room};
-    final res = await _dio.post('chat/history', data: _body(params));
-    final list = res.data as List<dynamic>;
-    return list
-        .map((e) => ChatMessageModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _postList('chat/history', ChatMessageModel.fromJson, params);
   }
 
   /// ユーザーとの1対1チャットメッセージ一覧を取得する（chat/messages/user-timeline）
@@ -1419,14 +1364,11 @@ class MisskeyApi {
     final params = <String, dynamic>{'userId': userId, 'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
     if (sinceId != null) params['sinceId'] = sinceId;
-    final res = await _dio.post(
+    return _postList(
       'chat/messages/user-timeline',
-      data: _body(params),
+      ChatMessageModel.fromJson,
+      params,
     );
-    final list = res.data as List<dynamic>;
-    return list
-        .map((e) => ChatMessageModel.fromJson(e as Map<String, dynamic>))
-        .toList();
   }
 
   /// ルームのチャットメッセージ一覧を取得する（chat/messages/room-timeline）
@@ -1439,14 +1381,11 @@ class MisskeyApi {
     final params = <String, dynamic>{'roomId': roomId, 'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
     if (sinceId != null) params['sinceId'] = sinceId;
-    final res = await _dio.post(
+    return _postList(
       'chat/messages/room-timeline',
-      data: _body(params),
+      ChatMessageModel.fromJson,
+      params,
     );
-    final list = res.data as List<dynamic>;
-    return list
-        .map((e) => ChatMessageModel.fromJson(e as Map<String, dynamic>))
-        .toList();
   }
 
   /// ユーザーにチャットメッセージを送信する（chat/messages/create-to-user）
@@ -1458,11 +1397,11 @@ class MisskeyApi {
     final params = <String, dynamic>{'toUserId': toUserId};
     if (text != null && text.isNotEmpty) params['text'] = text;
     if (fileId != null) params['fileId'] = fileId;
-    final res = await _dio.post(
+    return _postOne(
       'chat/messages/create-to-user',
-      data: _body(params),
+      ChatMessageModel.fromJson,
+      params,
     );
-    return ChatMessageModel.fromJson(res.data as Map<String, dynamic>);
   }
 
   /// ルームにチャットメッセージを送信する（chat/messages/create-to-room）
@@ -1474,24 +1413,21 @@ class MisskeyApi {
     final params = <String, dynamic>{'toRoomId': toRoomId};
     if (text != null && text.isNotEmpty) params['text'] = text;
     if (fileId != null) params['fileId'] = fileId;
-    final res = await _dio.post(
+    return _postOne(
       'chat/messages/create-to-room',
-      data: _body(params),
+      ChatMessageModel.fromJson,
+      params,
     );
-    return ChatMessageModel.fromJson(res.data as Map<String, dynamic>);
   }
 
   /// チャットメッセージを削除する（chat/messages/delete）
   Future<void> deleteChatMessage(String messageId) async {
-    await _dio.post(
-      'chat/messages/delete',
-      data: _body({'messageId': messageId}),
-    );
+    await _post('chat/messages/delete', {'messageId': messageId});
   }
 
   /// すべてのチャットを既読にする（chat/read-all）
   Future<void> readAllChats() async {
-    await _dio.post('chat/read-all', data: _body({}));
+    await _post('chat/read-all');
   }
 
   /// 参加中のルーム一覧を取得する（chat/rooms/joining）
@@ -1525,11 +1461,7 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('chat/rooms/owned', data: _body(params));
-    final list = res.data as List<dynamic>;
-    return list
-        .map((e) => ChatRoomModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _postList('chat/rooms/owned', ChatRoomModel.fromJson, params);
   }
 
   /// ルームの参加メンバー一覧を取得する（chat/rooms/members）
@@ -1581,8 +1513,7 @@ class MisskeyApi {
     if (description != null && description.isNotEmpty) {
       params['description'] = description;
     }
-    final res = await _dio.post('chat/rooms/create', data: _body(params));
-    return ChatRoomModel.fromJson(res.data as Map<String, dynamic>);
+    return _postOne('chat/rooms/create', ChatRoomModel.fromJson, params);
   }
 
   /// チャットルームに招待する（chat/rooms/invitations/create）
@@ -1590,15 +1521,15 @@ class MisskeyApi {
     required String roomId,
     required String userId,
   }) async {
-    await _dio.post(
-      'chat/rooms/invitations/create',
-      data: _body({'roomId': roomId, 'userId': userId}),
-    );
+    await _post('chat/rooms/invitations/create', {
+      'roomId': roomId,
+      'userId': userId,
+    });
   }
 
   /// チャットルームから退出する（chat/rooms/leave）
   Future<void> leaveChatRoom(String roomId) async {
-    await _dio.post('chat/rooms/leave', data: _body({'roomId': roomId}));
+    await _post('chat/rooms/leave', {'roomId': roomId});
   }
 
   // ---- お気に入り（ノート） ----
@@ -1606,18 +1537,17 @@ class MisskeyApi {
   /// ノートの状態を取得する（notes/state）
   /// 戻り値: { isFavorited: bool, isMutedThread: bool }
   Future<NoteStateModel> getNoteState(String noteId) async {
-    final res = await _dio.post('notes/state', data: _body({'noteId': noteId}));
-    return NoteStateModel.fromJson(res.data as Map<String, dynamic>);
+    return _postOne('notes/state', NoteStateModel.fromJson, {'noteId': noteId});
   }
 
   /// ノートをお気に入りに追加する（notes/favorites/create）
   Future<void> createFavorite(String noteId) async {
-    await _dio.post('notes/favorites/create', data: _body({'noteId': noteId}));
+    await _post('notes/favorites/create', {'noteId': noteId});
   }
 
   /// ノートをお気に入りから削除する（notes/favorites/delete）
   Future<void> deleteFavorite(String noteId) async {
-    await _dio.post('notes/favorites/delete', data: _body({'noteId': noteId}));
+    await _post('notes/favorites/delete', {'noteId': noteId});
   }
 
   /// お気に入り一覧を取得する（i/favorites）
@@ -1630,19 +1560,14 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('i/favorites', data: _body(params));
-    return (res.data as List<dynamic>)
-        .map(
-          (e) => FavoriteModel.fromJson(e as Map<String, dynamic>, host: host),
-        )
-        .toList();
+    return _postList(
+      'i/favorites',
+      (j) => FavoriteModel.fromJson(j, host: host),
+      params,
+    );
   }
 
   // ---- ページ ----
-
-  List<PageModel> _parsePages(dynamic data) => (data as List<dynamic>)
-      .map((e) => PageModel.fromJson(e as Map<String, dynamic>, host: host))
-      .toList();
 
   /// ページを取得する（pages/show）
   ///
@@ -1664,23 +1589,31 @@ class MisskeyApi {
       params['name'] = name;
       params['username'] = username;
     }
-    final res = await _dio.post('pages/show', data: _body(params));
-    return PageModel.fromJson(res.data as Map<String, dynamic>, host: host);
+    return _postOne(
+      'pages/show',
+      (j) => PageModel.fromJson(j, host: host),
+      params,
+    );
   }
 
   /// おすすめのページ一覧を取得する（pages/featured）
   /// **引数なし・固定10件**（いいね数降順）でページングは無い。
   Future<List<PageModel>> getFeaturedPages() async {
-    final res = await _dio.post('pages/featured', data: _body({}));
-    return _parsePages(res.data);
+    return _postList(
+      'pages/featured',
+      (j) => PageModel.fromJson(j, host: host),
+    );
   }
 
   /// 自分のページ一覧を取得する（i/pages, `read:pages`）
   Future<List<PageModel>> getMyPages({int limit = 20, String? untilId}) async {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('i/pages', data: _body(params));
-    return _parsePages(res.data);
+    return _postList(
+      'i/pages',
+      (j) => PageModel.fromJson(j, host: host),
+      params,
+    );
   }
 
   /// 指定ユーザーのページ一覧を取得する（users/pages）
@@ -1691,8 +1624,11 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'userId': userId, 'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('users/pages', data: _body(params));
-    return _parsePages(res.data);
+    return _postList(
+      'users/pages',
+      (j) => PageModel.fromJson(j, host: host),
+      params,
+    );
   }
 
   /// いいねしたページ一覧を取得する（i/page-likes, `read:page-likes`）
@@ -1705,12 +1641,11 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('i/page-likes', data: _body(params));
-    return (res.data as List<dynamic>)
-        .map(
-          (e) => PageLikeModel.fromJson(e as Map<String, dynamic>, host: host),
-        )
-        .toList();
+    return _postList(
+      'i/page-likes',
+      (j) => PageLikeModel.fromJson(j, host: host),
+      params,
+    );
   }
 
   /// ページを作成する（pages/create, `write:pages`）
@@ -1748,8 +1683,11 @@ class MisskeyApi {
     if (eyeCatchingImageId != null) {
       params['eyeCatchingImageId'] = eyeCatchingImageId;
     }
-    final res = await _dio.post('pages/create', data: _body(params));
-    return PageModel.fromJson(res.data as Map<String, dynamic>, host: host);
+    return _postOne(
+      'pages/create',
+      (j) => PageModel.fromJson(j, host: host),
+      params,
+    );
   }
 
   /// ページを更新する（pages/update, `write:pages`）
@@ -1798,36 +1736,26 @@ class MisskeyApi {
     }
     if (variables != null) params['variables'] = variables;
     if (script != null) params['script'] = script;
-    await _dio.post('pages/update', data: _body(params));
+    await _post('pages/update', params);
   }
 
   /// ページを削除する（pages/delete, `write:pages`）
   Future<void> deletePage(String pageId) async {
-    await _dio.post('pages/delete', data: _body({'pageId': pageId}));
+    await _post('pages/delete', {'pageId': pageId});
   }
 
   /// ページにいいねする（pages/like, `write:page-likes`）
   /// 自分のページには `YOUR_PAGE` エラーでいいねできない。
   Future<void> likePage(String pageId) async {
-    await _dio.post('pages/like', data: _body({'pageId': pageId}));
+    await _post('pages/like', {'pageId': pageId});
   }
 
   /// ページのいいねを解除する（pages/unlike, `write:page-likes`）
   Future<void> unlikePage(String pageId) async {
-    await _dio.post('pages/unlike', data: _body({'pageId': pageId}));
+    await _post('pages/unlike', {'pageId': pageId});
   }
 
   // ---- ギャラリー ----
-
-  List<GalleryPostModel> _parseGalleryPosts(dynamic data) =>
-      (data as List<dynamic>)
-          .map(
-            (e) => GalleryPostModel.fromJson(
-              e as Map<String, dynamic>,
-              host: host,
-            ),
-          )
-          .toList();
 
   /// 新着のギャラリー投稿一覧を取得する（gallery/posts）
   Future<List<GalleryPostModel>> getGalleryPosts({
@@ -1836,8 +1764,11 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('gallery/posts', data: _body(params));
-    return _parseGalleryPosts(res.data);
+    return _postList(
+      'gallery/posts',
+      (j) => GalleryPostModel.fromJson(j, host: host),
+      params,
+    );
   }
 
   /// おすすめのギャラリー投稿一覧を取得する（gallery/featured）
@@ -1848,26 +1779,28 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('gallery/featured', data: _body(params));
-    return _parseGalleryPosts(res.data);
+    return _postList(
+      'gallery/featured',
+      (j) => GalleryPostModel.fromJson(j, host: host),
+      params,
+    );
   }
 
   /// 人気のギャラリー投稿一覧を取得する（gallery/popular）
   /// **引数なし・固定10件**でページングは無い（読み切り + Pull-to-Refresh 向け）。
   Future<List<GalleryPostModel>> getPopularGalleryPosts() async {
-    final res = await _dio.post('gallery/popular', data: _body({}));
-    return _parseGalleryPosts(res.data);
+    return _postList(
+      'gallery/popular',
+      (j) => GalleryPostModel.fromJson(j, host: host),
+    );
   }
 
   /// ギャラリー投稿を取得する（gallery/posts/show）
   Future<GalleryPostModel> getGalleryPost(String postId) async {
-    final res = await _dio.post(
+    return _postOne(
       'gallery/posts/show',
-      data: _body({'postId': postId}),
-    );
-    return GalleryPostModel.fromJson(
-      res.data as Map<String, dynamic>,
-      host: host,
+      (j) => GalleryPostModel.fromJson(j, host: host),
+      {'postId': postId},
     );
   }
 
@@ -1879,8 +1812,11 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'userId': userId, 'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('users/gallery/posts', data: _body(params));
-    return _parseGalleryPosts(res.data);
+    return _postList(
+      'users/gallery/posts',
+      (j) => GalleryPostModel.fromJson(j, host: host),
+      params,
+    );
   }
 
   /// 自分のギャラリー投稿一覧を取得する（i/gallery/posts, `read:gallery`）
@@ -1890,8 +1826,11 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('i/gallery/posts', data: _body(params));
-    return _parseGalleryPosts(res.data);
+    return _postList(
+      'i/gallery/posts',
+      (j) => GalleryPostModel.fromJson(j, host: host),
+      params,
+    );
   }
 
   /// いいねしたギャラリー投稿一覧を取得する（i/gallery/likes, `read:gallery-likes`）
@@ -1904,13 +1843,11 @@ class MisskeyApi {
   }) async {
     final params = <String, dynamic>{'limit': limit};
     if (untilId != null) params['untilId'] = untilId;
-    final res = await _dio.post('i/gallery/likes', data: _body(params));
-    return (res.data as List<dynamic>)
-        .map(
-          (e) =>
-              GalleryLikeModel.fromJson(e as Map<String, dynamic>, host: host),
-        )
-        .toList();
+    return _postList(
+      'i/gallery/likes',
+      (j) => GalleryLikeModel.fromJson(j, host: host),
+      params,
+    );
   }
 
   /// ギャラリーに投稿する（gallery/posts/create, `write:gallery`）
@@ -1935,10 +1872,10 @@ class MisskeyApi {
     if (description != null && description.isNotEmpty) {
       params['description'] = description;
     }
-    final res = await _dio.post('gallery/posts/create', data: _body(params));
-    return GalleryPostModel.fromJson(
-      res.data as Map<String, dynamic>,
-      host: host,
+    return _postOne(
+      'gallery/posts/create',
+      (j) => GalleryPostModel.fromJson(j, host: host),
+      params,
     );
   }
 
@@ -1965,26 +1902,26 @@ class MisskeyApi {
       params['description'] = description;
     }
     if (isSensitive != null) params['isSensitive'] = isSensitive;
-    final res = await _dio.post('gallery/posts/update', data: _body(params));
-    return GalleryPostModel.fromJson(
-      res.data as Map<String, dynamic>,
-      host: host,
+    return _postOne(
+      'gallery/posts/update',
+      (j) => GalleryPostModel.fromJson(j, host: host),
+      params,
     );
   }
 
   /// ギャラリー投稿を削除する（gallery/posts/delete, `write:gallery`）
   Future<void> deleteGalleryPost(String postId) async {
-    await _dio.post('gallery/posts/delete', data: _body({'postId': postId}));
+    await _post('gallery/posts/delete', {'postId': postId});
   }
 
   /// ギャラリー投稿にいいねする（gallery/posts/like, `write:gallery-likes`）
   /// 自分の投稿には `YOUR_POST` エラーでいいねできない。
   Future<void> likeGalleryPost(String postId) async {
-    await _dio.post('gallery/posts/like', data: _body({'postId': postId}));
+    await _post('gallery/posts/like', {'postId': postId});
   }
 
   /// ギャラリー投稿のいいねを解除する（gallery/posts/unlike, `write:gallery-likes`）
   Future<void> unlikeGalleryPost(String postId) async {
-    await _dio.post('gallery/posts/unlike', data: _body({'postId': postId}));
+    await _post('gallery/posts/unlike', {'postId': postId});
   }
 }

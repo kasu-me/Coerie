@@ -1731,4 +1731,3 @@ class _DonutChartPainter extends CustomPainter {
         oldDelegate.trackColor != trackColor;
   }
 }
-
