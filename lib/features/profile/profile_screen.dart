@@ -206,6 +206,31 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
     with SingleTickerProviderStateMixin {
   final _scrollController = ScrollController();
   late final TabController _tabController;
+
+  /// 一度でも開いたタブの index。
+  /// ここに入っているタブのプロバイダーは build で watch し続けることで、
+  /// autoDispose による破棄（＝タブを戻したときの1ページ目からの再取得）を防ぐ。
+  /// 未訪問のタブを含めないのは、画面を開いた時点で3タブぶんの API を
+  /// 叩かないようにするため。
+  final _activatedTabs = <int>{0};
+
+  /// タブごとの「コンテンツ部分だけの」スクロール量。
+  /// 画面全体が単一の CustomScrollView なので、絶対オフセットを覚えて復元すると
+  /// ヘッダー（＝タブバー）の位置まで一緒に動いてしまう。タブバーが上端に
+  /// 固定された状態を原点とする相対量で持ち、切り替えでタブバーを動かさない。
+  final _tabContentOffsets = <int, double>{};
+
+  /// タブバーが上端に固定されるスクロールオフセット。
+  /// 自己紹介文や追加情報の量でヘッダーの高さが変わるため、実測して保持する。
+  double? _tabBarPinOffset;
+
+  /// [_tabBarPinOffset] の実測に使う、固定表示されるタブバー領域のキー。
+  final _tabBarHeaderKey = GlobalKey();
+
+  /// 表示中のタブ。TabController のリスナーは index が変わらない通知でも
+  /// 呼ばれるため、実際に切り替わったかの判定に使う。
+  int _currentTab = 0;
+
   late bool _isBlocking;
   late bool _isMuted;
   late bool _isFollowed;
@@ -222,8 +247,61 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
   }
 
   void _onTabChanged() {
+    final next = _tabController.index;
+    if (next == _currentTab || !mounted) return;
+
+    _tabContentOffsets[_currentTab] = _currentContentOffset();
+    _currentTab = next;
+    _activatedTabs.add(next);
     // タブ切り替えで表示するスライバーを差し替える
-    if (mounted) setState(() {});
+    setState(() {});
+    // 差し替え後のレイアウトが終わるまで待つ。先に jumpTo すると、
+    // 切り替え前のタブの（短いこともある）maxScrollExtent でクランプされる。
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _restoreContentOffset(next),
+    );
+  }
+
+  /// タブバーが上端に固定された位置を原点とした、現在のコンテンツのスクロール量。
+  /// ヘッダーがまだ見えている間はコンテンツを送れないので必ず 0 になる。
+  double _currentContentOffset() {
+    final pin = _tabBarPinOffset;
+    if (pin == null || !_scrollController.hasClients) return 0;
+    return (_scrollController.offset - pin).clamp(0.0, double.infinity);
+  }
+
+  void _restoreContentOffset(int tab) {
+    if (!mounted || !_scrollController.hasClients) return;
+    final pin = _tabBarPinOffset;
+    if (pin == null) return;
+    // ヘッダーが見えている状態でコンテンツを送ると、タブバーが上端まで
+    // 引き上げられて「切り替えでタブバーが動く」ことになる。位置は動かさず、
+    // コンテンツは先頭から見せる。
+    if (_scrollController.offset < pin) return;
+    final target = (pin + (_tabContentOffsets[tab] ?? 0)).clamp(
+      0.0,
+      _scrollController.position.maxScrollExtent,
+    );
+    if ((_scrollController.offset - target).abs() > 0.5) {
+      _scrollController.jumpTo(target);
+    }
+  }
+
+  /// タブバーが上端に固定される位置を実測する。
+  ///
+  /// 固定済みのときは見かけの位置が動かないため算出できない。その場合は
+  /// 前回値を保つ（ヘッダーの高さは自己紹介文の変化程度でしか変わらない）。
+  void _measureTabBarPinOffset() {
+    if (!mounted || !_scrollController.hasClients) return;
+    final box = _tabBarHeaderKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return;
+    final pinnedY = kToolbarHeight + MediaQuery.viewPaddingOf(context).top;
+    final currentY = box.localToGlobal(Offset.zero).dy;
+    if (currentY <= pinnedY + 0.5) return;
+    _tabBarPinOffset = (_scrollController.offset + (currentY - pinnedY)).clamp(
+      0.0,
+      double.infinity,
+    );
   }
 
   @override
@@ -236,8 +314,11 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
   Future<void> _handleRefresh() async {
     ref.invalidate(userProfileProvider(widget.userId));
     ref.invalidate(pinnedNotesProvider(widget.userId));
+    // 各タブが1ページ目から取り直されるため、保存済みのスクロール位置は
+    // 対応する投稿を失って意味をなさなくなる。
+    _tabContentOffsets.clear();
     await Future.wait([
-      for (var i = 0; i < _tabController.length; i++)
+      for (final i in _activatedTabs)
         ref
             .read(
               _profileNotesProvider(_notesKeyForTab(widget.userId, i)).notifier,
@@ -329,17 +410,55 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
 
   @override
   Widget build(BuildContext context) {
+    // ヘッダーの高さはプロフィールの内容で変わるので、レイアウト確定後に測り直す。
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _measureTabBarPinOffset(),
+    );
+
     final theme = Theme.of(context);
-    final tabIndex = _tabController.index;
+    final tabIndex = _currentTab;
     final notesState = ref.watch(
       _profileNotesProvider(_notesKeyForTab(widget.userId, tabIndex)),
     );
+    // 表示していないタブも watch し続けて autoDispose を抑止する。
+    // 破棄させるとタブを戻すたびに1ページ目から再取得となり、読み込み中の
+    // プレースホルダー表示まで一覧が縮んでスクロール位置を保てなくなる。
+    for (final i in _activatedTabs) {
+      if (i == tabIndex) continue;
+      ref.watch(_profileNotesProvider(_notesKeyForTab(widget.userId, i)));
+    }
     final pinnedAsync = ref.watch(pinnedNotesProvider(widget.userId));
     // ナビゲーションバーと投稿が重ならないよう、最下部に確保する余白
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom + 88;
     final user = widget.user;
     final activeAccount = ref.watch(activeAccountProvider);
     final isOwnProfile = activeAccount?.userId == widget.userId;
+
+    final tabBar = TabBar(
+      controller: _tabController,
+      tabs: const [
+        Tab(text: '投稿'),
+        Tab(text: '投稿と返信'),
+        Tab(text: 'メディア'),
+      ],
+    );
+
+    // 読み込み中・空表示のプレースホルダーに与える固定高さ。
+    //
+    // ここで SliverFillRemaining を使うと、スクロール位置が必ず最上部まで
+    // 巻き戻る。remainingPaintExtent（現在のスクロール位置に依存する値）を
+    // そのまま scrollExtent として報告するため、「位置がクランプされる →
+    // ヘッダーが再び現れて remainingPaintExtent が減る → 総スクロール量が
+    // 縮んでさらにクランプされる」というループになるため。
+    // スクロール位置に依存しない値を渡してループを断ち切る。
+    // 値はヘッダーを畳み切った状態の残り高さ（＝畳んだ位置でちょうど
+    // 止まる高さ）に合わせている。
+    final placeholderHeight =
+        (MediaQuery.sizeOf(context).height -
+                MediaQuery.viewPaddingOf(context).top -
+                kToolbarHeight -
+                tabBar.preferredSize.height)
+            .clamp(0.0, double.infinity);
 
     // NestedScrollView はフリング中に inner/outer のスクロール同期がずれ、
     // リストが先頭に達する前にヘッダーが展開されてしまうため、
@@ -357,7 +476,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                 ref
                     .read(
                       _profileNotesProvider(
-                        _notesKeyForTab(widget.userId, _tabController.index),
+                        _notesKeyForTab(widget.userId, _currentTab),
                       ).notifier,
                     )
                     .fetch(loadMore: true);
@@ -950,14 +1069,8 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                 SliverPersistentHeader(
                   pinned: true,
                   delegate: _TabBarDelegate(
-                    TabBar(
-                      controller: _tabController,
-                      tabs: const [
-                        Tab(text: '投稿'),
-                        Tab(text: '投稿と返信'),
-                        Tab(text: 'メディア'),
-                      ],
-                    ),
+                    tabBar,
+                    headerKey: _tabBarHeaderKey,
                   ),
                 ),
                 // タブ内容
@@ -972,6 +1085,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                       ? (pinnedAsync.valueOrNull ?? [])
                       : const [],
                   bottomInset: bottomInset,
+                  placeholderHeight: placeholderHeight,
                 ),
               ],
             ),
@@ -1048,14 +1162,17 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
   List<Widget> _buildNotesSlivers(
     PagedState<NoteModel> state,
     String emptyMessage, {
+    required double placeholderHeight,
     List<NoteModel> pinnedNotes = const [],
     double bottomInset = 0,
   }) {
     if (state.isLoading && state.items.isEmpty && pinnedNotes.isEmpty) {
-      return const [
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Center(child: CircularProgressIndicator()),
+      return [
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: placeholderHeight,
+            child: const Center(child: CircularProgressIndicator()),
+          ),
         ),
       ];
     }
@@ -1075,9 +1192,11 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
         const SliverToBoxAdapter(child: Divider(height: 1)),
       ],
       if (state.items.isEmpty && !state.isLoading && pinnedNotes.isEmpty)
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Center(child: Text(emptyMessage)),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: placeholderHeight,
+            child: Center(child: Text(emptyMessage)),
+          ),
         ),
       if (state.items.isNotEmpty || state.isLoading)
         SliverList(
@@ -1593,7 +1712,11 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet>
 
 class _TabBarDelegate extends SliverPersistentHeaderDelegate {
   final TabBar tabBar;
-  _TabBarDelegate(this.tabBar);
+
+  /// 固定表示される領域そのものの位置を、呼び出し側から実測するためのキー。
+  final Key? headerKey;
+
+  _TabBarDelegate(this.tabBar, {this.headerKey});
 
   @override
   double get minExtent => tabBar.preferredSize.height;
@@ -1607,6 +1730,7 @@ class _TabBarDelegate extends SliverPersistentHeaderDelegate {
     bool overlapsContent,
   ) {
     return ColoredBox(
+      key: headerKey,
       color: Theme.of(context).scaffoldBackgroundColor,
       child: tabBar,
     );
