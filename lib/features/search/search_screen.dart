@@ -169,6 +169,7 @@ class _SearchBar extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: controller,
+              autofillHints: null,
               decoration: InputDecoration(
                 hintText: hintText,
                 prefixIcon: const Icon(Icons.search),
@@ -408,6 +409,7 @@ class _NoteScopeSelectorState extends ConsumerState<_NoteScopeSelector> {
               padding: const EdgeInsets.only(top: 8),
               child: TextField(
                 controller: _hostController,
+                autofillHints: null,
                 decoration: const InputDecoration(
                   hintText: '対象サーバーのホスト名（例: misskey.io）',
                   prefixIcon: Icon(Icons.dns),
@@ -424,6 +426,7 @@ class _NoteScopeSelectorState extends ConsumerState<_NoteScopeSelector> {
               padding: const EdgeInsets.only(top: 8),
               child: TextField(
                 controller: _userController,
+                autofillHints: null,
                 decoration: const InputDecoration(
                   hintText: '対象ユーザー（例: @name または @name@example.com）',
                   prefixIcon: Icon(Icons.alternate_email),
