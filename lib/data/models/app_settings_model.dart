@@ -78,6 +78,8 @@ class AppSettingsModel {
   final ImageCompressionLevel
   defaultImageCompressionLevel; // 画像アップロード時のデフォルト圧縮レベル
   final String renoteVisibility; // リノート時の公開範囲（デフォルト: 'same_as_last_post'）
+  final List<String>
+  hiddenDrawerButtons; // ホームドロワーで非表示にするボタン（DrawerButtonKey.name）。未収載のキーは常に表示扱い
 
   const AppSettingsModel({
     this.theme = 'system',
@@ -97,6 +99,7 @@ class AppSettingsModel {
     this.avatarRadius = 20.0,
     this.defaultImageCompressionLevel = ImageCompressionLevel.none,
     this.renoteVisibility = 'same_as_last_post',
+    this.hiddenDrawerButtons = const [],
   });
 
   AppSettingsModel copyWith({
@@ -117,6 +120,7 @@ class AppSettingsModel {
     double? avatarRadius,
     ImageCompressionLevel? defaultImageCompressionLevel,
     String? renoteVisibility,
+    List<String>? hiddenDrawerButtons,
   }) => AppSettingsModel(
     theme: theme ?? this.theme,
     fontSize: fontSize ?? this.fontSize,
@@ -138,6 +142,7 @@ class AppSettingsModel {
     defaultImageCompressionLevel:
         defaultImageCompressionLevel ?? this.defaultImageCompressionLevel,
     renoteVisibility: renoteVisibility ?? this.renoteVisibility,
+    hiddenDrawerButtons: hiddenDrawerButtons ?? this.hiddenDrawerButtons,
   );
 
   static const Object _sentinel = Object();
@@ -160,6 +165,7 @@ class AppSettingsModel {
     'avatarRadius': avatarRadius,
     'defaultImageCompressionLevel': defaultImageCompressionLevel.index,
     'renoteVisibility': renoteVisibility,
+    'hiddenDrawerButtons': hiddenDrawerButtons,
   };
 
   factory AppSettingsModel.fromJson(Map<String, dynamic> json) =>
@@ -185,6 +191,10 @@ class AppSettingsModel {
             .values[(json['defaultImageCompressionLevel'] as int?) ?? 0],
         renoteVisibility:
             json['renoteVisibility'] as String? ?? 'same_as_last_post',
+        hiddenDrawerButtons:
+            (json['hiddenDrawerButtons'] as List<dynamic>? ?? [])
+                .map((e) => e as String)
+                .toList(),
       );
 
   factory AppSettingsModel.fromJsonString(String jsonString) =>

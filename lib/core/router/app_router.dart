@@ -24,6 +24,7 @@ import '../../features/settings/image_posting_settings_screen.dart';
 import '../../features/settings/notification_settings_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/settings/tabs_settings_screen.dart';
+import '../../features/settings/drawer_button_settings_screen.dart';
 import '../../features/settings/mute_block_screen.dart';
 import '../../features/settings/account_settings_screen.dart';
 import '../../features/settings/app_info_screen.dart';
@@ -302,6 +303,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'notifications',
             builder: (context, state) => const NotificationSettingsScreen(),
+          ),
+          GoRoute(
+            path: 'drawer-buttons',
+            builder: (context, state) => const DrawerButtonSettingsScreen(),
           ),
         ],
       ),

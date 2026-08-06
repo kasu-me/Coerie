@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/models/app_settings_model.dart';
+import '../../data/models/drawer_button_type.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/constants/image_compression_level.dart';
 import 'shared_preferences_provider.dart';
@@ -83,6 +84,16 @@ class SettingsNotifier extends StateNotifier<AppSettingsModel> {
 
   Future<void> setRenoteVisibility(String value) =>
       _apply(state.copyWith(renoteVisibility: value));
+
+  Future<void> setDrawerButtonHidden(DrawerButtonKey key, bool hidden) {
+    final next = Set<String>.from(state.hiddenDrawerButtons);
+    if (hidden) {
+      next.add(key.name);
+    } else {
+      next.remove(key.name);
+    }
+    return _apply(state.copyWith(hiddenDrawerButtons: next.toList()));
+  }
 
   Future<void> importSettings(AppSettingsModel settings) => _apply(settings);
 }

@@ -83,6 +83,16 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const Divider(indent: 16, endIndent: 16),
 
+          // --- ドロワーボタン ---
+          ListTile(
+            leading: const Icon(Icons.menu_open_outlined),
+            title: const Text('ドロワーボタン'),
+            subtitle: const Text('ホーム画面ドロワーに表示するボタンを選択'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/drawer-buttons'),
+          ),
+          const Divider(indent: 16, endIndent: 16),
+
           // --- 通知 ---
           // ListTile(
           //   leading: const Icon(Icons.notifications_outlined),
