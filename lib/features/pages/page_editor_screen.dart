@@ -197,18 +197,39 @@ class _PageEditorScreenState extends ConsumerState<PageEditorScreen> {
       if (pickedImage == null || !mounted) return;
     }
 
+    final block = _EditBlock.create(type);
+    if (pickedImage != null) {
+      block.fileId = pickedImage.id;
+      block.fileUrl = pickedImage.url;
+    }
     setState(() {
-      final block = _EditBlock.create(type);
-      if (pickedImage != null) {
-        block.fileId = pickedImage.id;
-        block.fileUrl = pickedImage.url;
-      }
       if (parent == null) {
         _blocks.add(block);
       } else {
         parent.children.add(block);
       }
       _markDirty();
+    });
+    _scrollBlockIntoView(block);
+  }
+
+  /// 追加したブロックの全体が見えるところまでスクロールする。
+  ///
+  /// 追加先はリスト（またはセクション）の末尾なので、そのままだと画面外に
+  /// はみ出して追加されたことが分からない。[ScrollPositionAlignmentPolicy.keepVisibleAtEnd]
+  /// なら必要な分だけ下方向にスクロールするので、既に全体が見えている場合は
+  /// 画面が動かず、無用な視点移動を起こさない。
+  void _scrollBlockIntoView(_EditBlock block) {
+    // ブロック追加直後のフレームではまだレイアウトされておらず位置を取れない。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final blockContext = block.cardKey.currentContext;
+      if (blockContext == null) return;
+      Scrollable.ensureVisible(
+        blockContext,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+      );
     });
   }
 
@@ -669,6 +690,7 @@ class _PageEditorScreenState extends ConsumerState<PageEditorScreen> {
     final theme = Theme.of(context);
 
     return Card(
+      key: block.cardKey,
       margin: EdgeInsets.only(bottom: 12, left: isChild ? 12 : 0),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 4, 4, 12),
@@ -862,6 +884,10 @@ class _EditBlock {
 
   /// text: 本文 / section: 見出し / note: ノートID
   final TextEditingController controller;
+
+  /// カード本体に付ける GlobalKey。追加直後にそのブロックまでスクロールするため、
+  /// ウィジェットツリー上の位置を後から引くのに使う。
+  final GlobalKey cardKey = GlobalKey();
 
   String? fileId;
   String? fileUrl;
