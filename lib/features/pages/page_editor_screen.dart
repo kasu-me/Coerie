@@ -187,8 +187,22 @@ class _PageEditorScreenState extends ConsumerState<PageEditorScreen> {
       ),
     );
     if (type == null || !mounted) return;
+
+    // 画像ブロックは画像が入っていなければ意味がないため、追加操作の一部として
+    // そのままドライブ選択まで進める。選択をキャンセルした場合は追加操作自体を
+    // 取りやめ、空のブロックを残さない。
+    DriveFileModel? pickedImage;
+    if (type == 'image') {
+      pickedImage = await _pickDriveImage();
+      if (pickedImage == null || !mounted) return;
+    }
+
     setState(() {
       final block = _EditBlock.create(type);
+      if (pickedImage != null) {
+        block.fileId = pickedImage.id;
+        block.fileUrl = pickedImage.url;
+      }
       if (parent == null) {
         _blocks.add(block);
       } else {
