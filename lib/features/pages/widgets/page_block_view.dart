@@ -7,6 +7,7 @@ import '../../../data/models/note_model.dart';
 import '../../../data/models/page_model.dart';
 import '../../../data/remote/misskey_api.dart';
 import '../../../shared/utils/emoji_utils.dart';
+import '../../../shared/widgets/image_viewer_screen.dart';
 import '../../../shared/widgets/mfm_content.dart';
 import '../../timeline/widgets/note_card.dart';
 
@@ -234,8 +235,7 @@ class PageBlockView extends StatelessWidget {
   void _openFullscreen(BuildContext context, DriveFileModel file) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => _PageImageViewer(file: file),
-        fullscreenDialog: true,
+        builder: (_) => ImageViewerScreen(files: [file], title: file.name),
       ),
     );
   }
@@ -343,41 +343,6 @@ class _Placeholder extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// ページ内画像の全画面ビューア（ピンチズーム対応）。
-class _PageImageViewer extends StatelessWidget {
-  final DriveFileModel file;
-
-  const _PageImageViewer({required this.file});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        title: Text(file.name, overflow: TextOverflow.ellipsis),
-      ),
-      body: Center(
-        child: InteractiveViewer(
-          minScale: 0.5,
-          maxScale: 5.0,
-          child: CachedNetworkImage(
-            cacheManager: AppCacheManager(),
-            imageUrl: file.url,
-            fit: BoxFit.contain,
-            errorWidget: (_, _, _) => const Icon(
-              Icons.broken_image_outlined,
-              color: Colors.white54,
-              size: 64,
-            ),
-          ),
-        ),
       ),
     );
   }
