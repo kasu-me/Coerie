@@ -133,6 +133,18 @@ class _GalleryDetailScreenState extends ConsumerState<GalleryDetailScreen> {
     }
   }
 
+  void _shareAsNote() {
+    final url = _postUrl;
+    final post = _post;
+    if (url == null || post == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('URLを取得できませんでした')));
+      return;
+    }
+    context.push('/compose', extra: {'initialText': '${post.title}\n$url'});
+  }
+
   Future<void> _openInBrowser() async {
     final url = _postUrl;
     if (url == null) {
@@ -277,6 +289,8 @@ class _GalleryDetailScreenState extends ConsumerState<GalleryDetailScreen> {
                     _openInBrowser();
                   case 'copy':
                     _copyUrl();
+                  case 'share_note':
+                    _shareAsNote();
                   case 'reload':
                     _load();
                   case 'edit':
@@ -303,6 +317,16 @@ class _GalleryDetailScreenState extends ConsumerState<GalleryDetailScreen> {
                       Icon(Icons.copy),
                       SizedBox(width: 8),
                       Text('URLをコピー'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'share_note',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_note),
+                      SizedBox(width: 8),
+                      Text('ノートで共有'),
                     ],
                   ),
                 ),

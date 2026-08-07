@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/errors/api_error_message.dart';
 import '../../shared/providers/account_provider.dart';
@@ -201,10 +202,26 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen>
     }
   }
 
+  String? get _clipUrl {
+    final host = widget.host ?? ref.read(activeAccountProvider)?.host;
+    if (host == null || host.isEmpty) return null;
+    return 'https://$host/clips/${widget.clip.id}';
+  }
+
+  void _shareAsNote() {
+    final url = _clipUrl;
+    if (url == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('ホストが指定されていません')));
+      return;
+    }
+    context.push('/compose', extra: {'initialText': '${_clip.name}\n$url'});
+  }
+
   Future<void> _openInBrowser() async {
-    final active = ref.read(activeAccountProvider);
-    final host = widget.host ?? active?.host;
-    if (host == null || host.isEmpty) {
+    final url = _clipUrl;
+    if (url == null) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -212,8 +229,10 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen>
       }
       return;
     }
-    final uri = Uri.parse('https://$host/clips/${widget.clip.id}');
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+    if (!await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    )) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -269,12 +288,33 @@ class _ClipNotesScreenState extends ConsumerState<ClipNotesScreen>
             IconButton(icon: const Icon(Icons.refresh), onPressed: _refresh),
             PopupMenuButton<String>(
               onSelected: (v) {
-                if (v == 'open_browser') _openInBrowser();
+                switch (v) {
+                  case 'open_browser':
+                    _openInBrowser();
+                  case 'share_note':
+                    _shareAsNote();
+                }
               },
               itemBuilder: (_) => [
                 const PopupMenuItem(
                   value: 'open_browser',
-                  child: Text('ブラウザで開く'),
+                  child: Row(
+                    children: [
+                      Icon(Icons.open_in_browser),
+                      SizedBox(width: 8),
+                      Text('ブラウザで開く'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'share_note',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_note),
+                      SizedBox(width: 8),
+                      Text('ノートで共有'),
+                    ],
+                  ),
                 ),
               ],
             ),

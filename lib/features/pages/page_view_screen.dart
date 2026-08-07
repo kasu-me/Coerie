@@ -203,6 +203,19 @@ class _PageViewScreenState extends ConsumerState<PageViewScreen> {
     }
   }
 
+  void _shareAsNote() {
+    final url = _pageUrl;
+    final page = _page;
+    if (url == null || page == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('URLを取得できませんでした')));
+      return;
+    }
+    final title = page.title.isNotEmpty ? page.title : page.name;
+    context.push('/compose', extra: {'initialText': '$title\n$url'});
+  }
+
   Future<void> _openInBrowser() async {
     final url = _pageUrl;
     if (url == null) {
@@ -244,6 +257,8 @@ class _PageViewScreenState extends ConsumerState<PageViewScreen> {
                   _openInBrowser();
                 case 'copy':
                   _copyUrl();
+                case 'share_note':
+                  _shareAsNote();
                 case 'reload':
                   _load();
                 case 'edit':
@@ -270,6 +285,16 @@ class _PageViewScreenState extends ConsumerState<PageViewScreen> {
                     Icon(Icons.copy),
                     SizedBox(width: 8),
                     Text('URLをコピー'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'share_note',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_note),
+                    SizedBox(width: 8),
+                    Text('ノートで共有'),
                   ],
                 ),
               ),
