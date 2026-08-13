@@ -1053,6 +1053,27 @@ class MisskeyApi {
     );
   }
 
+  /// users/search-by-username-and-host: ユーザー名／ホスト名の前方一致でユーザーを検索する
+  ///
+  /// メンション補完用。名前や自己紹介文まで見る [searchUsers]（users/search）と違い
+  /// ユーザー名の前方一致だけを見るため、補完候補としてのノイズが少ない。
+  /// [detail] は既定で false（UserLite）とし、候補表示に不要な情報は取らない。
+  Future<List<UserModel>> searchUsersByUsernameAndHost({
+    String? username,
+    String? userHost,
+    int limit = 10,
+    bool detail = false,
+  }) {
+    final params = <String, dynamic>{'limit': limit, 'detail': detail};
+    if (username != null && username.isNotEmpty) params['username'] = username;
+    if (userHost != null && userHost.isNotEmpty) params['host'] = userHost;
+    return _postList(
+      'users/search-by-username-and-host',
+      (u) => UserModel.fromJson(u, host: host),
+      params,
+    );
+  }
+
   /// hashtags/search: ハッシュタグを検索する
   Future<List<String>> searchHashtags({
     required String query,

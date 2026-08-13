@@ -11,6 +11,13 @@ class AppConstants {
   // SharedPreferences keys
   static const String settingsKey = 'app_settings';
 
+  /// メンション履歴のキー接頭辞。末尾にアカウントIDを繋げる。
+  /// 設定JSON（[settingsKey]）とは別キーにして、設定のエクスポート対象から外している。
+  static const String mentionHistoryKeyPrefix = 'mention_history_';
+
+  /// メンション履歴の保持件数上限
+  static const int mentionHistoryLimit = 50;
+
   // Misskey visibility
   static const String visibilityPublic = 'public';
   static const String visibilityHome = 'home';

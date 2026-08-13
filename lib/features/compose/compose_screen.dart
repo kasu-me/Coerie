@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:coerie/core/services/cache_service.dart';
@@ -21,8 +22,10 @@ import '../../data/models/channel_model.dart';
 import '../../data/models/custom_emoji_model.dart';
 import '../../data/models/drive_file_model.dart';
 import '../../data/models/note_model.dart';
+import '../../data/models/user_model.dart';
 import '../../data/remote/misskey_api.dart';
 import '../../shared/providers/account_provider.dart';
+import '../../shared/providers/mention_history_provider.dart';
 import '../../shared/providers/account_visibility_provider.dart';
 import '../../shared/utils/visibility_utils.dart';
 import '../../shared/providers/settings_provider.dart';
@@ -103,6 +106,17 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   bool _isReplyToDirect = false;
   bool _showPreview = false;
   List<CustomEmojiModel> _emojiSuggestions = [];
+  List<UserModel> _userSuggestions = [];
+
+  /// 入力のたびに users/search-by-username-and-host を叩かないためのデバウンス
+  Timer? _userSuggestDebounce;
+
+  /// 検索結果の到着順が入れ替わっても古い候補で上書きしないための世代番号
+  int _userSuggestSeq = 0;
+
+  /// 補完から選んだユーザー。投稿時の履歴記録で API 問い合わせを省くために持つ。
+  /// キーは `username@host`（小文字）。
+  final Map<String, UserModel> _pickedMentionUsers = {};
   AccountModel? _selectedAccount;
   String? _selectedChannelId;
   String? _selectedChannelName;
@@ -190,6 +204,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
   @override
   void dispose() {
+    _userSuggestDebounce?.cancel();
     _textController.dispose();
     _cwController.dispose();
     super.dispose();
@@ -646,18 +661,41 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     };
   }
 
-  /// テキスト変更時に絵文字サジェストを更新する
-  void _updateEmojiSuggestions(String text) {
+  /// テキスト変更時に絵文字／メンションのサジェストを更新する。
+  ///
+  /// `:` と `@` の両方が入力済みのこともあるため、カーソルに近い方だけを
+  /// 有効なトリガーとして扱い、もう一方の候補は消す。
+  void _updateSuggestions(String text) {
     final selection = _textController.selection;
     if (!selection.isValid || selection.baseOffset < 0) {
-      if (_emojiSuggestions.isNotEmpty) setState(() => _emojiSuggestions = []);
+      _clearSuggestions();
       return;
     }
     final cursorPos = selection.baseOffset.clamp(0, text.length);
     final textBeforeCursor = text.substring(0, cursorPos);
+    if (textBeforeCursor.lastIndexOf('@') >
+        textBeforeCursor.lastIndexOf(':')) {
+      _updateMentionSuggestions(textBeforeCursor);
+    } else {
+      _updateEmojiSuggestions(textBeforeCursor);
+    }
+  }
+
+  void _clearSuggestions() {
+    _userSuggestDebounce?.cancel();
+    // 発行済みのリクエストが後から候補を復活させないよう、世代を進めて無効化する
+    _userSuggestSeq++;
+    if (_emojiSuggestions.isEmpty && _userSuggestions.isEmpty) return;
+    setState(() {
+      _emojiSuggestions = [];
+      _userSuggestions = [];
+    });
+  }
+
+  void _updateEmojiSuggestions(String textBeforeCursor) {
     final lastColon = textBeforeCursor.lastIndexOf(':');
     if (lastColon < 0) {
-      if (_emojiSuggestions.isNotEmpty) setState(() => _emojiSuggestions = []);
+      _clearSuggestions();
       return;
     }
     final partial = textBeforeCursor.substring(lastColon + 1);
@@ -666,7 +704,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         partial.contains(' ') ||
         partial.contains('\n') ||
         partial.contains(':')) {
-      if (_emojiSuggestions.isNotEmpty) setState(() => _emojiSuggestions = []);
+      _clearSuggestions();
       return;
     }
     final emojis = ref.read(customEmojisProvider).value ?? [];
@@ -675,7 +713,94 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         .where((e) => e.name.toLowerCase().contains(q))
         .take(20)
         .toList();
-    setState(() => _emojiSuggestions = suggestions);
+    _userSuggestDebounce?.cancel();
+    _userSuggestSeq++;
+    setState(() {
+      _emojiSuggestions = suggestions;
+      _userSuggestions = [];
+    });
+  }
+
+  /// メンション補完のトリガー。行頭または空白の直後の `@` だけを拾い、
+  /// メールアドレスや `@user@host` の2つ目の `@` を誤検出しないようにする。
+  /// group(1)=ユーザー名部分, group(2)=ホスト部分（`@` が1つなら null）。
+  static final RegExp _mentionTriggerRegExp = RegExp(
+    r'(?:^|\s)@([a-zA-Z0-9_]*)(?:@([a-zA-Z0-9._-]*))?$',
+  );
+
+  /// 本文から送信済みメンションを拾うための正規表現（投稿後の履歴記録用）
+  static final RegExp _mentionRegExp = RegExp(
+    r'(?:^|\s)@([a-zA-Z0-9_]+)(?:@([a-zA-Z0-9._-]+))?',
+  );
+
+  void _updateMentionSuggestions(String textBeforeCursor) {
+    final match = _mentionTriggerRegExp.firstMatch(textBeforeCursor);
+    if (match == null) {
+      _clearSuggestions();
+      return;
+    }
+    final username = match.group(1) ?? '';
+    final userHost = match.group(2);
+
+    // 履歴は手元にあるので、API 応答を待たずに先に出す
+    final history = _matchedHistory(username, userHost);
+    setState(() {
+      _emojiSuggestions = [];
+      _userSuggestions = history;
+    });
+
+    final seq = ++_userSuggestSeq;
+    _userSuggestDebounce?.cancel();
+    // `@` だけの時点で全ユーザーを引くと候補が無意味に広がるため、履歴だけを見せる
+    if (username.isEmpty && userHost == null) return;
+    _userSuggestDebounce = Timer(
+      const Duration(milliseconds: 250),
+      () => _fetchUserSuggestions(username, userHost, seq),
+    );
+  }
+
+  /// 入力中の文字列に前方一致する履歴を新しい順で返す
+  List<UserModel> _matchedHistory(String username, String? userHost) {
+    final account = _selectedAccount;
+    if (account == null) return const [];
+    final q = username.toLowerCase();
+    final hostQ = userHost?.toLowerCase();
+    return ref
+        .read(mentionHistoryProvider(account.id))
+        .where((e) {
+          if (!e.username.toLowerCase().startsWith(q)) return false;
+          if (hostQ == null) return true;
+          return e.host.toLowerCase().startsWith(hostQ);
+        })
+        .map((e) => e.toUserModel())
+        .toList();
+  }
+
+  Future<void> _fetchUserSuggestions(
+    String username,
+    String? userHost,
+    int seq,
+  ) async {
+    final account = _selectedAccount;
+    if (account == null) return;
+    final api = MisskeyApi(host: account.host, token: account.token);
+    try {
+      final users = await api.searchUsersByUsernameAndHost(
+        username: username,
+        userHost: userHost,
+      );
+      if (!mounted || seq != _userSuggestSeq) return;
+      // 履歴由来の候補を上位に残したまま、重複しないものだけを後ろに足す
+      final shownIds = _userSuggestions.map((u) => u.id).toSet();
+      setState(() {
+        _userSuggestions = [
+          ..._userSuggestions,
+          ...users.where((u) => !shownIds.contains(u.id)),
+        ];
+      });
+    } catch (_) {
+      // 補完は付加機能なので、失敗時は履歴だけ出したままにする
+    }
   }
 
   /// サジェストから絵文字を選択して挿入する
@@ -696,6 +821,103 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       selection: TextSelection.collapsed(offset: lastColon + insert.length),
     );
     setState(() => _emojiSuggestions = []);
+  }
+
+  /// サジェストからユーザーを選択してメンションを挿入する
+  void _insertMentionSuggestion(UserModel user) {
+    final selection = _textController.selection;
+    final text = _textController.text;
+    final cursorPos = (selection.isValid && selection.baseOffset >= 0)
+        ? selection.baseOffset.clamp(0, text.length)
+        : text.length;
+    final textBeforeCursor = text.substring(0, cursorPos);
+    final match = _mentionTriggerRegExp.firstMatch(textBeforeCursor);
+    if (match == null) return;
+    final atIndex = textBeforeCursor.indexOf('@', match.start);
+
+    final insert = '${_acctFor(user)} ';
+    final newText =
+        text.substring(0, atIndex) + insert + text.substring(cursorPos);
+    _textController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: atIndex + insert.length),
+    );
+    _pickedMentionUsers[_mentionKey(user.username, user.host)] = user;
+    _userSuggestDebounce?.cancel();
+    setState(() => _userSuggestions = []);
+  }
+
+  /// 本文に書き込むメンション表記。自ホストのユーザーはホスト部を省く。
+  String _acctFor(UserModel user) {
+    final account = _selectedAccount;
+    if (user.host.isEmpty || user.host == account?.host) {
+      return '@${user.username}';
+    }
+    return '@${user.username}@${user.host}';
+  }
+
+  /// メンションの同一性を判定するキー。ホスト省略表記と完全表記を同じものとして扱う。
+  String _mentionKey(String username, String? userHost) {
+    final host = (userHost == null || userHost.isEmpty)
+        ? (_selectedAccount?.host ?? '')
+        : userHost;
+    return '${username.toLowerCase()}@${host.toLowerCase()}';
+  }
+
+  /// 投稿した相手をメンション履歴に積む。
+  ///
+  /// 画面を閉じた後に走るため [ref]・[setState] には触れず、必要なものは引数で受け取る。
+  /// 手入力されたメンションは補完キャッシュに無いので `users/show` で解決するが、
+  /// 打ち間違いなどで解決できないものは黙って捨てる。
+  Future<void> _recordMentionHistory(
+    MentionHistoryNotifier notifier,
+    MisskeyApi api,
+    AccountModel account,
+    String text,
+  ) async {
+    final resolved = <String, UserModel>{};
+    final unresolved = <String, ({String username, String? host})>{};
+
+    void addUser(UserModel user) {
+      if (user.id == account.userId) return;
+      resolved[_mentionKey(user.username, user.host)] = user;
+    }
+
+    // 返信相手を先に積み、履歴の最上位に来るようにする
+    if (widget.replyId != null && widget.replyToNote != null) {
+      addUser(widget.replyToNote!.user);
+    }
+
+    for (final match in _mentionRegExp.allMatches(text)) {
+      final username = match.group(1)!;
+      final userHost = match.group(2);
+      final key = _mentionKey(username, userHost);
+      if (resolved.containsKey(key) || unresolved.containsKey(key)) continue;
+      final picked = _pickedMentionUsers[key];
+      if (picked != null) {
+        addUser(picked);
+        continue;
+      }
+      if (username.toLowerCase() == account.username.toLowerCase() &&
+          (userHost == null ||
+              userHost.toLowerCase() == account.host.toLowerCase())) {
+        continue;
+      }
+      unresolved[key] = (username: username, host: userHost);
+    }
+
+    for (final target in unresolved.values) {
+      try {
+        addUser(
+          await api.getUserByUsername(
+            target.username,
+            userHost: target.host == account.host ? null : target.host,
+          ),
+        );
+      } catch (_) {}
+    }
+
+    await notifier.record(resolved.values);
   }
 
   Future<void> _post() async {
@@ -776,6 +998,17 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         visibleUserIds: visibleUserIds,
         poll: _poll,
         channelId: _selectedChannelId,
+      );
+
+      // 画面を閉じた後も走らせたいので、ref に触るのは pop の前に済ませる。
+      // 履歴記録の失敗や遅延で投稿完了を待たせないため、あえて await しない。
+      unawaited(
+        _recordMentionHistory(
+          ref.read(mentionHistoryProvider(account.id).notifier),
+          api,
+          account,
+          _textController.text,
+        ),
       );
 
       if (_currentDraftId != null) {
@@ -1402,7 +1635,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                           ),
                           onChanged: (_) {
                             setState(() {});
-                            _updateEmojiSuggestions(_textController.text);
+                            _updateSuggestions(_textController.text);
                           },
                         ),
                       ),
@@ -1413,6 +1646,14 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                 _EmojiSuggestBar(
                   suggestions: _emojiSuggestions,
                   onSelect: _insertEmojiSuggestion,
+                ),
+
+              // メンションサジェストバー
+              if (_userSuggestions.isNotEmpty)
+                _MentionSuggestBar(
+                  suggestions: _userSuggestions,
+                  acctOf: _acctFor,
+                  onSelect: _insertMentionSuggestion,
                 ),
 
               // 投票プレビュー
@@ -2012,6 +2253,67 @@ class _EmojiSuggestBar extends ConsumerWidget {
                     const Icon(Icons.emoji_emotions, size: 20),
                   const SizedBox(width: 4),
                   Text(':$name:', style: theme.textTheme.bodySmall),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ---- メンションサジェストバー ----
+
+class _MentionSuggestBar extends StatelessWidget {
+  final List<UserModel> suggestions;
+
+  /// 本文に挿入されるのと同じ表記をチップに出すため、変換は呼び出し元に任せる
+  final String Function(UserModel user) acctOf;
+  final void Function(UserModel user) onSelect;
+
+  const _MentionSuggestBar({
+    required this.suggestions,
+    required this.acctOf,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      height: 52,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        border: Border(
+          top: BorderSide(color: theme.colorScheme.outlineVariant),
+          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        itemCount: suggestions.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 4),
+        itemBuilder: (_, i) {
+          final user = suggestions[i];
+          return InkWell(
+            onTap: () => onSelect(user),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: theme.colorScheme.outline),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  UserAvatar(avatarUrl: user.avatarUrl, radius: 12),
+                  const SizedBox(width: 6),
+                  Text(acctOf(user), style: theme.textTheme.bodySmall),
                 ],
               ),
             ),
