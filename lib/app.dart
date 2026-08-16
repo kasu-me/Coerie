@@ -138,14 +138,43 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // バックグラウンドからの復帰時のみカスタム絵文字キャッシュを無効化する。
+    final goingToBackground =
+        state == AppLifecycleState.paused || state == AppLifecycleState.hidden;
     // 初回起動時にも resumed が発火するため、直前の状態が paused/hidden の
-    // 場合（= 本当のバックグラウンド復帰）に限定して invalidate する。
-    if (state == AppLifecycleState.resumed &&
+    // 場合のみを「本当のバックグラウンド復帰」とみなす。
+    final returningFromBackground =
+        state == AppLifecycleState.resumed &&
         (_previousLifecycleState == AppLifecycleState.paused ||
-            _previousLifecycleState == AppLifecycleState.hidden)) {
+            _previousLifecycleState == AppLifecycleState.hidden);
+
+    // バックグラウンドからの復帰時のみカスタム絵文字キャッシュを無効化する。
+    if (returningFromBackground) {
       ref.invalidate(customEmojisProvider);
     }
+
+    // IME を表示したまま他アプリへ切り替え、そのアプリでも IME を出してから
+    // 戻ると、Android から届く ime インセットが古いままになり、キーボードが
+    // 無いのに同じ高さの空白が残ることがある（Pixel 6a / Android 17 で報告）。
+    // Flutter は Android から渡された ime インセットをそのまま viewInsets に
+    // 使う（FlutterView#onApplyWindowInsets）ため、アプリ側からインセットを
+    // 直接補正する手段はなく、IME の表示状態を一度リセットして再同期させるしかない。
+    // - 離脱時: IME を出したまま離脱する状況自体をなくし、発生を予防する
+    // - 復帰時: 離脱時の hide が Activity の一時停止に間に合わなかった場合の保険
+    // 副作用として他アプリから戻るとキーボードが閉じるが、入力内容は保持される。
+    if (goingToBackground || returningFromBackground) {
+      FocusManager.instance.primaryFocus?.unfocus();
+    }
+
+    // unfocus は既にフォーカスが無い場合 no-op で、プラットフォームへ hide が
+    // 送られない。離脱時の hide はウィンドウフォーカス喪失後だと効かないことが
+    // あり、その場合システム側に「このウィンドウで IME 表示中」という認識が
+    // 残ったまま復帰する。フォーカス有無に関わらず明示的に hide を送ることで、
+    // 正規の IME 非表示アニメーションを走らせてインセットとエンジンの同期状態
+    // （MainActivity 側コメント参照）を正常化する。IME が既に閉じていれば no-op。
+    if (returningFromBackground) {
+      SystemChannels.textInput.invokeMethod('TextInput.hide');
+    }
+
     _previousLifecycleState = state;
   }
 
