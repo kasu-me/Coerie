@@ -1433,6 +1433,8 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
           'initialIsSensitive': note.files.any((f) => f.isSensitive),
           if (note.reply != null) 'replyId': note.reply!.id,
           if (note.reply != null) 'replyToNote': note.reply,
+          if (note.renote != null) 'renoteId': note.renote!.id,
+          if (note.renote != null) 'renoteToNote': note.renote,
         },
       );
     } catch (e) {
