@@ -4,6 +4,7 @@ import '../../core/errors/api_error_message.dart';
 import '../../data/models/note_model.dart';
 import '../../data/models/user_model.dart';
 import '../../data/remote/misskey_api.dart';
+import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 
 /// 原因を特定できなかった検索失敗の表示文言。
@@ -24,7 +25,8 @@ class SearchError {
 
 /// ノート検索の検索対象。
 /// all: 全サーバー / local: ローカルのみ / server: 指定サーバー / user: 指定ユーザー
-enum NoteSearchScope { all, local, server, user }
+/// me: 自分（ログイン中アカウント）
+enum NoteSearchScope { all, local, server, user, me }
 
 class NoteSearchState {
   final List<NoteModel> notes;
@@ -138,7 +140,20 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
       return;
     }
     String? userId;
-    if (state.scope == NoteSearchScope.user) {
+    if (state.scope == NoteSearchScope.me) {
+      // アカウント情報が userId を保持しているため users/show での解決は不要。
+      userId = _ref.read(activeAccountProvider)?.userId;
+      if (userId == null || userId.isEmpty) {
+        state = state.copyWith(
+          isLoading: false,
+          error: const SearchError(
+            type: SearchErrorType.unknown,
+            message: 'ログインが必要です',
+          ),
+        );
+        return;
+      }
+    } else if (state.scope == NoteSearchScope.user) {
       if (state.userAcct.trim().isEmpty) {
         state = state.copyWith(
           isLoading: false,
@@ -269,11 +284,12 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
   void setScopeUserAcct(String acct) => state = state.copyWith(userAcct: acct);
 
   /// 現在の scope から notes/search の host パラメータを算出する。
-  /// all / user は null（絞り込みなし）、local は '.'、server は入力ホスト名。
+  /// all / user / me は null（絞り込みなし）、local は '.'、server は入力ホスト名。
   String? _hostParam() {
     switch (state.scope) {
       case NoteSearchScope.all:
       case NoteSearchScope.user:
+      case NoteSearchScope.me:
         return null;
       case NoteSearchScope.local:
         return '.';

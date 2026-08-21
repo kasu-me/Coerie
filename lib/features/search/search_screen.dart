@@ -361,6 +361,7 @@ class _NoteScopeSelectorState extends ConsumerState<_NoteScopeSelector> {
     (NoteSearchScope.local, 'ローカル'),
     (NoteSearchScope.server, 'サーバ指定'),
     (NoteSearchScope.user, 'ユーザー指定'),
+    (NoteSearchScope.me, '自分'),
   ];
 
   @override
