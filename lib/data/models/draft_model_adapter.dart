@@ -39,6 +39,24 @@ class DraftModelAdapter extends TypeAdapter<DraftModel> {
       isSensitive = reader.readInt() == 1;
     }
 
+    // 第5世代: localFiles。旧レコードには後続バイトが無いので空で読む。
+    List<DraftLocalFileModel> localFiles = [];
+    if (reader.availableBytes > 0) {
+      final localStrings = reader.readStringList();
+      localFiles = localStrings
+          .map((s) {
+            try {
+              return DraftLocalFileModel.fromJson(
+                jsonDecode(s) as Map<String, dynamic>,
+              );
+            } catch (_) {
+              return null;
+            }
+          })
+          .whereType<DraftLocalFileModel>()
+          .toList();
+    }
+
     return DraftModel(
       id: id,
       text: text,
@@ -47,6 +65,7 @@ class DraftModelAdapter extends TypeAdapter<DraftModel> {
       files: files,
       cw: cw,
       isSensitive: isSensitive,
+      localFiles: localFiles,
     );
   }
 
@@ -61,5 +80,8 @@ class DraftModelAdapter extends TypeAdapter<DraftModel> {
     );
     writer.writeString(obj.cw ?? '');
     writer.writeInt(obj.isSensitive ? 1 : 0);
+    writer.writeStringList(
+      obj.localFiles.map((f) => jsonEncode(f.toJson())).toList(),
+    );
   }
 }

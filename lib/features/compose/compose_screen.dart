@@ -20,6 +20,8 @@ import '../../data/local/hive_service.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/channel_model.dart';
 import '../../data/models/custom_emoji_model.dart';
+import '../../data/models/draft_local_file_model.dart';
+import '../../data/models/draft_model.dart';
 import '../../data/models/drive_file_model.dart';
 import '../../data/models/note_model.dart';
 import '../../data/models/user_model.dart';
@@ -27,6 +29,7 @@ import '../../data/remote/misskey_api.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/mention_history_provider.dart';
 import '../../shared/providers/account_visibility_provider.dart';
+import '../../shared/utils/media_type_utils.dart';
 import '../../shared/utils/visibility_utils.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../../shared/providers/custom_emoji_provider.dart';
@@ -165,7 +168,13 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     }
 
     if (widget.draftId != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        // 保存されているのはパスだけで実体が消えていることがあるため、
+        // 読み込む前に取り除く。
+        final removed = await ref
+            .read(draftProvider.notifier)
+            .pruneMissingLocalFiles(widget.draftId!);
+        if (!mounted) return;
         final draft = ref
             .read(draftProvider.notifier)
             .getDraft(widget.draftId!);
@@ -177,10 +186,13 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               _cwController.text = draft.cw!;
               _cwEnabled = true;
             }
-            if (draft.files.isNotEmpty) {
-              _attachedMedia.addAll(draft.files.map(_DriveMedia.new));
-            }
+            _attachedMedia.addAll(_restoreAttachedMedia(draft));
           });
+        }
+        if (removed > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('端末から見つからない添付$removed件を除外しました')),
+          );
         }
       });
     }
@@ -246,8 +258,66 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     await _saveDraft();
   }
 
+  /// 未アップロードの添付を下書き保存用の形式に変換する。
+  ///
+  /// 圧縮は「圧縮後のファイル」ではなく設定値だけを持ち回す。こうしておくと
+  /// 下書きを開き直した後でもレベルを変更できる。
+  List<DraftLocalFileModel> _collectLocalFiles() {
+    final result = <DraftLocalFileModel>[];
+    for (var i = 0; i < _attachedMedia.length; i++) {
+      final media = _attachedMedia[i];
+      if (media is! _LocalMedia) continue;
+      result.add(
+        DraftLocalFileModel(
+          path: media.file.path,
+          compressionLevel: media.compressionLevel,
+          isSensitive: media.isSensitive,
+          position: i,
+        ),
+      );
+    }
+    return result;
+  }
+
+  /// 下書きの添付を、保存時の並び順のまま復元する。
+  List<_AttachedMedia> _restoreAttachedMedia(DraftModel draft) {
+    final restored = draft.files.map<_AttachedMedia>(_DriveMedia.new).toList();
+    final locals = draft.localFiles.toList()
+      ..sort((a, b) => a.position.compareTo(b.position));
+    for (final local in locals) {
+      final media = _LocalMedia(XFile(local.path))
+        ..isSensitive = local.isSensitive;
+      _restoreCompression(media, local.compressionLevel);
+      // 位置が不明（旧形式）または範囲外なら末尾に置く。
+      if (local.position < 0 || local.position > restored.length) {
+        restored.add(media);
+      } else {
+        restored.insert(local.position, media);
+      }
+    }
+    return restored;
+  }
+
+  /// 下書きから復元した添付に、保存されていた圧縮レベルを適用する。
+  /// 設定の既定値で上書きしないよう [_applyDefaultCompression] とは分けている。
+  void _restoreCompression(_LocalMedia media, ImageCompressionLevel level) {
+    final isCompressible = ImageCompressionService.isCompressible(
+      media.file.path,
+    );
+    media.compressionLevel = isCompressible
+        ? level
+        : ImageCompressionLevel.none;
+    media.compressFuture =
+        media.compressionLevel == ImageCompressionLevel.none
+        ? null
+        : ImageCompressionService.compress(
+            file: File(media.file.path),
+            level: media.compressionLevel,
+          );
+  }
+
   Future<void> _saveDraft() async {
-    if (_textController.text.trim().isEmpty) {
+    if (_textController.text.trim().isEmpty && _attachedMedia.isEmpty) {
       context.pop();
       return;
     }
@@ -273,6 +343,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           visibility: _visibility,
           existingId: _currentDraftId,
           files: driveFiles,
+          localFiles: _collectLocalFiles(),
           cw: _cwEnabled && _cwController.text.isNotEmpty
               ? _cwController.text
               : null,
@@ -504,27 +575,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         setState(() => _attachedMedia.add(media));
       }
     }
-  }
-
-  bool _isImagePath(String p) {
-    final s = p.toLowerCase();
-    return s.endsWith('.png') ||
-        s.endsWith('.jpg') ||
-        s.endsWith('.jpeg') ||
-        s.endsWith('.gif') ||
-        s.endsWith('.webp') ||
-        s.endsWith('.heic') ||
-        s.endsWith('.heif');
-  }
-
-  bool _isVideoPath(String p) {
-    final s = p.toLowerCase();
-    return s.endsWith('.mp4') ||
-        s.endsWith('.mov') ||
-        s.endsWith('.mkv') ||
-        s.endsWith('.webm') ||
-        s.endsWith('.3gp') ||
-        s.endsWith('.avi');
   }
 
   void _removeMedia(int index) {
@@ -1725,7 +1775,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                                 borderRadius: BorderRadius.circular(8),
                                 child: switch (media) {
                                   _LocalMedia m =>
-                                    _isImagePath(m.file.path)
+                                    isImagePath(m.file.path)
                                         ? Image.file(
                                             File(m.file.path),
                                             width: 100,
@@ -1743,7 +1793,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                                                   MainAxisAlignment.center,
                                               children: [
                                                 Icon(
-                                                  _isVideoPath(m.file.path)
+                                                  isVideoPath(m.file.path)
                                                       ? Icons.play_arrow
                                                       : Icons.audiotrack,
                                                   color:

@@ -10,6 +10,8 @@ import 'package:hive/src/binary/binary_reader_impl.dart';
 // ignore: implementation_imports
 import 'package:hive/src/binary/binary_writer_impl.dart';
 
+import 'package:coerie/core/constants/image_compression_level.dart';
+import 'package:coerie/data/models/draft_local_file_model.dart';
 import 'package:coerie/data/models/draft_model.dart';
 import 'package:coerie/data/models/drive_file_model.dart';
 
@@ -234,6 +236,132 @@ void main() {
       expect(decoded.files.map((f) => f.toJson()), [file.toJson()]);
       expect(decoded.cw, sample.cw);
       expect(decoded.isSensitive, sample.isSensitive);
+    });
+
+    test('第4世代（isSensitive まで）のレコードを読むと localFiles は空になる', () {
+      final decoded = readWithCurrentAdapter(writeLegacyFormat(sample));
+
+      expect(decoded.localFiles, isEmpty);
+    });
+
+    test('現行アダプター同士の往復で localFiles の全フィールドが保たれる', () {
+      const localFile = DraftLocalFileModel(
+        path: '/data/user/0/coerie/cache/image.jpg',
+        compressionLevel: ImageCompressionLevel.medium,
+        isSensitive: true,
+        position: 2,
+      );
+      final sampleWithLocalFiles = DraftModel(
+        id: sample.id,
+        text: sample.text,
+        visibility: sample.visibility,
+        savedAt: sample.savedAt,
+        files: sample.files,
+        cw: sample.cw,
+        isSensitive: sample.isSensitive,
+        localFiles: const [localFile],
+      );
+
+      final writer = BinaryWriterImpl(Hive);
+      DraftModelAdapter().write(writer, sampleWithLocalFiles);
+
+      final decoded = readWithCurrentAdapter(writer.toBytes());
+
+      expect(decoded.localFiles, hasLength(1));
+      expect(decoded.localFiles.first.path, localFile.path);
+      expect(
+        decoded.localFiles.first.compressionLevel,
+        localFile.compressionLevel,
+      );
+      expect(decoded.localFiles.first.isSensitive, localFile.isSensitive);
+      expect(decoded.localFiles.first.position, localFile.position);
+    });
+
+    test('壊れたローカル添付ファイルJSONはその要素だけ捨てて読み進める', () {
+      // localFiles も files と同様に JSON 文字列のリストとして保存されるため、
+      // DraftLocalFileModel の仕様変更で個々の要素が読めなくなることがある。
+      // レコード全体を巻き添えにしない（= 下書きごと失わない）ことを固定する。
+      final writer = BinaryWriterImpl(Hive);
+      writer.writeString(sample.id);
+      writer.writeString(sample.text);
+      writer.writeString(sample.visibility);
+      writer.writeInt(sample.savedAt.millisecondsSinceEpoch);
+      writer.writeStringList(
+        sample.files.map((f) => jsonEncode(f.toJson())).toList(),
+      );
+      writer.writeString(sample.cw ?? '');
+      writer.writeInt(sample.isSensitive ? 1 : 0);
+      writer.writeStringList([
+        'これはJSONではない',
+        jsonEncode(const DraftLocalFileModel(path: '/tmp/a.jpg').toJson()),
+        '{"compressionLevel":"medium"}', // 必須フィールドの path が欠けている
+      ]);
+
+      final decoded = readWithCurrentAdapter(writer.toBytes());
+
+      expectSampleCore(decoded);
+      expect(decoded.localFiles, hasLength(1));
+      expect(decoded.localFiles.first.path, '/tmp/a.jpg');
+    });
+
+    test('compressionLevel に未知の名前が保存されていた場合は none として読まれる', () {
+      final writer = BinaryWriterImpl(Hive);
+      writer.writeString(sample.id);
+      writer.writeString(sample.text);
+      writer.writeString(sample.visibility);
+      writer.writeInt(sample.savedAt.millisecondsSinceEpoch);
+      writer.writeStringList(
+        sample.files.map((f) => jsonEncode(f.toJson())).toList(),
+      );
+      writer.writeString(sample.cw ?? '');
+      writer.writeInt(sample.isSensitive ? 1 : 0);
+      writer.writeStringList([
+        jsonEncode({
+          'path': '/tmp/b.jpg',
+          'compressionLevel': 'ultra', // 将来のバージョンにのみ存在する未知の値
+          'isSensitive': false,
+          'position': 0,
+        }),
+      ]);
+
+      final decoded = readWithCurrentAdapter(writer.toBytes());
+
+      expect(decoded.localFiles, hasLength(1));
+      expect(
+        decoded.localFiles.first.compressionLevel,
+        ImageCompressionLevel.none,
+      );
+    });
+
+    test('localFiles を持つ場合も現行アダプターの書き出しは第4世代形式を接頭辞として保持する', () {
+      const localFile = DraftLocalFileModel(
+        path: '/data/user/0/coerie/cache/image.jpg',
+        compressionLevel: ImageCompressionLevel.medium,
+        isSensitive: true,
+        position: 2,
+      );
+      final sampleWithLocalFiles = DraftModel(
+        id: sample.id,
+        text: sample.text,
+        visibility: sample.visibility,
+        savedAt: sample.savedAt,
+        files: sample.files,
+        cw: sample.cw,
+        isSensitive: sample.isSensitive,
+        localFiles: const [localFile],
+      );
+
+      final writer = BinaryWriterImpl(Hive);
+      DraftModelAdapter().write(writer, sampleWithLocalFiles);
+      final current = writer.toBytes();
+      final legacy = writeLegacyFormat(sample);
+
+      expect(current.length, greaterThanOrEqualTo(legacy.length));
+      expect(
+        current.sublist(0, legacy.length),
+        equals(legacy),
+        reason: '既存フィールドのバイト表現が変わっている（末尾追加以外の変更）',
+      );
     });
   });
 }
