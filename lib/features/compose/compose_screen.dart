@@ -102,6 +102,14 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   late final TextEditingController _cwController;
   late String _visibility;
   String? _currentDraftId;
+
+  // 返信先/引用元は下書きから復元することもあり、その場合は widget 側に無い。
+  // 参照を1か所に寄せるため、widget 経由で来た分もここに写して使う。
+  String? _replyId;
+  NoteModel? _replyToNote;
+  String? _renoteId;
+  NoteModel? _renoteToNote;
+
   final List<_AttachedMedia> _attachedMedia = [];
   bool _isPosting = false;
   bool _isUploadingMedia = false;
@@ -131,6 +139,10 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     _textController = TextEditingController();
     _cwController = TextEditingController();
     _currentDraftId = widget.draftId;
+    _replyId = widget.replyId;
+    _replyToNote = widget.replyToNote;
+    _renoteId = widget.renoteId;
+    _renoteToNote = widget.renoteToNote;
     // 投稿アカウントを現在のアクティブアカウントで初期化（グローバル切り替えなし）
     _selectedAccount = ref.read(activeAccountProvider);
     // アカウント別のデフォルト公開範囲で初期化
@@ -140,8 +152,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         ref.read(accountVisibilityProvider(accountId));
 
     // 返信先がユーザー指定（specified）の場合は公開範囲を強制して永続化しない
-    if (widget.replyToNote != null &&
-        widget.replyToNote!.visibility == AppConstants.visibilitySpecified) {
+    if (_replyToNote != null &&
+        _replyToNote!.visibility == AppConstants.visibilitySpecified) {
       _visibility = AppConstants.visibilitySpecified;
       _isReplyToDirect = true;
     }
@@ -158,9 +170,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     if (widget.initialFiles != null && widget.initialFiles!.isNotEmpty) {
       _attachedMedia.addAll(widget.initialFiles!.map((f) => _DriveMedia(f)));
     }
-
-    // 引用の初期化: 特にファイル等は内包しないがプレビュー用に保持
-    // (widget.renoteToNote が提供されれば UI でプレビュー表示される)
 
     if (widget.initialLocalFiles != null &&
         widget.initialLocalFiles!.isNotEmpty) {
@@ -187,12 +196,17 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               _cwEnabled = true;
             }
             _attachedMedia.addAll(_restoreAttachedMedia(draft));
+            _replyId = draft.replyId;
+            _renoteId = draft.renoteId;
           });
         }
         if (removed > 0) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('端末から見つからない添付$removed件を除外しました')),
           );
+        }
+        if (draft != null) {
+          await _restoreNoteRefs(draft);
         }
       });
     }
@@ -307,13 +321,64 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     media.compressionLevel = isCompressible
         ? level
         : ImageCompressionLevel.none;
-    media.compressFuture =
-        media.compressionLevel == ImageCompressionLevel.none
+    media.compressFuture = media.compressionLevel == ImageCompressionLevel.none
         ? null
         : ImageCompressionService.compress(
             file: File(media.file.path),
             level: media.compressionLevel,
           );
+  }
+
+  /// 下書きに保存されている返信先/引用元のノートを取得し直す。
+  ///
+  /// 下書きにはIDしか持たせていない。ノート本体を写しておくと、返信先が
+  /// 編集・削除されても古い内容を見せ続けることになるため。
+  ///
+  /// 取得できない場合（削除済み・権限なし・別インスタンスのアカウントで
+  /// 開いた）は、投稿時に弾かれる無効なIDを抱え込まないよう関係を外し、
+  /// 通常の投稿として編集を続けられるようにする。
+  Future<void> _restoreNoteRefs(DraftModel draft) async {
+    if (draft.replyId == null && draft.renoteId == null) return;
+    final account = _selectedAccount;
+    // アカウントが無ければそもそも投稿できないので、関係は外さず何もしない。
+    if (account == null) return;
+
+    final api = MisskeyApi(host: account.host, token: account.token);
+    NoteModel? reply;
+    NoteModel? renote;
+    if (draft.replyId != null) {
+      try {
+        reply = await api.getNote(draft.replyId!);
+      } catch (_) {}
+    }
+    if (draft.renoteId != null) {
+      try {
+        renote = await api.getNote(draft.renoteId!);
+      } catch (_) {}
+    }
+    if (!mounted) return;
+
+    setState(() {
+      _replyToNote = reply;
+      _renoteToNote = renote;
+      if (reply == null) _replyId = null;
+      if (renote == null) _renoteId = null;
+      if (reply != null &&
+          reply.visibility == AppConstants.visibilitySpecified) {
+        _isReplyToDirect = true;
+        _visibility = AppConstants.visibilitySpecified;
+      }
+    });
+
+    final lost = [
+      if (draft.replyId != null && reply == null) '返信先',
+      if (draft.renoteId != null && renote == null) '引用元',
+    ];
+    if (lost.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${lost.join('と')}が見つからないため、通常の投稿として開きました')),
+      );
+    }
   }
 
   Future<void> _saveDraft() async {
@@ -348,6 +413,10 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               ? _cwController.text
               : null,
           isSensitive: false,
+          replyId: _replyId,
+          replyAcct: _replyToNote?.user.acct,
+          renoteId: _renoteId,
+          renoteAcct: _renoteToNote?.user.acct,
         );
     if (!mounted) return;
 
@@ -723,8 +792,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     }
     final cursorPos = selection.baseOffset.clamp(0, text.length);
     final textBeforeCursor = text.substring(0, cursorPos);
-    if (textBeforeCursor.lastIndexOf('@') >
-        textBeforeCursor.lastIndexOf(':')) {
+    if (textBeforeCursor.lastIndexOf('@') > textBeforeCursor.lastIndexOf(':')) {
       _updateMentionSuggestions(textBeforeCursor);
     } else {
       _updateEmojiSuggestions(textBeforeCursor);
@@ -934,8 +1002,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     }
 
     // 返信相手を先に積み、履歴の最上位に来るようにする
-    if (widget.replyId != null && widget.replyToNote != null) {
-      addUser(widget.replyToNote!.user);
+    if (_replyId != null && _replyToNote != null) {
+      addUser(_replyToNote!.user);
     }
 
     for (final match in _mentionRegExp.allMatches(text)) {
@@ -1032,8 +1100,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
       List<String>? visibleUserIds;
       if (_visibility == AppConstants.visibilitySpecified &&
-          widget.replyToNote != null) {
-        visibleUserIds = [widget.replyToNote!.user.id];
+          _replyToNote != null) {
+        visibleUserIds = [_replyToNote!.user.id];
       }
 
       await api.createNote(
@@ -1043,8 +1111,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
             : null,
         visibility: _visibility,
         fileIds: fileIds,
-        replyId: widget.replyId,
-        renoteId: widget.renoteId,
+        replyId: _replyId,
+        renoteId: _renoteId,
         visibleUserIds: visibleUserIds,
         poll: _poll,
         channelId: _selectedChannelId,
@@ -1505,7 +1573,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           body: Column(
             children: [
               // リプライ先プレビュー（テキストエリアの外に固定表示）
-              if (widget.replyToNote != null)
+              if (_replyToNote != null)
                 Container(
                   margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   padding: const EdgeInsets.all(10),
@@ -1517,15 +1585,15 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.replyToNote!.user.acct,
+                        _replyToNote!.user.acct,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.primary,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      if (widget.replyToNote!.text != null)
+                      if (_replyToNote!.text != null)
                         Text(
-                          widget.replyToNote!.text!,
+                          _replyToNote!.text!,
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall?.copyWith(
@@ -1537,7 +1605,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                 ),
 
               // 引用プレビュー（引用して投稿する場合）
-              if (widget.renoteToNote != null)
+              if (_renoteToNote != null)
                 Container(
                   margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   padding: const EdgeInsets.all(10),
@@ -1553,7 +1621,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                           const Icon(Icons.format_quote, size: 16),
                           const SizedBox(width: 6),
                           Text(
-                            widget.renoteToNote!.user.acct,
+                            _renoteToNote!.user.acct,
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.primary,
                               fontWeight: FontWeight.bold,
@@ -1561,11 +1629,11 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                           ),
                         ],
                       ),
-                      if (widget.renoteToNote!.text != null)
+                      if (_renoteToNote!.text != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 6),
                           child: Text(
-                            widget.renoteToNote!.text!,
+                            _renoteToNote!.text!,
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodySmall?.copyWith(
@@ -1573,18 +1641,18 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                             ),
                           ),
                         ),
-                      if (widget.renoteToNote!.files.isNotEmpty)
+                      if (_renoteToNote!.files.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 6),
                           child: SizedBox(
                             height: 80,
                             child: ListView.separated(
                               scrollDirection: Axis.horizontal,
-                              itemCount: widget.renoteToNote!.files.length,
+                              itemCount: _renoteToNote!.files.length,
                               separatorBuilder: (_, _) =>
                                   const SizedBox(width: 8),
                               itemBuilder: (ctx, i) {
-                                final f = widget.renoteToNote!.files[i];
+                                final f = _renoteToNote!.files[i];
                                 return ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
                                   child: f.isImage
@@ -1678,8 +1746,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                           autofocus: true,
                           scrollPadding: EdgeInsets.zero,
                           decoration: InputDecoration(
-                            hintText: widget.replyToNote != null
-                                ? '${widget.replyToNote!.user.name} に返信...'
+                            hintText: _replyToNote != null
+                                ? '${_replyToNote!.user.name} に返信...'
                                 : '何かつぶやく...',
                             border: InputBorder.none,
                           ),

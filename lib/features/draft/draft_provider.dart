@@ -32,6 +32,10 @@ class DraftNotifier extends StateNotifier<List<DraftModel>> {
     String? cw,
     bool isSensitive = false,
     List<DraftLocalFileModel> localFiles = const [],
+    String? replyId,
+    String? replyAcct,
+    String? renoteId,
+    String? renoteAcct,
   }) async {
     final box = HiveService.draftsBox;
     final id = existingId ?? const Uuid().v4();
@@ -44,6 +48,10 @@ class DraftNotifier extends StateNotifier<List<DraftModel>> {
       cw: cw,
       isSensitive: isSensitive,
       localFiles: localFiles,
+      replyId: replyId,
+      replyAcct: replyAcct,
+      renoteId: renoteId,
+      renoteAcct: renoteAcct,
     );
     await box.put(id, draft);
     _load();
@@ -89,6 +97,10 @@ class DraftNotifier extends StateNotifier<List<DraftModel>> {
         cw: draft.cw,
         isSensitive: draft.isSensitive,
         localFiles: existing,
+        replyId: draft.replyId,
+        replyAcct: draft.replyAcct,
+        renoteId: draft.renoteId,
+        renoteAcct: draft.renoteAcct,
       ),
     );
     _load();

@@ -18,8 +18,8 @@ import 'package:coerie/data/models/drive_file_model.dart';
 /// 過去に実際に書き込まれた形式のバイト列を再現する。
 ///
 /// `DraftModelAdapter` は末尾追加でフィールドを増やしてきたため、端末には
-/// 追加時期の異なる4世代のレコードが混在しうる。フラグを落とすことで
-/// それぞれの世代を再現する。
+/// 追加時期の異なる世代のレコードが混在しうる。ここではフラグを落とすことで
+/// 第1〜第4世代を再現する（以降の世代は個別のヘルパーが受け持つ）。
 ///
 /// **このヘルパーは絶対に変更しないこと。** 現行 write() の写しではなく、
 /// 「過去に書き込まれたデータ」のスナップショットとして機能する。
@@ -49,6 +49,25 @@ Uint8List writeLegacyFormat(
   if (!withIsSensitive) return writer.toBytes();
   writer.writeInt(obj.isSensitive ? 1 : 0);
 
+  return writer.toBytes();
+}
+
+/// 第5世代（localFiles まで）のバイト列を再現する。
+///
+/// [writeLegacyFormat] と同じく過去に書き込まれたデータのスナップショットで
+/// あり、**現行 write() に合わせて書き換えないこと。**
+Uint8List writeGeneration5Format(DraftModel obj) {
+  final writer = BinaryWriterImpl(Hive);
+  writer.writeString(obj.id);
+  writer.writeString(obj.text);
+  writer.writeString(obj.visibility);
+  writer.writeInt(obj.savedAt.millisecondsSinceEpoch);
+  writer.writeStringList(obj.files.map((f) => jsonEncode(f.toJson())).toList());
+  writer.writeString(obj.cw ?? '');
+  writer.writeInt(obj.isSensitive ? 1 : 0);
+  writer.writeStringList(
+    obj.localFiles.map((f) => jsonEncode(f.toJson())).toList(),
+  );
   return writer.toBytes();
 }
 
@@ -360,6 +379,81 @@ void main() {
       expect(
         current.sublist(0, legacy.length),
         equals(legacy),
+        reason: '既存フィールドのバイト表現が変わっている（末尾追加以外の変更）',
+      );
+    });
+    test('第5世代（localFiles まで）のレコードを読むと返信先/引用元は null になる', () {
+      final decoded = readWithCurrentAdapter(writeGeneration5Format(sample));
+
+      expectSampleCore(decoded);
+      expect(decoded.replyId, isNull);
+      expect(decoded.replyAcct, isNull);
+      expect(decoded.renoteId, isNull);
+      expect(decoded.renoteAcct, isNull);
+    });
+
+    test('現行アダプター同士の往復で返信先/引用元が保たれる', () {
+      final sampleWithRefs = DraftModel(
+        id: sample.id,
+        text: sample.text,
+        visibility: sample.visibility,
+        savedAt: sample.savedAt,
+        files: sample.files,
+        cw: sample.cw,
+        isSensitive: sample.isSensitive,
+        replyId: '9abc',
+        replyAcct: '@alice@misskey.io',
+        renoteId: '9def',
+        renoteAcct: '@bob',
+      );
+
+      final writer = BinaryWriterImpl(Hive);
+      DraftModelAdapter().write(writer, sampleWithRefs);
+
+      final decoded = readWithCurrentAdapter(writer.toBytes());
+
+      expectSampleCore(decoded);
+      expect(decoded.replyId, '9abc');
+      expect(decoded.replyAcct, '@alice@misskey.io');
+      expect(decoded.renoteId, '9def');
+      expect(decoded.renoteAcct, '@bob');
+    });
+
+    test('返信先/引用元を持たない下書きは往復しても null のまま', () {
+      // null は空文字として書かれるため、読み戻しで空文字に化けないことを固定する。
+      final writer = BinaryWriterImpl(Hive);
+      DraftModelAdapter().write(writer, sample);
+
+      final decoded = readWithCurrentAdapter(writer.toBytes());
+
+      expect(decoded.replyId, isNull);
+      expect(decoded.replyAcct, isNull);
+      expect(decoded.renoteId, isNull);
+      expect(decoded.renoteAcct, isNull);
+    });
+
+    test('返信先を持つ場合も現行アダプターの書き出しは第5世代形式を接頭辞として保持する', () {
+      final sampleWithRefs = DraftModel(
+        id: sample.id,
+        text: sample.text,
+        visibility: sample.visibility,
+        savedAt: sample.savedAt,
+        files: sample.files,
+        cw: sample.cw,
+        isSensitive: sample.isSensitive,
+        replyId: '9abc',
+        replyAcct: '@alice@misskey.io',
+      );
+
+      final writer = BinaryWriterImpl(Hive);
+      DraftModelAdapter().write(writer, sampleWithRefs);
+      final current = writer.toBytes();
+      final generation5 = writeGeneration5Format(sample);
+
+      expect(current.length, greaterThanOrEqualTo(generation5.length));
+      expect(
+        current.sublist(0, generation5.length),
+        equals(generation5),
         reason: '既存フィールドのバイト表現が変わっている（末尾追加以外の変更）',
       );
     });

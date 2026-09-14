@@ -137,6 +137,46 @@ class _AttachmentThumbnail extends StatelessWidget {
   }
 }
 
+/// 「何に対する下書きか」を示す行。
+///
+/// 返信と引用は同時に成立しうるため、両方あるときは並べて出す。表示する
+/// acct は下書き保存時に写したもので、相手が改名しても追従しない（一覧で
+/// ノートを引き直すと下書きの件数だけ通信が発生するため）。
+class _DraftRelationLine extends StatelessWidget {
+  final DraftModel draft;
+  const _DraftRelationLine(this.draft);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final style = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.primary,
+    );
+    final children = <Widget>[];
+    void add(IconData icon, String label) {
+      if (children.isNotEmpty) children.add(const SizedBox(width: 8));
+      children.add(Icon(icon, size: 12, color: theme.colorScheme.primary));
+      children.add(const SizedBox(width: 4));
+      children.add(
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          ),
+        ),
+      );
+    }
+
+    if (draft.replyId != null) add(Icons.reply, draft.replyAcct ?? '返信');
+    if (draft.renoteId != null) {
+      add(Icons.format_quote, draft.renoteAcct ?? '引用');
+    }
+    return Row(children: children);
+  }
+}
+
 /// 一覧の左端に出す添付のサムネイル。
 ///
 /// 本文より先に「何が付いているか」を見せたいので leading に置く。複数枚を
@@ -210,6 +250,8 @@ class DraftScreen extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final draft = drafts[index];
                 final attachments = _mergedAttachments(draft);
+                final hasRelation =
+                    draft.replyId != null || draft.renoteId != null;
                 return Dismissible(
                   key: Key(draft.id),
                   direction: DismissDirection.endToStart,
@@ -244,22 +286,31 @@ class DraftScreen extends ConsumerWidget {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                    subtitle: Row(
+                    isThreeLine: hasRelation,
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          visibilityIcon(draft.visibility),
-                          size: 12,
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          AppConstants.visibilityLabels[draft.visibility] ?? '',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          formatYmdHm(draft.savedAt),
-                          style: Theme.of(context).textTheme.bodySmall,
+                        if (hasRelation) _DraftRelationLine(draft),
+                        Row(
+                          children: [
+                            Icon(
+                              visibilityIcon(draft.visibility),
+                              size: 12,
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              AppConstants.visibilityLabels[draft.visibility] ??
+                                  '',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              formatYmdHm(draft.savedAt),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
                         ),
                       ],
                     ),

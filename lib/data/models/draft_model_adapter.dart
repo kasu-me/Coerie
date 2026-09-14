@@ -57,6 +57,12 @@ class DraftModelAdapter extends TypeAdapter<DraftModel> {
           .toList();
     }
 
+    // 第6世代: 返信先/引用元。旧レコードには後続バイトが無いので null で読む。
+    final replyId = _readNullableString(reader);
+    final replyAcct = _readNullableString(reader);
+    final renoteId = _readNullableString(reader);
+    final renoteAcct = _readNullableString(reader);
+
     return DraftModel(
       id: id,
       text: text,
@@ -66,6 +72,10 @@ class DraftModelAdapter extends TypeAdapter<DraftModel> {
       cw: cw,
       isSensitive: isSensitive,
       localFiles: localFiles,
+      replyId: replyId,
+      replyAcct: replyAcct,
+      renoteId: renoteId,
+      renoteAcct: renoteAcct,
     );
   }
 
@@ -83,5 +93,17 @@ class DraftModelAdapter extends TypeAdapter<DraftModel> {
     writer.writeStringList(
       obj.localFiles.map((f) => jsonEncode(f.toJson())).toList(),
     );
+    writer.writeString(obj.replyId ?? '');
+    writer.writeString(obj.replyAcct ?? '');
+    writer.writeString(obj.renoteId ?? '');
+    writer.writeString(obj.renoteAcct ?? '');
+  }
+
+  /// 末尾に追加された nullable な文字列を読む。
+  /// 未保存（旧レコード）と空文字はどちらも null として扱う。
+  static String? _readNullableString(BinaryReader reader) {
+    if (reader.availableBytes <= 0) return null;
+    final value = reader.readString();
+    return value.isEmpty ? null : value;
   }
 }
