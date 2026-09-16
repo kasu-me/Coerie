@@ -7,6 +7,7 @@ import '../../data/models/user_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/word_mute_provider.dart';
 import '../../shared/widgets/api_error_snack_bar.dart';
+import '../../shared/widgets/confirm_dialog.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/user_avatar.dart';
 
@@ -139,6 +140,14 @@ class _WordMuteTabState extends ConsumerState<_WordMuteTab> {
   }
 
   Future<void> _removeWord(List<MutedWordModel> current, int index) async {
+    final confirmed = await confirmAction(
+      context,
+      ref,
+      title: _hard ? 'ハードワードミュートを削除' : 'ワードミュートを削除',
+      message: '「${current[index].label}」を削除しますか？この操作は取り消せません。',
+      confirmLabel: '削除',
+    );
+    if (!confirmed) return;
     final updated = List<MutedWordModel>.from(current)..removeAt(index);
     await _save(updated, fallback: '削除に失敗しました');
   }
