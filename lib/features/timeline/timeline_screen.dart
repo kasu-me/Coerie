@@ -11,6 +11,7 @@ import '../../core/constants/app_constants.dart';
 import '../../data/models/app_settings_model.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/providers/word_mute_provider.dart';
 
 class TimelineScreen extends ConsumerStatefulWidget {
   final String timelineType;
@@ -162,6 +163,8 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
       if (note.user.isMuted) return;
       // リノートの場合、リノート元の投稿者もミュートチェック
       if (note.renote != null && note.renote!.user.isMuted) return;
+      // ワードミュートはサーバー側で除外されないため、受信時に判定する
+      if (ref.read(wordMuteFilterProvider).isMuted(note)) return;
       // スクロールが先頭付近なら即追加、それ以外はバッジで通知
       if (scrollController.hasClients &&
           scrollController.position.pixels < 100) {

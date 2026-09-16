@@ -8,6 +8,7 @@ import '../../data/models/note_model.dart';
 import '../../shared/mixins/infinite_scroll_mixin.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/paged_notifier.dart';
+import '../../shared/providers/word_mute_provider.dart';
 import '../../shared/widgets/error_view.dart';
 import '../timeline/widgets/note_card.dart';
 
@@ -30,6 +31,10 @@ class _FileNotesNotifier extends PagedNotifier<NoteModel> {
 
   @override
   String cursorOf(NoteModel item) => item.id;
+
+  @override
+  List<NoteModel> mergeItems(List<NoteModel> fetched) =>
+      _ref.read(wordMuteFilterProvider).apply(fetched);
 
   @override
   Future<List<NoteModel>> fetchPage({String? untilId}) async {

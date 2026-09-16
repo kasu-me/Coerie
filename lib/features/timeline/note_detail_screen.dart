@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/errors/api_error_message.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/providers/word_mute_provider.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
 import 'widgets/note_card.dart';
 
@@ -32,11 +33,16 @@ final _ancestorsProvider = FutureProvider.autoDispose
       return ancestors;
     });
 
+/// 返信一覧。
+///
+/// 画面の主役ノート（ユーザーが明示的に開いたノート）と先祖チェーンは、
+/// 会話が途切れて読めなくなるためワードミュートの対象にしない。
 final _noteRepliesProvider = FutureProvider.autoDispose
     .family<List<NoteModel>, String>((ref, noteId) async {
       final api = ref.read(misskeyApiProvider);
       if (api == null) return [];
-      return api.getNoteReplies(noteId);
+      final replies = await api.getNoteReplies(noteId);
+      return ref.watch(wordMuteFilterProvider).apply(replies);
     });
 
 class NoteDetailScreen extends ConsumerStatefulWidget {

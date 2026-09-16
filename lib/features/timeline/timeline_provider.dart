@@ -9,6 +9,7 @@ import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/notifications_badge_provider.dart';
+import '../../shared/providers/word_mute_provider.dart';
 
 /// 原因を特定できなかった取得失敗の表示文言。
 const String _timelineErrorFallback = 'タイムラインを取得できませんでした';
@@ -55,6 +56,14 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
   /// 古い末尾を切り捨てることで増加を抑える。
   static const int _maxNotes = 500;
 
+  /// 取得済みで最も古い／新しいノートのID（ワードミュートで除外したぶんも含む）。
+  ///
+  /// カーソルに state.notes の端を使うと、取得した1ページが丸ごとミュートされた
+  /// ときに untilId／sinceId が進まず、同じページを取り続けて追加読み込みが
+  /// 空回りする。除外前の取得結果からカーソルを控えておく。
+  String? _oldestFetchedId;
+  String? _newestFetchedId;
+
   /// ページングで読み込んだ件数。上限はこれを下回らない。
   ///
   /// 追加読み込みしたぶんまで [_maxNotes] で切ると、追加した20件がその場で
@@ -85,11 +94,23 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
         // isLoading: true で即座にローディング表示に切り替える
         _noteIds.clear();
         _pagedCount = 0;
+        _oldestFetchedId = null;
+        _newestFetchedId = null;
         state = const TimelineState(isLoading: true);
         // アカウント切り替え時は各タイムラインを再取得する。
         // microtask で遅延させることで misskeyApiProvider が新アカウントで
         // 再計算されてから fetch が実行されることを保証する
         Future.microtask(() => fetchNotes());
+      }
+    });
+    // ワードミュート設定はサーバーから非同期で届くため、最初の取得に間に合わない
+    // ことがある。届いた時点・変更された時点で保持中のノートへ適用し直す。
+    // 解除された場合に消したノートは戻らないが、再読み込みで復帰する。
+    _ref.listen(wordMuteFilterProvider, (prev, next) {
+      if (next.isEmpty || state.notes.isEmpty) return;
+      final visible = next.apply(state.notes);
+      if (visible.length != state.notes.length) {
+        state = state.copyWith(notes: _syncNotes(visible));
       }
     });
     // ストリーミングサービスの削除イベントを購読
@@ -211,25 +232,25 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
     try {
       final endpoint = getEndpoint(timelineType);
       final extraParams = getExtraParams(timelineType);
-      final untilId = loadMore && state.notes.isNotEmpty
-          ? state.notes.last.id
-          : null;
+      final untilId = loadMore ? _oldestFetchedId : null;
       final notes = await api.getTimeline(
         endpoint: endpoint,
         limit: 20,
         untilId: untilId,
         extraParams: extraParams,
       );
+      _updateCursors(notes, keepNewest: loadMore);
+      final visible = _filterMuted(notes);
 
       if (loadMore) {
         state = state.copyWith(
           isLoadingMore: false,
-          notes: _syncNotes([...state.notes, ...notes], paged: true),
+          notes: _syncNotes([...state.notes, ...visible], paged: true),
         );
       } else {
         state = state.copyWith(
           isLoading: false,
-          notes: _syncNotes(notes, paged: true),
+          notes: _syncNotes(visible, paged: true),
         );
       }
     } catch (e) {
@@ -259,9 +280,10 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
         limit: 20,
         extraParams: extraParams,
       );
+      _updateCursors(notes);
       state = state.copyWith(
         isLoadingMore: false,
-        notes: _syncNotes(notes, paged: true),
+        notes: _syncNotes(_filterMuted(notes), paged: true),
       );
       // WebSocket が接続されていない場合は、通知を API から手動取得してバッジ等を更新する
       final status = _ref
@@ -303,19 +325,44 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
     return capped;
   }
 
+  /// ワードミュートに一致するノートを取り除く。
+  List<NoteModel> _filterMuted(List<NoteModel> notes) =>
+      _ref.read(wordMuteFilterProvider).apply(notes);
+
+  /// 取得結果（ミュートで除外する前）からページングのカーソルを進める。
+  ///
+  /// [keepNewest] が true の場合は追加読み込み＝より古い方向への取得なので、
+  /// 新着取得用のカーソルは触らない。
+  void _updateCursors(List<NoteModel> fetched, {bool keepNewest = false}) {
+    if (fetched.isEmpty) return;
+    _oldestFetchedId = fetched.last.id;
+    if (!keepNewest) _newestFetchedId = fetched.first.id;
+  }
+
+  /// 新着カーソルを [id] まで進める（既存より新しい場合のみ）。
+  void _advanceNewestCursor(String id) {
+    final current = _newestFetchedId;
+    if (current == null || id.compareTo(current) > 0) _newestFetchedId = id;
+  }
+
   void prependNote(NoteModel note) {
     if (_noteIds.contains(note.id)) return;
+    _advanceNewestCursor(note.id);
     state = state.copyWith(notes: _syncNotes([note, ...state.notes]));
   }
 
   Future<List<NoteModel>> fetchNew() async {
     final api = _ref.read(misskeyApiProvider);
-    if (api == null || state.notes.isEmpty) return [];
+    // ミュートで表示中のノートが1件も無い状態でも、取得済みのカーソルがあれば
+    // 続きを取りに行ける。
+    final sinceId =
+        _newestFetchedId ??
+        (state.notes.isNotEmpty ? state.notes.first.id : null);
+    if (api == null || sinceId == null) return [];
 
     try {
       final endpoint = getEndpoint(timelineType);
       final extraParams = getExtraParams(timelineType);
-      final sinceId = state.notes.first.id;
       final newNotes = await api.getTimeline(
         endpoint: endpoint,
         limit: 20,
@@ -323,17 +370,24 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
         extraParams: extraParams,
       );
       if (newNotes.isNotEmpty) {
+        // sinceId 指定では昇順（古い順）で返るため、末尾が最新。
+        _advanceNewestCursor(newNotes.last.id);
         // WebSocket の prependNote と競合した場合の重複を除去
         // sinceId を使うと Misskey API は昇順（古い順）でノートを返すため、
         // 降順（新しい順）に並べ替えてから先頭に挿入する
-        final unique = newNotes.where((n) => !_noteIds.contains(n.id)).toList()
-          ..sort((a, b) => b.id.compareTo(a.id));
+        final unique =
+            _filterMuted(
+                newNotes,
+              ).where((n) => !_noteIds.contains(n.id)).toList()
+              ..sort((a, b) => b.id.compareTo(a.id));
         // refresh() と競合した場合、unique に現在の先頭より古いノートが
         // 含まれていると順番が乱れるため、現在の先頭より新しいものだけ挿入する
-        final currentTopId = state.notes.first.id;
-        final toInsert = unique
-            .where((n) => n.id.compareTo(currentTopId) > 0)
-            .toList();
+        final currentTopId = state.notes.isNotEmpty
+            ? state.notes.first.id
+            : null;
+        final toInsert = currentTopId == null
+            ? unique
+            : unique.where((n) => n.id.compareTo(currentTopId) > 0).toList();
         if (toInsert.isNotEmpty) {
           state = state.copyWith(
             notes: _syncNotes([...toInsert, ...state.notes]),

@@ -6,6 +6,7 @@ import '../../data/models/user_model.dart';
 import '../../data/remote/misskey_api.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/providers/word_mute_provider.dart';
 
 /// 原因を特定できなかった検索失敗の表示文言。
 const String _searchErrorFallback = '検索に失敗しました';
@@ -102,11 +103,23 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
   // 古い hasMore が居座って無限スクロールが止まる。
   int _requestId = 0;
 
+  /// 直近に取得した「ワードミュートで除外する前の」末尾ノートID。
+  /// state.notes の末尾を untilId に使うと、1ページ丸ごとミュートされたときに
+  /// カーソルが進まず、同じページを取り続けて追加読み込みが空回りする。
+  String? _lastFetchedId;
+
   NoteSearchNotifier(this._ref) : super(const NoteSearchState());
+
+  /// ワードミュートに一致するノートを取り除きつつ、カーソルを進める。
+  List<NoteModel> _acceptNotes(List<NoteModel> fetched) {
+    if (fetched.isNotEmpty) _lastFetchedId = fetched.last.id;
+    return _ref.read(wordMuteFilterProvider).apply(fetched);
+  }
 
   Future<void> search(String query) async {
     if (query.trim().isEmpty) return;
     final reqId = ++_requestId;
+    _lastFetchedId = null;
     // 期間フィルタ・検索対象は検索をまたいで保持する
     state = NoteSearchState(
       isLoading: true,
@@ -187,7 +200,7 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
       );
       if (reqId != _requestId) return;
       state = state.copyWith(
-        notes: notes,
+        notes: _acceptNotes(notes),
         isLoading: false,
         hasMore: notes.length >= 20,
         clearError: true,
@@ -209,7 +222,7 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
   }
 
   Future<void> loadMore() async {
-    if (state.isLoading || !state.hasMore || state.notes.isEmpty) return;
+    if (state.isLoading || !state.hasMore || _lastFetchedId == null) return;
     // 現在の検索に紐づく世代を捕捉。await 中に新規検索が走ったら結果を捨てる。
     final reqId = _requestId;
     state = state.copyWith(isLoading: true);
@@ -223,7 +236,7 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
     try {
       final notes = await api.searchNotes(
         query: state.query,
-        untilId: state.notes.last.id,
+        untilId: _lastFetchedId,
         rangeStartAt: _rangeStartAt(),
         rangeEndAt: _rangeEndAt(),
         host: _hostParam(),
@@ -231,7 +244,7 @@ class NoteSearchNotifier extends StateNotifier<NoteSearchState> {
       );
       if (reqId != _requestId) return;
       state = state.copyWith(
-        notes: [...state.notes, ...notes],
+        notes: [...state.notes, ..._acceptNotes(notes)],
         isLoading: false,
         hasMore: notes.length >= 20,
       );

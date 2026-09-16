@@ -4,6 +4,7 @@ import '../../data/models/note_model.dart';
 import '../../shared/mixins/infinite_scroll_mixin.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/paged_notifier.dart';
+import '../../shared/providers/word_mute_provider.dart';
 import '../timeline/widgets/note_card.dart';
 import '../../shared/widgets/error_view.dart';
 
@@ -21,6 +22,14 @@ class _FavoritesNotifier extends PagedNotifier<FavoriteModel> {
   /// 取り違えるとページングが壊れる（[FavoriteModel] のコメント参照）。
   @override
   String cursorOf(FavoriteModel item) => item.id;
+
+  /// ワードミュートに一致するノートは一覧に載せない。
+  @override
+  List<FavoriteModel> mergeItems(List<FavoriteModel> fetched) {
+    final filter = _ref.read(wordMuteFilterProvider);
+    if (filter.isEmpty) return fetched;
+    return fetched.where((f) => !filter.isMuted(f.note)).toList();
+  }
 
   @override
   Future<List<FavoriteModel>> fetchPage({String? untilId}) async {

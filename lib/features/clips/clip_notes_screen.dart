@@ -9,6 +9,7 @@ import '../../data/models/note_model.dart';
 import '../../shared/mixins/infinite_scroll_mixin.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/paged_notifier.dart';
+import '../../shared/providers/word_mute_provider.dart';
 import '../timeline/widgets/note_card.dart';
 import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/error_view.dart';
@@ -34,6 +35,10 @@ class _ClipNotesNotifier extends PagedNotifier<NoteModel> {
   String cursorOf(NoteModel item) => item.id;
 
   @override
+  List<NoteModel> mergeItems(List<NoteModel> fetched) =>
+      _ref.read(wordMuteFilterProvider).apply(fetched);
+
+  @override
   Future<List<NoteModel>> fetchPage({String? untilId}) async {
     final api = _ref.read(misskeyApiProvider);
     if (api == null) return const [];
@@ -46,11 +51,13 @@ class _ClipNotesNotifier extends PagedNotifier<NoteModel> {
   /// 表示順が途中で破綻する。エラーが出た時点で打ち切る。
   Future<void> fetchAll() async {
     while (state.hasMore && state.error == null) {
-      final countBefore = state.items.length;
-      await fetch(loadMore: true);
       // 途中で refresh() が入ると fetch() は結果を捨てて即座に返る。
-      // hasMore は真のままなので、件数が増えなければ打ち切らないと空回りする。
-      if (state.items.length == countBefore) break;
+      // hasMore は真のままなので、進んでいなければ打ち切らないと空回りする。
+      // 件数ではなくカーソルで見るのは、1ページ丸ごとワードミュートで
+      // 除外されても取得自体は進んでいるため。
+      final cursorBefore = lastCursor;
+      await fetch(loadMore: true);
+      if (lastCursor == cursorBefore) break;
     }
   }
 

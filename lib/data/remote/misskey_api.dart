@@ -10,6 +10,7 @@ import '../../data/models/channel_model.dart';
 import '../../data/models/custom_emoji_model.dart';
 import '../../data/models/drive_file_model.dart';
 import '../../data/models/drive_folder_model.dart';
+import '../../data/models/muted_word_model.dart';
 import '../../data/models/note_model.dart';
 import '../../data/models/note_state_model.dart';
 import '../../data/models/page_model.dart';
@@ -1090,17 +1091,23 @@ class MisskeyApi {
   // ---- ワードミュート ----
 
   /// 現在のワードミュート設定を取得する（i エンドポイントから）
-  Future<List<List<String>>> getMutedWords() async {
+  ///
+  /// ソフト（mutedWords）とハード（hardMutedWords）は別フィールドだが、
+  /// どちらも `i` の応答に含まれるため1リクエストでまとめて取得する。
+  Future<WordMuteSettings> getWordMuteSettings() async {
     final res = await _dio.post('i', data: _body({}));
     final data = res.data as Map<String, dynamic>;
-    final raw = data['mutedWords'] as List<dynamic>? ?? [];
+    return WordMuteSettings(
+      soft: _parseMutedWords(data['mutedWords']),
+      hard: _parseMutedWords(data['hardMutedWords']),
+    );
+  }
+
+  List<MutedWordModel> _parseMutedWords(dynamic raw) {
+    if (raw is! List) return const [];
     return raw
-        .map((item) {
-          if (item is List) return item.cast<String>();
-          if (item is String) return [item];
-          return <String>[];
-        })
-        .where((w) => w.isNotEmpty)
+        .map(MutedWordModel.fromJson)
+        .whereType<MutedWordModel>()
         .toList();
   }
 
@@ -1117,9 +1124,19 @@ class MisskeyApi {
     await _post('i/update', params);
   }
 
-  /// ワードミュートを更新する
-  Future<void> setMutedWords(List<List<String>> words) =>
-      _post('i/update', {'mutedWords': words});
+  /// ソフトワードミュート（mutedWords）を更新する。
+  ///
+  /// 差分更新ではなく全置換のため、変更後の全エントリを渡すこと。
+  /// 正規表現エントリは文字列のまま送り返す必要がある（[MutedWordModel] 参照）。
+  Future<void> setMutedWords(List<MutedWordModel> words) =>
+      _updateMutedWords('mutedWords', words);
+
+  /// ハードワードミュート（hardMutedWords）を更新する。
+  Future<void> setHardMutedWords(List<MutedWordModel> words) =>
+      _updateMutedWords('hardMutedWords', words);
+
+  Future<void> _updateMutedWords(String field, List<MutedWordModel> words) =>
+      _post('i/update', {field: words.map((w) => w.toJson()).toList()});
 
   // ---- クリップ ----
 

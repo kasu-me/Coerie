@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/api_error_message.dart';
@@ -65,6 +66,17 @@ abstract class PagedNotifier<T> extends StateNotifier<PagedState<T>> {
   /// も古い値で上書きされる。
   int _requestId = 0;
 
+  /// 直近に取得した「除外前の」末尾カーソル。
+  ///
+  /// [mergeItems] で要素を落とす一覧（ワードミュートなど）では、1ページが丸ごと
+  /// 落ちると items の末尾が進まず、同じページを取り続けて追加読み込みが空回りする。
+  /// 取得結果そのものからカーソルを控えることで必ず次ページへ進める。
+  String? _lastCursor;
+
+  /// 追加読み込みが実際に次ページへ進んだかの判定に使う（値が変わらなければ未進行）。
+  @protected
+  String? get lastCursor => _lastCursor;
+
   /// await 明けに state を触ってよいか。
   /// 破棄済み（`state` への代入が例外になる）か、世代が進んでいれば false。
   bool _isCurrent(int requestId) => mounted && requestId == _requestId;
@@ -76,11 +88,13 @@ abstract class PagedNotifier<T> extends StateNotifier<PagedState<T>> {
     final requestId = _requestId;
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final untilId = loadMore && state.items.isNotEmpty
-          ? cursorOf(state.items.last)
+      final untilId = loadMore
+          ? (_lastCursor ??
+                (state.items.isNotEmpty ? cursorOf(state.items.last) : null))
           : null;
       final fetched = await fetchPage(untilId: untilId);
       if (!_isCurrent(requestId)) return;
+      if (fetched.isNotEmpty) _lastCursor = cursorOf(fetched.last);
       final merged = mergeItems(fetched);
       state = state.copyWith(
         isLoading: false,
@@ -99,6 +113,7 @@ abstract class PagedNotifier<T> extends StateNotifier<PagedState<T>> {
   /// 先頭から取り直す。飛行中の取得があればその結果は破棄される。
   Future<void> refresh() async {
     _requestId++;
+    _lastCursor = null;
     state = PagedState<T>();
     await fetch();
   }

@@ -10,6 +10,7 @@ import '../../data/models/user_model.dart';
 import '../../data/models/user_field_model.dart';
 import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/providers/word_mute_provider.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
 import '../../shared/widgets/report_abuse_sheet.dart';
@@ -77,6 +78,10 @@ class _ProfileNotesNotifier extends PagedNotifier<NoteModel> {
 
   @override
   String cursorOf(NoteModel item) => item.id;
+
+  @override
+  List<NoteModel> mergeItems(List<NoteModel> fetched) =>
+      _ref.read(wordMuteFilterProvider).apply(fetched);
 
   @override
   Future<List<NoteModel>> fetchPage({String? untilId}) async {

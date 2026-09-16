@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/errors/api_error_message.dart';
+import '../../data/models/muted_word_model.dart';
 import '../../data/models/user_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/providers/word_mute_provider.dart';
 import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/user_avatar.dart';
@@ -26,12 +28,6 @@ final _blockingListProvider = FutureProvider.autoDispose<List<UserModel>>((
   return api.getBlockingList();
 });
 
-final _mutedWordsProvider = FutureProvider<List<List<String>>>((ref) async {
-  final api = ref.watch(misskeyApiProvider);
-  if (api == null) return [];
-  return api.getMutedWords();
-});
-
 // ---- 画面 ----
 
 class MuteBlockScreen extends ConsumerStatefulWidget {
@@ -48,7 +44,7 @@ class _MuteBlockScreenState extends ConsumerState<MuteBlockScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -64,8 +60,12 @@ class _MuteBlockScreenState extends ConsumerState<MuteBlockScreen>
         title: const Text('ミュート・ブロック'),
         bottom: TabBar(
           controller: _tabController,
+          // 4つ並ぶとタブ名が省略されて区別しにくくなるため横スクロールにする。
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
           tabs: const [
             Tab(text: 'ワードミュート'),
+            Tab(text: 'ハードワードミュート'),
             Tab(text: 'ユーザーミュート'),
             Tab(text: 'ブロック'),
           ],
@@ -73,7 +73,12 @@ class _MuteBlockScreenState extends ConsumerState<MuteBlockScreen>
       ),
       body: TabBarView(
         controller: _tabController,
-        children: const [_WordMuteTab(), _UserMuteTab(), _UserBlockTab()],
+        children: const [
+          _WordMuteTab(),
+          _WordMuteTab(hard: true),
+          _UserMuteTab(),
+          _UserBlockTab(),
+        ],
       ),
     );
   }
@@ -81,25 +86,35 @@ class _MuteBlockScreenState extends ConsumerState<MuteBlockScreen>
 
 // ---- ワードミュートタブ ----
 
+/// ワードミュートの一覧タブ。
+///
+/// [hard] が true のときはハードワードミュート（hardMutedWords）を編集する。
 class _WordMuteTab extends ConsumerStatefulWidget {
-  const _WordMuteTab();
+  final bool hard;
+
+  const _WordMuteTab({this.hard = false});
 
   @override
   ConsumerState<_WordMuteTab> createState() => _WordMuteTabState();
 }
 
 class _WordMuteTabState extends ConsumerState<_WordMuteTab> {
-  Future<void> _addWord(List<List<String>> current) async {
+  bool get _hard => widget.hard;
+
+  /// ワードを1件追加する。
+  ///
+  /// i/update は差分更新ではなく全置換のため、変更後の全エントリを送る。
+  Future<void> _addWord(List<MutedWordModel> current) async {
     final controller = TextEditingController();
     final result = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('ワードミュートを追加'),
+        title: Text(_hard ? 'ハードワードミュートを追加' : 'ワードミュートを追加'),
         content: TextField(
           controller: controller,
           autofocus: true,
           decoration: const InputDecoration(
-            hintText: 'ミュートしたいキーワード',
+            hintText: 'ミュートしたいキーワード（/正規表現/i も可）',
             border: OutlineInputBorder(),
           ),
         ),
@@ -117,70 +132,81 @@ class _WordMuteTabState extends ConsumerState<_WordMuteTab> {
     );
     controller.dispose();
     if (result == null || result.isEmpty) return;
-    final api = ref.read(misskeyApiProvider);
-    if (api == null) return;
-    final updated = [
-      ...current,
-      [result],
-    ];
-    try {
-      await api.setMutedWords(updated);
-      ref.invalidate(_mutedWordsProvider);
-    } catch (e) {
-      if (mounted) {
-        showApiErrorSnackBar(context, e, fallback: '追加に失敗しました');
-      }
-    }
+    // `/pattern/flags` 形式は本家と同じく正規表現として登録する。
+    final word = MutedWordModel.fromJson(result);
+    if (word == null) return;
+    await _save([...current, word], fallback: '追加に失敗しました');
   }
 
-  Future<void> _removeWord(List<List<String>> current, int index) async {
+  Future<void> _removeWord(List<MutedWordModel> current, int index) async {
+    final updated = List<MutedWordModel>.from(current)..removeAt(index);
+    await _save(updated, fallback: '削除に失敗しました');
+  }
+
+  Future<void> _save(
+    List<MutedWordModel> words, {
+    required String fallback,
+  }) async {
     final api = ref.read(misskeyApiProvider);
     if (api == null) return;
-    final updated = List<List<String>>.from(current)..removeAt(index);
     try {
-      await api.setMutedWords(updated);
-      ref.invalidate(_mutedWordsProvider);
+      if (_hard) {
+        await api.setHardMutedWords(words);
+      } else {
+        await api.setMutedWords(words);
+      }
+      ref.invalidate(mutedWordsProvider);
     } catch (e) {
       if (mounted) {
-        showApiErrorSnackBar(context, e, fallback: '削除に失敗しました');
+        showApiErrorSnackBar(context, e, fallback: fallback);
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final mutedAsync = ref.watch(_mutedWordsProvider);
+    final mutedAsync = ref.watch(mutedWordsProvider);
 
     return mutedAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => ErrorView(
         message: apiErrorMessage(e, fallback: 'ワードミュートを取得できませんでした'),
-        onRetry: () => ref.invalidate(_mutedWordsProvider),
+        onRetry: () => ref.invalidate(mutedWordsProvider),
       ),
-      data: (words) => Scaffold(
-        body: words.isEmpty
-            ? const Center(child: Text('ワードミュートはありません'))
-            : ListView.builder(
-                itemCount: words.length,
-                itemBuilder: (_, i) {
-                  final label = words[i].join(' ');
-                  return ListTile(
-                    title: Text(label),
-                    trailing: IconButton(
-                      icon: Icon(
-                        Icons.delete_outline,
-                        color: Theme.of(context).colorScheme.error,
+      data: (settings) {
+        final words = _hard ? settings.hard : settings.soft;
+        return Scaffold(
+          body: words.isEmpty
+              ? Center(
+                  child: Text(_hard ? 'ハードワードミュートはありません' : 'ワードミュートはありません'),
+                )
+              : ListView.builder(
+                  // FAB に隠れる最後の1件を操作できるよう下に余白を取る。
+                  padding: const EdgeInsets.only(bottom: 88),
+                  itemCount: words.length,
+                  itemBuilder: (_, i) {
+                    final word = words[i];
+                    return ListTile(
+                      title: Text(word.label),
+                      subtitle: word.isRegex ? const Text('正規表現') : null,
+                      trailing: IconButton(
+                        icon: Icon(
+                          Icons.delete_outline,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                        tooltip: '削除',
+                        onPressed: () => _removeWord(words, i),
                       ),
-                      onPressed: () => _removeWord(words, i),
-                    ),
-                  );
-                },
-              ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () => _addWord(words),
-          child: const Icon(Icons.add),
-        ),
-      ),
+                    );
+                  },
+                ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: () => _addWord(words),
+            tooltip: 'ワードを追加',
+            child: const Icon(Icons.add),
+          ),
+        );
+      },
     );
   }
 }
