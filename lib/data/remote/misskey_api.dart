@@ -1111,15 +1111,22 @@ class MisskeyApi {
         .toList();
   }
 
-  /// プロフィールを更新する
+  /// プロフィールを更新する。
+  ///
+  /// null を渡したフィールドはリクエストに含めず、サーバー側の値を維持する。
+  /// name / description は空文字を渡すと未設定（クリア）になる。
+  /// i/update の name / description は nullable かつ `minLength: 1` のため、
+  /// 空文字をそのまま送ると 400 になる。null に置き換えて送るのはこのため。
   Future<void> updateProfile({
     String? name,
     String? description,
     List<Map<String, dynamic>>? fields,
   }) async {
     final params = <String, dynamic>{};
-    if (name != null) params['name'] = name;
-    if (description != null) params['description'] = description;
+    if (name != null) params['name'] = name.isEmpty ? null : name;
+    if (description != null) {
+      params['description'] = description.isEmpty ? null : description;
+    }
     if (fields != null) params['fields'] = fields;
     await _post('i/update', params);
   }

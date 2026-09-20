@@ -1605,7 +1605,8 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet>
       await api?.updateProfile(
         name: _nameController.text.trim(),
         description: _descController.text.trim(),
-        fields: fieldsPayload.isNotEmpty ? fieldsPayload : null,
+        // 全件削除を反映させるため、空リストでも送る（null は未指定扱いで既存値が残る）
+        fields: fieldsPayload,
       );
       if (mounted) {
         Navigator.pop(context);
