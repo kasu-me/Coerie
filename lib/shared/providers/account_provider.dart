@@ -107,6 +107,37 @@ class AccountNotifier extends StateNotifier<List<AccountModel>> {
     _load();
   }
 
+  /// サーバー上のプロフィール変更（表示名・ユーザー名・アイコン）を反映する
+  Future<void> syncProfile(
+    String accountId, {
+    required String username,
+    required String name,
+    required String? avatarUrl,
+  }) async {
+    final index = state.indexWhere((a) => a.id == accountId);
+    if (index < 0) return;
+    final account = state[index];
+    // 差し替えると activeAccountProvider が別インスタンスを返し、購読している
+    // 画面が起動のたびに一斉再構築されてしまう。
+    if (account.username == username &&
+        account.name == name &&
+        account.avatarUrl == avatarUrl) {
+      return;
+    }
+    final updated = AccountModel(
+      id: account.id,
+      host: account.host,
+      token: account.token,
+      userId: account.userId,
+      username: username,
+      name: name,
+      avatarUrl: avatarUrl,
+      isActive: account.isActive,
+    );
+    await HiveService.accountsBox.put(accountId, updated);
+    _load();
+  }
+
   /// インポート用: 既存IDと重複しないアカウントのみ追加する（アクティブ状態は引き継がない）
   Future<void> importAccounts(List<AccountModel> accounts) async {
     final box = HiveService.accountsBox;

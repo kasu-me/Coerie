@@ -12,6 +12,7 @@ import '../../data/models/note_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/word_mute_provider.dart';
 import '../../shared/providers/account_provider.dart';
+import '../../shared/providers/account_sync_provider.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
 import '../../shared/widgets/report_abuse_sheet.dart';
 import '../timeline/widgets/note_card.dart';
@@ -1610,6 +1611,8 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet>
         Navigator.pop(context);
         ref.invalidate(userProfileProvider(widget.userId));
       }
+      // ドロワー等が参照する保存済みアカウント情報にも反映させる
+      await ref.read(accountSyncProvider).sync();
     } catch (_) {
       if (mounted) {
         setState(() => _saving = false);

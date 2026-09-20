@@ -12,6 +12,7 @@ import 'shared/providers/account_provider.dart';
 import 'shared/providers/custom_emoji_provider.dart';
 import 'shared/providers/settings_provider.dart';
 import 'shared/providers/is_locked_provider.dart';
+import 'shared/providers/account_sync_provider.dart';
 
 /// 画面に紐付かない箇所からスナックバーを表示するためのキー
 final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -34,6 +35,9 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
 
     // isLockedProvider を早期初期化してキャッシュ値を即座に反映させる
     ref.read(isLockedProvider);
+
+    // アカウントの表示名・アイコンをサーバーの最新値に追随させる
+    ref.read(accountSyncProvider);
 
     // ブラウザ復帰時にアプリのプロセスが破棄されていた場合、
     // 起動時に受け取ったコールバックURIから認証を再開する
@@ -150,6 +154,8 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
     // バックグラウンドからの復帰時のみカスタム絵文字キャッシュを無効化する。
     if (returningFromBackground) {
       ref.invalidate(customEmojisProvider);
+      // 離れている間に他クライアントでプロフィールが変更された可能性がある
+      ref.read(accountSyncProvider).sync();
     }
 
     // IME を表示したまま他アプリへ切り替え、そのアプリでも IME を出してから

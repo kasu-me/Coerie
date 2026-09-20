@@ -3,9 +3,15 @@ import '../../data/remote/misskey_api.dart';
 import '../providers/account_provider.dart';
 
 final misskeyApiProvider = Provider<MisskeyApi?>((ref) {
-  final account = ref.watch(activeAccountProvider);
-  if (account == null) return null;
-  return MisskeyApi(host: account.host, token: account.token);
+  // 表示名やアイコンがサーバーと同期されただけでクライアントを作り直すと、
+  // これを購読するタイムライン等が一斉に再読み込みされてしまう。
+  final connection = ref.watch(
+    activeAccountProvider.select(
+      (a) => a == null ? null : (host: a.host, token: a.token),
+    ),
+  );
+  if (connection == null) return null;
+  return MisskeyApi(host: connection.host, token: connection.token);
 });
 
 /// 他インスタンスを参照するための未認証APIクライアント。
