@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/remote/misskey_api.dart';
 import 'account_provider.dart';
-import 'misskey_api_provider.dart';
 
 /// アクティブアカウントのプロフィール情報（表示名・ユーザー名・アイコン）を
 /// サーバーの値へ追随させるサービス。
@@ -27,15 +27,23 @@ class AccountSyncService {
   }
 
   Future<void> sync() async {
-    final accountId = _ref.read(activeAccountProvider)?.id;
-    final api = _ref.read(misskeyApiProvider);
-    if (accountId == null || api == null) return;
+    final account = _ref.read(activeAccountProvider);
+    if (account == null) return;
+    // misskeyApiProvider を経由せず、同じ AccountModel からクライアントを作る。
+    // 切替通知の中で misskeyApiProvider を読むと、Riverpod の通知順によっては
+    // 切替前アカウントのクライアントが返り、別アカウントのプロフィールで
+    // 上書きしてしまう（A→B→A と切り替えると A が B の表示になる不具合があった）。
+    final api = MisskeyApi(host: account.host, token: account.token);
     try {
       final me = await api.getMe();
+      // 応答待ちの間にアカウントが切り替えられた場合や、応答が別ユーザーの
+      // ものだった場合に、無関係なアカウントの保存値を上書きしないための照合。
+      if (me.id != account.userId) return;
+      if (_ref.read(activeAccountProvider)?.id != account.id) return;
       await _ref
           .read(accountProvider.notifier)
           .syncProfile(
-            accountId,
+            account.id,
             username: me.username,
             name: me.name,
             avatarUrl: me.avatarUrl,
