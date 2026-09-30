@@ -13,6 +13,7 @@ import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/utils/color_utils.dart';
 import '../../shared/utils/home_tab_helper.dart';
 import '../../shared/widgets/api_error_snack_bar.dart';
+import '../../shared/widgets/confirm_dialog.dart';
 import '../../shared/widgets/error_view.dart';
 import '../timeline/timeline_screen.dart';
 import '../timeline/timeline_provider.dart';
@@ -101,6 +102,14 @@ class _ChannelDetailScreenState extends ConsumerState<ChannelDetailScreen>
     );
 
     if (_isInHomeTab) {
+      final confirmed = await confirmAction(
+        context,
+        ref,
+        title: 'ホームタブから削除',
+        message: '「$_channelName」をホームタブから削除しますか？',
+        confirmLabel: '削除',
+      );
+      if (!confirmed || !mounted) return;
       currentTabs.removeWhere(
         (t) =>
             t.type == AppConstants.tabTypeChannel &&

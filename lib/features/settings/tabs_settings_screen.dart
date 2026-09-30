@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/widgets/confirm_dialog.dart';
 import '../../data/models/app_settings_model.dart';
 import '../../core/constants/app_constants.dart';
 
@@ -278,10 +279,7 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete_outline),
-                        onPressed: () {
-                          setState(() => _tabs.removeAt(index));
-                          _save();
-                        },
+                        onPressed: () => _deleteTab(index),
                       ),
                       const Icon(Icons.drag_handle),
                     ],
@@ -290,6 +288,21 @@ class _TabsSettingsScreenState extends ConsumerState<TabsSettingsScreen> {
               },
             ),
     );
+  }
+
+  Future<void> _deleteTab(int index) async {
+    final tab = _tabs[index];
+    final confirmed = await confirmAction(
+      context,
+      ref,
+      title: 'タブを削除',
+      message: '「${tab.label}」タブを削除しますか？',
+      confirmLabel: '削除',
+    );
+    if (!confirmed || !mounted) return;
+    // ダイアログ表示中に並べ替えられるとindexがずれるため、idで削除対象を特定する
+    setState(() => _tabs.removeWhere((t) => t.id == tab.id));
+    _save();
   }
 
   void _editTab(int index) {
