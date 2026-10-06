@@ -6,10 +6,8 @@ import '../../../core/errors/api_error_message.dart';
 import '../../../data/models/account_model.dart';
 import '../../../data/models/note_model.dart';
 import '../../../data/remote/misskey_api.dart';
-import '../../../shared/providers/account_visibility_provider.dart';
-import '../../../shared/providers/settings_provider.dart';
-import '../../../shared/utils/visibility_utils.dart';
 import '../../../shared/widgets/user_avatar.dart';
+import 'renote_visibility.dart';
 
 const String _deniedMessage = '選択したアカウントはこのノートをリノートする権限がありません。';
 const String _temporaryFailureMessage = '一時的に通信に失敗しました。時間をおくと回復する可能性があります。';
@@ -27,18 +25,6 @@ const Set<String> _deniedCodes = {
   // notes/create
   'CANNOT_RENOTE_DUE_TO_VISIBILITY',
   'YOU_HAVE_BEEN_BLOCKED',
-};
-
-const List<String> _visibilityChoices = [
-  AppConstants.visibilityPublic,
-  AppConstants.visibilityHome,
-  AppConstants.visibilityFollowers,
-];
-
-const Map<String, String> _visibilityShortLabels = {
-  AppConstants.visibilityPublic: '全体',
-  AppConstants.visibilityHome: 'ホーム',
-  AppConstants.visibilityFollowers: 'フォロワー',
 };
 
 /// [note] をアクティブアカウント以外の [accounts] のいずれかでリノートするシート。
@@ -80,19 +66,7 @@ class _RenoteWithOtherAccountSheetState
   void initState() {
     super.initState();
     _account = widget.accounts.first;
-    _visibility = _defaultVisibility(_account);
-  }
-
-  String _defaultVisibility(AccountModel account) {
-    final setting = ref.read(settingsProvider).renoteVisibility;
-    final visibility = setting == AppConstants.renoteVisibilitySameAsLastPost
-        ? ref.read(accountVisibilityProvider(account.id))
-        : setting;
-    // 直前の投稿が「ユーザー指定」だと選択肢に無いため、意図せず公開範囲が
-    // 広がらないよう選択肢の中で最も狭いフォロワー限定に寄せる。
-    return _visibilityChoices.contains(visibility)
-        ? visibility
-        : AppConstants.visibilityFollowers;
+    _visibility = defaultRenoteVisibility(ref, _account.id);
   }
 
   String get _originHost => widget.note.user.host.isNotEmpty
@@ -208,7 +182,7 @@ class _RenoteWithOtherAccountSheetState
                       _account = a;
                       _error = null;
                       if (!_visibilityTouched) {
-                        _visibility = _defaultVisibility(a);
+                        _visibility = defaultRenoteVisibility(ref, a.id);
                       }
                     }),
                   ),
@@ -221,21 +195,12 @@ class _RenoteWithOtherAccountSheetState
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SegmentedButton<String>(
-              segments: [
-                for (final v in _visibilityChoices)
-                  ButtonSegment(
-                    value: v,
-                    icon: Icon(visibilityIcon(v)),
-                    label: Text(_visibilityShortLabels[v]!),
-                  ),
-              ],
-              selected: {_visibility},
-              showSelectedIcon: false,
-              onSelectionChanged: _submitting
+            child: RenoteVisibilitySelector(
+              value: _visibility,
+              onChanged: _submitting
                   ? null
-                  : (s) => setState(() {
-                      _visibility = s.first;
+                  : (v) => setState(() {
+                      _visibility = v;
                       _visibilityTouched = true;
                     }),
             ),

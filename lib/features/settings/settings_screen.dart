@@ -115,7 +115,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           ListTile(
             leading: const Icon(Icons.repeat),
-            title: const Text('リノートの公開範囲'),
+            title: const Text('デフォルトのリノート公開範囲'),
             subtitle: Text(
               AppConstants.renoteVisibilityLabels[settings.renoteVisibility] ??
                   settings.renoteVisibility,
@@ -169,7 +169,7 @@ class SettingsScreen extends ConsumerWidget {
             const Padding(
               padding: EdgeInsets.all(16),
               child: Text(
-                'リノートの公開範囲',
+                'デフォルトのリノート公開範囲',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
             ),

@@ -18,7 +18,6 @@ import '../../../shared/widgets/media_player_screen.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/errors/api_error_message.dart';
 import '../../../shared/providers/account_provider.dart';
-import '../../../shared/providers/account_visibility_provider.dart';
 import '../../../shared/providers/misskey_api_provider.dart';
 import '../../../shared/providers/settings_provider.dart';
 import 'package:coerie/features/profile/pinned_notes_provider.dart';
@@ -31,6 +30,7 @@ import '../../../shared/providers/custom_emoji_provider.dart';
 import '../../../shared/utils/emoji_utils.dart';
 import '../ogp_provider.dart';
 import '../timeline_provider.dart';
+import 'renote_visibility.dart';
 import 'renote_with_other_account_sheet.dart';
 import '../../../shared/utils/format_utils.dart';
 import '../../../shared/utils/visibility_utils.dart';
@@ -1525,31 +1525,15 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     final api = ref.read(misskeyApiProvider);
     if (api == null || _isRenoting) return;
 
-    final confirmed = await confirmAction(
+    final renoteVisibility = await confirmRenote(
       context,
       ref,
-      title: 'リノート',
-      message: 'このノートをリノートしますか？',
-      confirmLabel: 'リノート',
-      destructive: false,
+      accountId: ref.read(activeAccountProvider)?.id ?? '',
     );
-    if (!mounted || !confirmed) return;
+    if (!mounted || renoteVisibility == null) return;
 
     setState(() => _isRenoting = true);
     try {
-      // 設定からリノートの公開範囲を決定する
-      final renoteVisibilitySetting = ref
-          .read(settingsProvider)
-          .renoteVisibility;
-      final String renoteVisibility;
-      if (renoteVisibilitySetting ==
-          AppConstants.renoteVisibilitySameAsLastPost) {
-        final activeAccount = ref.read(activeAccountProvider);
-        final accountId = activeAccount?.id ?? '';
-        renoteVisibility = ref.read(accountVisibilityProvider(accountId));
-      } else {
-        renoteVisibility = renoteVisibilitySetting;
-      }
       await api.renote(widget.note.id, visibility: renoteVisibility);
       if (mounted) {
         ScaffoldMessenger.of(
