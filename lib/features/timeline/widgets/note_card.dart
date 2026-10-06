@@ -1155,230 +1155,242 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     if (!context.mounted) return;
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       builder: (sheetCtx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // テキストコピー（全員）
-            ListTile(
-              leading: const Icon(Icons.copy),
-              title: const Text('テキストをコピー'),
-              onTap: () async {
-                Navigator.pop(sheetCtx);
-                final text = widget.note.text ?? '';
-                await Clipboard.setData(ClipboardData(text: text));
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('テキストをコピーしました'),
-                      duration: Duration(seconds: 1),
-                    ),
-                  );
-                }
-              },
-            ),
-            // ブラウザで開く（全員）
-            ListTile(
-              leading: const Icon(Icons.open_in_browser),
-              title: const Text('ブラウザで開く'),
-              onTap: () async {
-                Navigator.pop(sheetCtx);
-                final account = ref.read(activeAccountProvider);
-                if (account == null) return;
-                final uri = Uri.parse(
-                  'https://${account.host}/notes/${widget.note.id}',
-                );
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              },
-            ),
-            // 引用してリノート（全員）
-            Builder(
-              builder: (ctx) {
-                final activeAccount = ref.read(activeAccountProvider);
-                final canRenote = widget.note.canRenoteBy(
-                  activeAccount?.userId,
-                );
-                return ListTile(
-                  leading: const Icon(Icons.format_quote),
-                  title: const Text('引用してリノート'),
-                  onTap: canRenote
-                      ? () {
-                          Navigator.pop(sheetCtx);
-                          context.push(
-                            '/compose',
-                            extra: {
-                              'renoteId': widget.note.id,
-                              'renoteToNote': widget.note,
-                            },
-                          );
-                        }
-                      : null,
-                );
-              },
-            ),
-            // 他のアカウントでリノート（複数アカウント登録時のみ）
-            if (otherAccounts.isNotEmpty)
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // テキストコピー（全員）
               ListTile(
-                leading: const Icon(Icons.repeat),
-                title: const Text('他のアカウントでリノート'),
+                leading: const Icon(Icons.copy),
+                title: const Text('テキストをコピー'),
                 onTap: () async {
                   Navigator.pop(sheetCtx);
-                  await _renoteWithOtherAccount(context, otherAccounts);
+                  final text = widget.note.text ?? '';
+                  await Clipboard.setData(ClipboardData(text: text));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('テキストをコピーしました'),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+                  }
                 },
               ),
-            // クリップに追加（全員）
-            ListTile(
-              leading: const Icon(Icons.bookmark_add_outlined),
-              title: const Text('クリップに追加'),
-              onTap: () async {
-                Navigator.pop(sheetCtx);
-                await _addNoteToClip(context);
-              },
-            ),
-            // お気に入り追加/削除（全員）
-            ListTile(
-              leading: Icon(
-                isFavorited ? Icons.star : Icons.star_outline,
-                color: isFavorited
-                    ? Theme.of(context).colorScheme.primary
-                    : null,
+              // ブラウザで開く（全員）
+              ListTile(
+                leading: const Icon(Icons.open_in_browser),
+                title: const Text('ブラウザで開く'),
+                onTap: () async {
+                  Navigator.pop(sheetCtx);
+                  final account = ref.read(activeAccountProvider);
+                  if (account == null) return;
+                  final uri = Uri.parse(
+                    'https://${account.host}/notes/${widget.note.id}',
+                  );
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                },
               ),
-              title: Text(isFavorited ? 'お気に入りから削除' : 'お気に入りに追加'),
-              onTap: () async {
-                Navigator.pop(sheetCtx);
-                await _toggleFavorite(context);
-              },
-            ),
-            // 削除 / ピン留め（自分の投稿のみ）
-            if (isOwn) ...[
-              // ピン留め（追加/解除）
-              FutureBuilder<UserModel?>(
-                future: meFuture,
-                builder: (ctx, snap) {
-                  final loading = snap.connectionState != ConnectionState.done;
-                  final me = snap.data;
-                  final isPinned =
-                      me?.pinnedNoteIds.contains(widget.note.id) == true;
+              // 引用してリノート（全員）
+              Builder(
+                builder: (ctx) {
+                  final activeAccount = ref.read(activeAccountProvider);
+                  final canRenote = widget.note.canRenoteBy(
+                    activeAccount?.userId,
+                  );
                   return ListTile(
-                    leading: const Icon(Icons.push_pin_outlined),
-                    title: Text(
-                      loading ? 'ピン留め...' : (isPinned ? 'ピン留め解除' : 'ピン留めに追加'),
-                    ),
-                    onTap: loading || api == null || me == null
-                        ? null
-                        : () async {
+                    leading: const Icon(Icons.format_quote),
+                    title: const Text('引用してリノート'),
+                    onTap: canRenote
+                        ? () {
                             Navigator.pop(sheetCtx);
-                            try {
-                              // 表示に使った結果をそのまま使う（getMe の二重呼び出しを避ける）
-                              final currentlyPinned = me.pinnedNoteIds.contains(
-                                widget.note.id,
-                              );
-                              if (!context.mounted) return;
-                              if (currentlyPinned) {
-                                final confirmed = await confirmAction(
-                                  context,
-                                  ref,
-                                  title: 'ピン留めを解除',
-                                  message: 'ピン留めを解除してもよろしいですか？',
-                                  confirmLabel: '解除',
-                                );
-                                if (!confirmed) return;
+                            context.push(
+                              '/compose',
+                              extra: {
+                                'renoteId': widget.note.id,
+                                'renoteToNote': widget.note,
+                              },
+                            );
+                          }
+                        : null,
+                  );
+                },
+              ),
+              // 他のアカウントでリノート（複数アカウント登録時のみ）
+              if (otherAccounts.isNotEmpty)
+                ListTile(
+                  leading: const Icon(Icons.repeat),
+                  title: const Text('他のアカウントでリノート'),
+                  onTap: () async {
+                    Navigator.pop(sheetCtx);
+                    await _renoteWithOtherAccount(context, otherAccounts);
+                  },
+                ),
+              // クリップに追加（全員）
+              ListTile(
+                leading: const Icon(Icons.bookmark_add_outlined),
+                title: const Text('クリップに追加'),
+                onTap: () async {
+                  Navigator.pop(sheetCtx);
+                  await _addNoteToClip(context);
+                },
+              ),
+              // お気に入り追加/削除（全員）
+              ListTile(
+                leading: Icon(
+                  isFavorited ? Icons.star : Icons.star_outline,
+                  color: isFavorited
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                ),
+                title: Text(isFavorited ? 'お気に入りから削除' : 'お気に入りに追加'),
+                onTap: () async {
+                  Navigator.pop(sheetCtx);
+                  await _toggleFavorite(context);
+                },
+              ),
+              // 削除 / ピン留め（自分の投稿のみ）
+              if (isOwn) ...[
+                // ピン留め（追加/解除）
+                FutureBuilder<UserModel?>(
+                  future: meFuture,
+                  builder: (ctx, snap) {
+                    final loading =
+                        snap.connectionState != ConnectionState.done;
+                    final me = snap.data;
+                    final isPinned =
+                        me?.pinnedNoteIds.contains(widget.note.id) == true;
+                    return ListTile(
+                      leading: const Icon(Icons.push_pin_outlined),
+                      title: Text(
+                        loading ? 'ピン留め...' : (isPinned ? 'ピン留め解除' : 'ピン留めに追加'),
+                      ),
+                      onTap: loading || api == null || me == null
+                          ? null
+                          : () async {
+                              Navigator.pop(sheetCtx);
+                              try {
+                                // 表示に使った結果をそのまま使う（getMe の二重呼び出しを避ける）
+                                final currentlyPinned = me.pinnedNoteIds
+                                    .contains(widget.note.id);
+                                if (!context.mounted) return;
+                                if (currentlyPinned) {
+                                  final confirmed = await confirmAction(
+                                    context,
+                                    ref,
+                                    title: 'ピン留めを解除',
+                                    message: 'ピン留めを解除してもよろしいですか？',
+                                    confirmLabel: '解除',
+                                  );
+                                  if (!confirmed) return;
 
-                                await api.unpinNote(widget.note.id);
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('ピン留めを解除しました'),
-                                    ),
-                                  );
-                                  widget.onPinnedChanged?.call();
-                                  final activeAccount = ref.read(
-                                    activeAccountProvider,
-                                  );
-                                  if (activeAccount != null) {
-                                    ref.invalidate(
-                                      pinnedNotesProvider(activeAccount.userId),
+                                  await api.unpinNote(widget.note.id);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('ピン留めを解除しました'),
+                                      ),
                                     );
+                                    widget.onPinnedChanged?.call();
+                                    final activeAccount = ref.read(
+                                      activeAccountProvider,
+                                    );
+                                    if (activeAccount != null) {
+                                      ref.invalidate(
+                                        pinnedNotesProvider(
+                                          activeAccount.userId,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                } else {
+                                  await api.pinNote(widget.note.id);
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('ピン留めしました')),
+                                    );
+                                    widget.onPinnedChanged?.call();
+                                    final activeAccount = ref.read(
+                                      activeAccountProvider,
+                                    );
+                                    if (activeAccount != null) {
+                                      ref.invalidate(
+                                        pinnedNotesProvider(
+                                          activeAccount.userId,
+                                        ),
+                                      );
+                                    }
                                   }
                                 }
-                              } else {
-                                await api.pinNote(widget.note.id);
+                              } catch (e) {
                                 if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('ピン留めしました')),
+                                  showApiErrorSnackBar(
+                                    context,
+                                    e,
+                                    fallback: '操作に失敗しました',
                                   );
-                                  widget.onPinnedChanged?.call();
-                                  final activeAccount = ref.read(
-                                    activeAccountProvider,
-                                  );
-                                  if (activeAccount != null) {
-                                    ref.invalidate(
-                                      pinnedNotesProvider(activeAccount.userId),
-                                    );
-                                  }
                                 }
                               }
-                            } catch (e) {
-                              if (context.mounted) {
-                                showApiErrorSnackBar(
-                                  context,
-                                  e,
-                                  fallback: '操作に失敗しました',
-                                );
-                              }
-                            }
-                          },
-                  );
-                },
-              ),
-              ListTile(
-                leading: Icon(
-                  Icons.delete_outline,
-                  color: Theme.of(context).colorScheme.error,
+                            },
+                    );
+                  },
                 ),
-                title: Text(
-                  '削除',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-                onTap: () async {
-                  Navigator.pop(sheetCtx);
-                  await _deleteNote(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: const Text('削除して再編集'),
-                onTap: () async {
-                  Navigator.pop(sheetCtx);
-                  await _deleteAndEdit(context);
-                },
-              ),
-            ],
-            // 通報（他人の投稿のみ）
-            if (!isOwn)
-              ListTile(
-                leading: Icon(
-                  Icons.flag_outlined,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                title: Text(
-                  '通報',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-                onTap: () async {
-                  Navigator.pop(sheetCtx);
-                  await showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    useSafeArea: true,
-                    builder: (_) => ReportAbuseSheet(
-                      userId: widget.note.user.id,
-                      initialComment: buildReportComment(),
+                ListTile(
+                  leading: Icon(
+                    Icons.delete_outline,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  title: Text(
+                    '削除',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
                     ),
-                  );
-                },
-              ),
-          ],
+                  ),
+                  onTap: () async {
+                    Navigator.pop(sheetCtx);
+                    await _deleteNote(context);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.edit_outlined),
+                  title: const Text('削除して再編集'),
+                  onTap: () async {
+                    Navigator.pop(sheetCtx);
+                    await _deleteAndEdit(context);
+                  },
+                ),
+              ],
+              // 通報（他人の投稿のみ）
+              if (!isOwn)
+                ListTile(
+                  leading: Icon(
+                    Icons.flag_outlined,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  title: Text(
+                    '通報',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(sheetCtx);
+                    await showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      useSafeArea: true,
+                      builder: (_) => ReportAbuseSheet(
+                        userId: widget.note.user.id,
+                        initialComment: buildReportComment(),
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
         ),
       ),
     );
