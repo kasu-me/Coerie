@@ -152,6 +152,14 @@ bool isPermissionError(Object error) {
   return status == 401 || status == 403;
 }
 
+/// Misskey API が返したエラーコード（例: `FEDERATION_NOT_ALLOWED`）を取り出す。
+///
+/// 画面ごとに独自の文言へ振り分けたい場合に使う。API 応答由来でなければ null。
+String? apiErrorCode(Object error) {
+  if (error is! DioException) return null;
+  return _apiErrorOf(error)?['code'] as String?;
+}
+
 Map<String, dynamic>? _apiErrorOf(DioException error) {
   final data = error.response?.data;
   if (data is! Map<String, dynamic>) return null;

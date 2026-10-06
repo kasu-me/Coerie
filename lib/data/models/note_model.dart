@@ -29,6 +29,9 @@ class NoteModel {
 
   /// リモートノートの ActivityPub URI（リモートアカウントのノートのみ）
   final String? uri;
+
+  /// 「連合なし」で投稿されたノートか。他サーバーからは取得できない。
+  final bool localOnly;
   final PollModel? poll;
 
   /// このノートが現在のユーザーにとってお気に入り登録済みかどうか
@@ -52,6 +55,7 @@ class NoteModel {
     this.renote,
     this.url,
     this.uri,
+    this.localOnly = false,
     this.poll,
     this.isFavorited,
   });
@@ -97,6 +101,7 @@ class NoteModel {
     renote: renote,
     url: url,
     uri: uri,
+    localOnly: localOnly,
     poll: poll ?? this.poll,
     isFavorited: identical(isFavorited, _sentinel)
         ? this.isFavorited
@@ -155,6 +160,7 @@ class NoteModel {
           : null,
       url: json['url'] as String?,
       uri: json['uri'] as String?,
+      localOnly: json['localOnly'] as bool? ?? false,
       poll: json['poll'] != null && json['poll'] is Map<String, dynamic>
           ? PollModel.fromJson(json['poll'] as Map<String, dynamic>)
           : null,

@@ -275,6 +275,22 @@ class MisskeyApi {
     );
   }
 
+  /// ActivityPub の URI からノートを解決し、このサーバー上のノートとして返す（ap/show）。
+  ///
+  /// 未取得のリモートノートはこの呼び出しでサーバーが取りに行くため、
+  /// 投稿元サーバーと交流が無くても解決できる。URI がユーザーを指していた場合は null。
+  /// サーバー側のレート制限が厳しい（1時間あたり30回）ため、
+  /// 同じサーバー内のノートのように ID が分かっている場合は使わないこと。
+  Future<NoteModel?> resolveNoteByUri(String uri) async {
+    final res = await _dio.post('ap/show', data: _body({'uri': uri}));
+    final data = res.data as Map<String, dynamic>;
+    if (data['type'] != 'Note') return null;
+    return NoteModel.fromJson(
+      data['object'] as Map<String, dynamic>,
+      host: host,
+    );
+  }
+
   Future<void> unrenote(String noteId) async {
     await _post('notes/unrenote', {'noteId': noteId});
   }

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../data/models/account_model.dart';
 import '../../../data/models/clip_model.dart';
 import '../../../data/models/drive_file_model.dart';
 import '../../../data/models/note_model.dart';
@@ -30,6 +31,7 @@ import '../../../shared/providers/custom_emoji_provider.dart';
 import '../../../shared/utils/emoji_utils.dart';
 import '../ogp_provider.dart';
 import '../timeline_provider.dart';
+import 'renote_with_other_account_sheet.dart';
 import '../../../shared/utils/format_utils.dart';
 import '../../../shared/utils/visibility_utils.dart';
 import '../../../shared/widgets/user_list_sheet.dart';
@@ -1132,6 +1134,10 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
     // 投稿者がリモートアカウントの場合は uri がリモートURL
     final isRemoteUser = widget.note.user.host.isNotEmpty;
     final remoteNoteUrl = widget.note.uri;
+    final otherAccounts = ref
+        .read(accountProvider)
+        .where((a) => a.id != activeAccount?.id)
+        .toList();
 
     String buildReportComment() {
       final buf = StringBuffer();
@@ -1210,6 +1216,16 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
                 );
               },
             ),
+            // 他のアカウントでリノート（複数アカウント登録時のみ）
+            if (otherAccounts.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.repeat),
+                title: const Text('他のアカウントでリノート'),
+                onTap: () async {
+                  Navigator.pop(sheetCtx);
+                  await _renoteWithOtherAccount(context, otherAccounts);
+                },
+              ),
             // クリップに追加（全員）
             ListTile(
               leading: const Icon(Icons.bookmark_add_outlined),
@@ -1469,6 +1485,28 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
       builder: (sheetCtx) =>
           _ClipPickerSheet(clips: clips, noteId: widget.note.id),
     );
+  }
+
+  Future<void> _renoteWithOtherAccount(
+    BuildContext context,
+    List<AccountModel> accounts,
+  ) async {
+    final activeHost = ref.read(activeAccountProvider)?.host;
+    if (activeHost == null) return;
+    final account = await showModalBottomSheet<AccountModel>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => RenoteWithOtherAccountSheet(
+        note: widget.note,
+        activeHost: activeHost,
+        accounts: accounts,
+      ),
+    );
+    if (account == null || !context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('${account.acct} でリノートしました')));
   }
 
   Future<void> _renote() async {
