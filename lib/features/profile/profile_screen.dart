@@ -21,6 +21,7 @@ import 'follow_requests_sheet.dart';
 import '../../shared/widgets/confirm_dialog.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/user_avatar.dart';
+import '../../shared/widgets/user_name_text.dart';
 import '../../shared/providers/paged_notifier.dart';
 
 class _AppBarIcon extends StatelessWidget {
@@ -949,11 +950,13 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Text(
-                          user.name,
+                        UserNameText(
+                          user,
                           style: theme.textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
+                          maxLines: null,
+                          overflow: null,
                         ),
                         const SizedBox(height: 2),
                         Row(
@@ -1362,10 +1365,9 @@ class _FollowUserTileState extends ConsumerState<_FollowUserTile> {
       title: Row(
         children: [
           Expanded(
-            child: Text(
-              widget.user.name,
+            child: UserNameText(
+              widget.user,
               style: const TextStyle(fontWeight: FontWeight.bold),
-              overflow: TextOverflow.ellipsis,
             ),
           ),
           if (widget.user.isFollowed)

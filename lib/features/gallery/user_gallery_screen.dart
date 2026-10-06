@@ -4,15 +4,17 @@ import 'package:go_router/go_router.dart';
 
 import '../../shared/mixins/infinite_scroll_mixin.dart';
 import '../../data/models/gallery_post_model.dart';
+import '../../data/models/user_model.dart';
+import '../../shared/widgets/user_name_text.dart';
 import 'providers/gallery_providers.dart';
 import 'widgets/gallery_post_grid.dart';
 
 /// 指定ユーザーのギャラリー投稿一覧（users/gallery/posts, 無限スクロール）。
 class UserGalleryScreen extends ConsumerStatefulWidget {
   final String userId;
-  final String? userName;
+  final UserModel? user;
 
-  const UserGalleryScreen({super.key, required this.userId, this.userName});
+  const UserGalleryScreen({super.key, required this.userId, this.user});
 
   @override
   ConsumerState<UserGalleryScreen> createState() => _UserGalleryScreenState();
@@ -44,9 +46,9 @@ class _UserGalleryScreenState extends ConsumerState<UserGalleryScreen>
     final state = ref.watch(galleryUserPostsProvider(widget.userId));
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.userName != null ? '${widget.userName} のギャラリー' : 'ギャラリー',
-        ),
+        title: widget.user != null
+            ? UserNameText(widget.user!, suffix: ' のギャラリー')
+            : const Text('ギャラリー'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

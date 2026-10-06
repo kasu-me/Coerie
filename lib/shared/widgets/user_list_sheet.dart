@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../data/models/user_model.dart';
 import 'user_avatar.dart';
+import 'user_name_text.dart';
 
 /// ユーザー一覧を表示するボトムシート。
 ///
@@ -95,7 +96,7 @@ class UserListTile extends StatelessWidget {
     return ListTile(
       leading: UserAvatar(avatarUrl: user.avatarUrl, iconSize: 20),
       // 表示名が空のときのフォールバックは displayName に一本化している。
-      title: Text(user.displayName, overflow: TextOverflow.ellipsis),
+      title: UserNameText(user),
       subtitle: Text(user.acct, overflow: TextOverflow.ellipsis),
       onTap: onTap,
     );

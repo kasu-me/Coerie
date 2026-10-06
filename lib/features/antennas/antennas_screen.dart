@@ -11,6 +11,7 @@ import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/confirm_dialog.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/user_avatar.dart';
+import '../../shared/widgets/user_name_text.dart';
 
 class AntennasScreen extends ConsumerStatefulWidget {
   const AntennasScreen({super.key});
@@ -239,16 +240,37 @@ class _AntennaUser {
   final String? name;
   final String? avatarUrl;
 
-  const _AntennaUser({required this.acct, this.name, this.avatarUrl});
+  /// [name] に含まれるカスタム絵文字の解決用。acct からの復元時は空。
+  final Map<String, String> emojis;
+
+  const _AntennaUser({
+    required this.acct,
+    this.name,
+    this.avatarUrl,
+    this.emojis = const {},
+  });
 
   /// API から復元する（表示用の情報は持たない）。
   factory _AntennaUser.fromAcct(String acct) => _AntennaUser(acct: acct);
 
-  factory _AntennaUser.fromUser(UserModel user) =>
-      _AntennaUser(acct: user.acct, name: user.name, avatarUrl: user.avatarUrl);
+  factory _AntennaUser.fromUser(UserModel user) => _AntennaUser(
+    acct: user.acct,
+    name: user.name,
+    avatarUrl: user.avatarUrl,
+    emojis: user.emojis,
+  );
 
   /// 表示名。API から復元しただけの場合は acct から username を起こす。
   String get displayName => name ?? acct.replaceFirst('@', '').split('@').first;
+
+  /// UserNameText に渡すための最小限の UserModel。id などは表示に使わない。
+  UserModel get nameModel => UserModel(
+    id: '',
+    name: displayName,
+    username: displayName,
+    host: '',
+    emojis: emojis,
+  );
 }
 
 // ---- アンテナ作成/編集ボトムシート ----
@@ -481,7 +503,7 @@ class _AntennaEditSheetState extends ConsumerState<_AntennaEditSheet> {
                             radius: 16,
                             iconSize: 16,
                           ),
-                          title: Text(user.name),
+                          title: UserNameText(user),
                           subtitle: Text(
                             user.acct,
                             style: Theme.of(ctx).textTheme.bodySmall,
@@ -611,7 +633,7 @@ class _AntennaEditSheetState extends ConsumerState<_AntennaEditSheet> {
                           radius: 16,
                           iconSize: 16,
                         ),
-                        title: Text(user.displayName),
+                        title: UserNameText(user.nameModel),
                         subtitle: Text(
                           user.acct,
                           style: Theme.of(context).textTheme.bodySmall,

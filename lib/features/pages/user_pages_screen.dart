@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/page_model.dart';
+import '../../data/models/user_model.dart';
+import '../../shared/widgets/user_name_text.dart';
 import 'pages_screen.dart';
 import 'providers/pages_provider.dart';
 import 'widgets/page_list_tile.dart';
@@ -10,10 +12,10 @@ import 'widgets/page_list_tile.dart';
 class UserPagesScreen extends ConsumerWidget {
   final String userId;
 
-  /// AppBar のタイトルに使う表示名（未指定なら「ページ」のみ）。
-  final String? userName;
+  /// AppBar のタイトルに使うユーザー（未指定なら「ページ」のみ）。
+  final UserModel? user;
 
-  const UserPagesScreen({super.key, required this.userId, this.userName});
+  const UserPagesScreen({super.key, required this.userId, this.user});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -22,7 +24,9 @@ class UserPagesScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(userName != null ? '$userName のページ' : 'ページ'),
+        title: user != null
+            ? UserNameText(user!, suffix: ' のページ')
+            : const Text('ページ'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

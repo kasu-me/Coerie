@@ -112,21 +112,6 @@ class NoteModel {
     final filesJson = json['files'] as List<dynamic>? ?? [];
     final reactionsJson = json['reactions'] as Map<String, dynamic>? ?? {};
 
-    // emojis フィールド: Map<String,String> 形式（Misskey 13+）またはリスト形式
-    Map<String, String> parseEmojiMap(dynamic raw) {
-      if (raw is Map) {
-        return raw.map((k, v) => MapEntry(k as String, v as String));
-      }
-      if (raw is List) {
-        return {
-          for (final e in raw)
-            if (e is Map && e['name'] != null && e['url'] != null)
-              e['name'] as String: e['url'] as String,
-        };
-      }
-      return {};
-    }
-
     return NoteModel(
       id: json['id'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),

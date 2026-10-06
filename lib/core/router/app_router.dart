@@ -160,10 +160,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/users/:userId/clips',
         builder: (context, state) {
           final userId = state.pathParameters['userId']!;
-          String? userName;
           final extra = state.extra;
-          if (extra is UserModel) userName = extra.name;
-          return ClipsScreen(ownerUserId: userId, ownerUserName: userName);
+          return ClipsScreen(
+            ownerUserId: userId,
+            owner: extra is UserModel ? extra : null,
+          );
         },
       ),
       // ---- ページ ----
@@ -211,7 +212,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           final extra = state.extra;
           return UserPagesScreen(
             userId: state.pathParameters['userId']!,
-            userName: extra is UserModel ? extra.name : null,
+            user: extra is UserModel ? extra : null,
           );
         },
       ),
@@ -253,7 +254,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           final extra = state.extra;
           return UserGalleryScreen(
             userId: state.pathParameters['userId']!,
-            userName: extra is UserModel ? extra.name : null,
+            user: extra is UserModel ? extra : null,
           );
         },
       ),

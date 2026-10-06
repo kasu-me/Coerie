@@ -13,6 +13,7 @@ import '../../shared/providers/account_provider.dart';
 import '../../shared/utils/format_utils.dart';
 import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/user_avatar.dart';
+import '../../shared/widgets/user_name_text.dart';
 import '../../shared/widgets/error_view.dart';
 
 // ─── State ─────────────────────────────────────────────────────────────────
@@ -833,11 +834,7 @@ class _RoomMembersSheet extends ConsumerWidget {
                           backgroundColor:
                               theme.colorScheme.surfaceContainerHighest,
                         ),
-                        title: Text(
-                          u.displayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        title: UserNameText(u),
                         subtitle: Text(u.acct),
                         onTap: () {
                           Navigator.of(context).pop();

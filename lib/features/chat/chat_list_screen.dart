@@ -10,6 +10,7 @@ import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/dm_badge_provider.dart';
 import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/user_avatar.dart';
+import '../../shared/widgets/user_name_text.dart';
 import '../../shared/widgets/error_view.dart';
 
 // ─── State ─────────────────────────────────────────────────────────────────
@@ -298,6 +299,7 @@ class _DmListTab extends ConsumerWidget {
 
           return _ConversationTile(
             name: partnerName,
+            user: partner,
             avatarUrl: partnerAvatar,
             lastMessage: isMe ? '自分: $previewText' : previewText,
             createdAt: msg.createdAt,
@@ -456,6 +458,9 @@ class _RoomListTab extends ConsumerWidget {
 
 class _ConversationTile extends StatelessWidget {
   final String name;
+
+  /// 指定時は [name] の代わりに絵文字付きの名前で表示する。
+  final UserModel? user;
   final String? avatarUrl;
   final String lastMessage;
   final DateTime? createdAt;
@@ -465,6 +470,7 @@ class _ConversationTile extends StatelessWidget {
 
   const _ConversationTile({
     required this.name,
+    this.user,
     this.avatarUrl,
     required this.lastMessage,
     required this.createdAt,
@@ -487,12 +493,21 @@ class _ConversationTile extends StatelessWidget {
         icon: isRoom ? Icons.group : Icons.person,
         iconColor: theme.colorScheme.onSurfaceVariant,
       ),
-      title: Text(
-        name,
-        style: TextStyle(
-          fontWeight: unread ? FontWeight.bold : FontWeight.normal,
-        ),
-      ),
+      title: user != null
+          ? UserNameText(
+              user!,
+              style: TextStyle(
+                fontWeight: unread ? FontWeight.bold : FontWeight.normal,
+              ),
+              maxLines: null,
+              overflow: null,
+            )
+          : Text(
+              name,
+              style: TextStyle(
+                fontWeight: unread ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
       subtitle: Text(
         lastMessage,
         maxLines: 1,
@@ -638,7 +653,7 @@ class _NewDmSheetState extends ConsumerState<_NewDmSheet> {
                       avatarUrl: user.avatarUrl,
                       foreground: true,
                     ),
-                    title: Text(user.name),
+                    title: UserNameText(user),
                     subtitle: Text(user.acct),
                     onTap: () {
                       Navigator.of(context).pop();

@@ -11,6 +11,7 @@ import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/confirm_dialog.dart';
 import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/user_avatar.dart';
+import '../../shared/widgets/user_name_text.dart';
 
 class ListsScreen extends ConsumerStatefulWidget {
   const ListsScreen({super.key});
@@ -509,7 +510,7 @@ class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
                             radius: 16,
                             iconSize: 16,
                           ),
-                          title: Text(user.name),
+                          title: UserNameText(user),
                           subtitle: Text(
                             user.acct,
                             style: Theme.of(ctx).textTheme.bodySmall,
@@ -637,7 +638,7 @@ class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
         if (user == null) return const SizedBox.shrink();
         return ListTile(
           leading: UserAvatar(avatarUrl: user.avatarUrl, radius: 20),
-          title: Text(user.name),
+          title: UserNameText(user),
           subtitle: Text(user.acct, style: Theme.of(ctx).textTheme.bodySmall),
           trailing: IconButton(
             icon: Icon(

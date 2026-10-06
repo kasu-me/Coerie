@@ -5,6 +5,7 @@ import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/follow_requests_badge_provider.dart';
 import '../../shared/widgets/confirm_dialog.dart';
 import '../../shared/widgets/user_avatar.dart';
+import '../../shared/widgets/user_name_text.dart';
 
 class FollowRequestsSheet extends ConsumerStatefulWidget {
   final String profileOwnerId;
@@ -145,8 +146,8 @@ class _FollowRequestsSheetState extends ConsumerState<FollowRequestsSheet> {
                         final u = _requests[i];
                         return ListTile(
                           leading: UserAvatar(avatarUrl: u.avatarUrl),
-                          title: Text(
-                            u.name,
+                          title: UserNameText(
+                            u,
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(u.acct),

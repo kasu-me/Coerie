@@ -4,16 +4,18 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter/services.dart';
 import '../../core/errors/api_error_message.dart';
 import '../../data/models/clip_model.dart';
+import '../../data/models/user_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/error_view.dart';
+import '../../shared/widgets/user_name_text.dart';
 
 class ClipsScreen extends ConsumerStatefulWidget {
   final String? ownerUserId;
-  final String? ownerUserName;
+  final UserModel? owner;
 
-  const ClipsScreen({super.key, this.ownerUserId, this.ownerUserName});
+  const ClipsScreen({super.key, this.ownerUserId, this.owner});
 
   @override
   ConsumerState<ClipsScreen> createState() => _ClipsScreenState();
@@ -279,11 +281,9 @@ class _ClipsScreenState extends ConsumerState<ClipsScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.ownerUserName != null
-              ? '${widget.ownerUserName} のクリップ'
-              : 'クリップ',
-        ),
+        title: widget.owner != null
+            ? UserNameText(widget.owner!, suffix: ' のクリップ')
+            : const Text('クリップ'),
         bottom: _isOwn
             ? TabBar(
                 controller: _tabController,

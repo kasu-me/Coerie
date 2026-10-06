@@ -17,6 +17,7 @@ import '../../shared/utils/emoji_utils.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
 import '../../shared/utils/format_utils.dart';
 import '../../shared/widgets/user_avatar.dart';
+import '../../shared/widgets/user_name_text.dart';
 import '../../shared/mixins/infinite_scroll_mixin.dart';
 import '../../shared/providers/paged_notifier.dart';
 
@@ -340,13 +341,20 @@ class _NotificationTile extends StatelessWidget {
                   Builder(
                     builder: (ctx) {
                       final spans = <InlineSpan>[];
-                      // ユーザー名はある場合のみ表示。ない場合は
-                      if (n.user?.name != null) {
+                      // ユーザー名はある場合のみ表示。
+                      if (n.user != null) {
                         spans.add(const TextSpan(style: TextStyle()));
                         spans.add(
-                          TextSpan(
-                            text: n.user?.name ?? '',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          WidgetSpan(
+                            alignment: PlaceholderAlignment.baseline,
+                            baseline: TextBaseline.alphabetic,
+                            // WidgetSpan は周囲の TextStyle を継承しないため明示する
+                            child: UserNameText(
+                              n.user!,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         );
                         spans.add(

@@ -84,6 +84,16 @@ class MfmContent extends StatefulWidget {
   final bool enableAnimations;
   final void Function(String username, String? host)? onMentionTap;
 
+  /// テキスト・絵文字だけを解釈する簡易モード（ユーザー名などの表示用）。
+  ///
+  /// Misskey Web 版の名前表示（`<Mfm :plain="true">`）と同じく、太字や
+  /// `$[...]` 等の装飾は解釈せず記法のまま表示する。名前は1行に収める用途が
+  /// 主なので、このモードでのみ [maxLines] / [overflow] が効き、
+  /// ベースのスタイルも周囲の [DefaultTextStyle]（ListTile のタイトル等）を引き継ぐ。
+  final bool plain;
+  final int? maxLines;
+  final TextOverflow? overflow;
+
   /// 絵文字画像をテキストのベースラインに合わせるための下方向オフセット（フォントサイズ比）。
   static const double _emojiOffsetSizeY = 0.05;
 
@@ -94,6 +104,9 @@ class MfmContent extends StatefulWidget {
     this.style,
     this.enableAnimations = false,
     this.onMentionTap,
+    this.plain = false,
+    this.maxLines,
+    this.overflow,
   });
 
   @override
@@ -110,26 +123,32 @@ class MfmContent extends StatefulWidget {
   static final Map<String, List<mfm.MfmNode>?> _nodeCache = {};
   static const int _nodeCacheLimit = 200;
 
-  static List<mfm.MfmNode>? _parse(String text) {
-    if (_nodeCache.containsKey(text)) {
+  /// [plain] モード用のキャッシュ。同じ文字列でもパース結果が異なるため分ける。
+  static final Map<String, List<mfm.MfmNode>?> _plainNodeCache = {};
+
+  static List<mfm.MfmNode>? _parse(String text, {bool plain = false}) {
+    final cache = plain ? _plainNodeCache : _nodeCache;
+    if (cache.containsKey(text)) {
       // 参照されたエントリを末尾へ移して、古いものから追い出されるようにする
-      final cached = _nodeCache.remove(text);
-      _nodeCache[text] = cached;
+      final cached = cache.remove(text);
+      cache[text] = cached;
       return cached;
     }
 
     List<mfm.MfmNode>? nodes;
     try {
-      nodes = const mfm.MfmParser().parse(text);
+      nodes = plain
+          ? const mfm.MfmParser().parseSimple(text)
+          : const mfm.MfmParser().parse(text);
     } catch (_) {
       // パース失敗もキャッシュして、毎ビルドの再試行を避ける
       nodes = null;
     }
 
-    if (_nodeCache.length >= _nodeCacheLimit) {
-      _nodeCache.remove(_nodeCache.keys.first);
+    if (cache.length >= _nodeCacheLimit) {
+      cache.remove(cache.keys.first);
     }
-    _nodeCache[text] = nodes;
+    cache[text] = nodes;
     return nodes;
   }
 
@@ -1087,8 +1106,29 @@ class _MfmContentState extends State<MfmContent> {
 
   // ---- build ----
 
+  /// [MfmContent.plain] モードの描画。
+  ///
+  /// parseSimple の結果はインライン要素だけなので [Text.rich] 1つで描画でき、
+  /// recognizer も生成されない。
+  Widget _buildPlain(BuildContext context) {
+    final base = DefaultTextStyle.of(context).style.merge(widget.style);
+    final nodes = MfmContent._parse(widget.text, plain: true);
+    return Text.rich(
+      TextSpan(
+        style: base,
+        children: nodes == null
+            ? [TextSpan(text: widget.text)]
+            : _buildSpans(nodes, base, context),
+      ),
+      maxLines: widget.maxLines,
+      overflow: widget.overflow,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (widget.plain) return _buildPlain(context);
+
     final theme = Theme.of(context);
     final style = widget.style;
     // テーマの bodyMedium を基底として明示的に fontFamily を引き継いだうえで、

@@ -18,6 +18,7 @@ import '../../shared/widgets/confirm_dialog.dart';
 import '../../shared/widgets/image_viewer_screen.dart';
 import '../../shared/widgets/mfm_content.dart';
 import '../../shared/widgets/user_avatar.dart';
+import '../../shared/widgets/user_name_text.dart';
 import 'providers/gallery_providers.dart';
 
 /// ギャラリー投稿の詳細画面。
@@ -410,14 +411,18 @@ class _GalleryDetailScreenState extends ConsumerState<GalleryDetailScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              post.user?.displayName ?? '',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                            if (post.user != null)
+                              UserNameText(
+                                post.user!,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              )
+                            else
+                              const Text(
+                                '',
+                                style: TextStyle(fontWeight: FontWeight.bold),
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
                             if (post.user != null)
                               Text(
                                 post.user!.acct,

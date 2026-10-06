@@ -15,6 +15,7 @@ import '../../shared/utils/emoji_utils.dart';
 import '../../shared/utils/format_utils.dart';
 import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/confirm_dialog.dart';
+import '../../shared/widgets/user_name_text.dart';
 import 'providers/pages_provider.dart';
 import 'widgets/page_block_view.dart';
 import 'widgets/page_list_tile.dart';
@@ -543,11 +544,7 @@ class _AuthorRow extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Flexible(
-              child: Text(
-                user.displayName,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium,
-              ),
+              child: UserNameText(user, style: theme.textTheme.bodyMedium),
             ),
             const SizedBox(width: 6),
             Flexible(

@@ -19,6 +19,10 @@ class UserModel {
   final bool isMuted;
   final bool isLocked;
 
+  /// 名前に使われているカスタム絵文字の name→url マップ（Misskey API の emojis フィールド）。
+  /// リモートユーザーの絵文字は接続先インスタンスの絵文字一覧で引けないため、これで解決する。
+  final Map<String, String> emojis;
+
   const UserModel({
     required this.id,
     required this.name,
@@ -37,6 +41,7 @@ class UserModel {
     this.isBlocking = false,
     this.isMuted = false,
     this.isLocked = false,
+    this.emojis = const {},
   });
 
   String get acct => host.isEmpty ? '@$username' : '@$username@$host';
@@ -68,6 +73,7 @@ class UserModel {
       isBlocking: json['isBlocking'] as bool? ?? false,
       isMuted: json['isMuted'] as bool? ?? false,
       isLocked: json['isLocked'] as bool? ?? false,
+      emojis: parseEmojiMap(json['emojis']),
     );
   }
 
@@ -89,6 +95,7 @@ class UserModel {
     bool? isBlocking,
     bool? isMuted,
     bool? isLocked,
+    Map<String, String>? emojis,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -108,8 +115,25 @@ class UserModel {
       isBlocking: isBlocking ?? this.isBlocking,
       isMuted: isMuted ?? this.isMuted,
       isLocked: isLocked ?? this.isLocked,
+      emojis: emojis ?? this.emojis,
     );
   }
+}
+
+/// Misskey API の emojis 系フィールドを name→url マップに変換する。
+/// Misskey 13 以降は Map 形式だが、古いサーバーはリスト形式で返すため両方受け付ける。
+Map<String, String> parseEmojiMap(dynamic raw) {
+  if (raw is Map) {
+    return raw.map((k, v) => MapEntry(k as String, v as String));
+  }
+  if (raw is List) {
+    return {
+      for (final e in raw)
+        if (e is Map && e['name'] != null && e['url'] != null)
+          e['name'] as String: e['url'] as String,
+    };
+  }
+  return {};
 }
 
 /// `users/following` / `users/followers` の戻り値のラッパー

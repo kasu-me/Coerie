@@ -38,6 +38,7 @@ import '../../../shared/widgets/user_list_sheet.dart';
 import '../../../shared/widgets/api_error_snack_bar.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/user_avatar.dart';
+import '../../../shared/widgets/user_name_text.dart';
 
 // ---- NoteCard ----
 
@@ -458,10 +459,13 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                       color: theme.colorScheme.secondary,
                     ),
                     const SizedBox(width: 4),
-                    Text(
-                      '${widget.pinnedByUser!.name} がピン留め',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.secondary,
+                    Expanded(
+                      child: UserNameText(
+                        widget.pinnedByUser!,
+                        suffix: ' がピン留め',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.secondary,
+                        ),
                       ),
                     ),
                   ],
@@ -480,8 +484,9 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                     ),
                     const SizedBox(width: 4),
                     Expanded(
-                      child: Text(
-                        '${widget.renoteUser!.name} がリノート',
+                      child: UserNameText(
+                        widget.renoteUser!,
+                        suffix: ' がリノート',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.tertiary,
                         ),
@@ -551,10 +556,9 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          note.user.name,
+                        UserNameText(
+                          note.user,
                           style: const TextStyle(fontWeight: FontWeight.bold),
-                          overflow: TextOverflow.ellipsis,
                         ),
                         Text(
                           note.user.acct,
@@ -862,12 +866,11 @@ class _QuotedNote extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        displayNote.user.name,
+                      UserNameText(
+                        displayNote.user,
                         style: theme.textTheme.bodySmall?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
                       Text(
                         displayNote.user.acct,
