@@ -9,10 +9,10 @@ import '../../core/constants/app_constants.dart';
 import '../../core/services/cache_service.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/account_tabs_provider.dart';
-import '../../shared/providers/account_visibility_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/app_settings_model.dart';
+import '../../shared/utils/account_settings_transfer.dart';
 import '../../shared/utils/format_utils.dart';
 import '../../shared/widgets/section_header.dart';
 
@@ -241,22 +241,12 @@ class SettingsScreen extends ConsumerWidget {
     final defaultName = 'coerie_settings_with_tokens_$timestamp.json';
 
     final accounts = ref.read(accountProvider);
-    final accountSettings = <String, dynamic>{};
-    for (final account in accounts) {
-      accountSettings[account.id] = {
-        'tabs': ref
-            .read(accountTabsProvider(account.id))
-            .map((t) => t.toJson())
-            .toList(),
-        'defaultVisibility': ref.read(accountVisibilityProvider(account.id)),
-      };
-    }
 
     // バージョン3フォーマット: globalSettings + accountSettings + accounts（トークン含む）
     final exportData = {
       'version': 3,
       'globalSettings': settings.toJson(),
-      'accountSettings': accountSettings,
+      'accountSettings': buildAccountSettingsForExport(ref),
       'accounts': accounts.map((a) => a.toJson()).toList(),
     };
     final jsonStr = jsonEncode(exportData);
@@ -302,24 +292,11 @@ class SettingsScreen extends ConsumerWidget {
         .substring(0, 19);
     final defaultName = 'coerie_settings_$timestamp.json';
 
-    // アカウント別設定（タブ・公開範囲）をまとめる
-    final accounts = ref.read(accountProvider);
-    final accountSettings = <String, dynamic>{};
-    for (final account in accounts) {
-      accountSettings[account.id] = {
-        'tabs': ref
-            .read(accountTabsProvider(account.id))
-            .map((t) => t.toJson())
-            .toList(),
-        'defaultVisibility': ref.read(accountVisibilityProvider(account.id)),
-      };
-    }
-
     // バージョン2フォーマット: globalSettings + accountSettings
     final exportData = {
       'version': 2,
       'globalSettings': settings.toJson(),
-      'accountSettings': accountSettings,
+      'accountSettings': buildAccountSettingsForExport(ref),
     };
     final jsonStr = jsonEncode(exportData);
     final jsonBytes = Uint8List.fromList(utf8.encode(jsonStr));
@@ -402,41 +379,24 @@ class SettingsScreen extends ConsumerWidget {
         final imported = AppSettingsModel.fromJson(globalJson);
         await ref.read(settingsProvider.notifier).importSettings(imported);
 
-        final accountSettingsMap =
-            decoded['accountSettings'] as Map<String, dynamic>? ?? {};
-        for (final entry in accountSettingsMap.entries) {
-          final accountId = entry.key;
-          final data = entry.value as Map<String, dynamic>;
+        // バージョン3: アカウント情報（トークン含む）
+        final accountsJson = version >= 3
+            ? decoded['accounts'] as List<dynamic>?
+            : null;
+        final importedAccounts = (accountsJson ?? const [])
+            .map((e) => AccountModel.fromJson(e as Map<String, dynamic>))
+            .toList();
 
-          final tabsJson = data['tabs'] as List<dynamic>?;
-          if (tabsJson != null) {
-            final tabs = tabsJson
-                .map((e) => TabConfigModel.fromJson(e as Map<String, dynamic>))
-                .toList();
-            await ref
-                .read(accountTabsProvider(accountId).notifier)
-                .setTabs(tabs);
-          }
+        await applyImportedAccountSettings(
+          ref,
+          decoded['accountSettings'] as Map<String, dynamic>? ?? {},
+          fileAccounts: importedAccounts,
+        );
 
-          final visibility = data['defaultVisibility'] as String?;
-          if (visibility != null) {
-            await ref
-                .read(accountVisibilityProvider(accountId).notifier)
-                .setVisibility(visibility);
-          }
-        }
-
-        // バージョン3: アカウント情報（トークン含む）を復元
-        if (version >= 3) {
-          final accountsJson = decoded['accounts'] as List<dynamic>?;
-          if (accountsJson != null) {
-            final importedAccounts = accountsJson
-                .map((e) => AccountModel.fromJson(e as Map<String, dynamic>))
-                .toList();
-            await ref
-                .read(accountProvider.notifier)
-                .importAccounts(importedAccounts);
-          }
+        if (importedAccounts.isNotEmpty) {
+          await ref
+              .read(accountProvider.notifier)
+              .importAccounts(importedAccounts);
         }
       } else {
         // バージョン1（旧フォーマット）: AppSettingsModelのみ

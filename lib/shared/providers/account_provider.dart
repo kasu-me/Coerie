@@ -138,15 +138,25 @@ class AccountNotifier extends StateNotifier<List<AccountModel>> {
     _load();
   }
 
-  /// インポート用: 既存IDと重複しないアカウントのみ追加する（アクティブ状態は引き継がない）
-  Future<void> importAccounts(List<AccountModel> accounts) async {
+  /// インポート用: 既存アカウントと重複しないものだけ追加する（アクティブ状態は引き継がない）
+  ///
+  /// IDは端末ごとに採番される UUID なので、別端末で同じユーザーにログイン済みだと
+  /// IDが一致しない。host + userId でも重複を判定する。重複時は端末側の
+  /// トークンの方が新しいとみなし、ファイル側では上書きしない。
+  /// 実際に追加した件数を返す。
+  Future<int> importAccounts(List<AccountModel> accounts) async {
     final box = HiveService.accountsBox;
     final existingIds = {for (final a in state) a.id};
+    final existingUsers = {for (final a in state) (a.host, a.userId)};
+    var addedCount = 0;
     for (final account in accounts) {
-      if (!existingIds.contains(account.id)) {
+      final user = (account.host, account.userId);
+      if (!existingIds.contains(account.id) && !existingUsers.contains(user)) {
+        existingUsers.add(user);
         // インポート時は isActive をリセット（_load() の整合性チェックで保証）
         account.isActive = false;
         await box.put(account.id, account);
+        addedCount++;
       }
     }
     // インポート後にアクティブアカウントが存在しない場合は先頭をアクティブに
@@ -156,5 +166,6 @@ class AccountNotifier extends StateNotifier<List<AccountModel>> {
       await box.put(allAccounts.first.id, allAccounts.first);
     }
     _load();
+    return addedCount;
   }
 }

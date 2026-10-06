@@ -6,9 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 import '../../shared/providers/account_provider.dart';
-import '../../shared/providers/account_tabs_provider.dart';
-import '../../shared/providers/account_visibility_provider.dart';
 import '../../shared/providers/settings_provider.dart';
+import '../../shared/utils/account_settings_transfer.dart';
 import '../../core/auth/miauth_service.dart';
 import '../../core/errors/api_error_message.dart';
 import '../../data/local/hive_service.dart';
@@ -161,48 +160,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
 
       // アカウント情報のインポート（バージョン3のみ）
-      int importedCount = 0;
+      // ファイルにアカウント情報が無ければ null。全件が登録済みなら 0 になりうる。
+      int? importedCount;
       if (version >= 3) {
-        final accountsJson = decoded['accounts'] as List<dynamic>?;
-        if (accountsJson != null) {
-          final importedAccounts = accountsJson
-              .map((e) => AccountModel.fromJson(e as Map<String, dynamic>))
-              .toList();
-          await ref
+        final importedAccounts =
+            (decoded['accounts'] as List<dynamic>? ?? const [])
+                .map((e) => AccountModel.fromJson(e as Map<String, dynamic>))
+                .toList();
+
+        // importAccounts より先に反映する（理由は applyImportedAccountSettings 参照）
+        await applyImportedAccountSettings(
+          ref,
+          decoded['accountSettings'] as Map<String, dynamic>? ?? {},
+          fileAccounts: importedAccounts,
+        );
+
+        if (importedAccounts.isNotEmpty) {
+          importedCount = await ref
               .read(accountProvider.notifier)
               .importAccounts(importedAccounts);
-          importedCount = importedAccounts.length;
-        }
-
-        // アカウント別設定のインポート
-        final accountSettingsMap =
-            decoded['accountSettings'] as Map<String, dynamic>? ?? {};
-        for (final entry in accountSettingsMap.entries) {
-          final accountId = entry.key;
-          final data = entry.value as Map<String, dynamic>;
-
-          final tabsJson = data['tabs'] as List<dynamic>?;
-          if (tabsJson != null) {
-            final tabs = tabsJson
-                .map((e) => TabConfigModel.fromJson(e as Map<String, dynamic>))
-                .toList();
-            await ref
-                .read(accountTabsProvider(accountId).notifier)
-                .setTabs(tabs);
-          }
-
-          final visibility = data['defaultVisibility'] as String?;
-          if (visibility != null) {
-            await ref
-                .read(accountVisibilityProvider(accountId).notifier)
-                .setVisibility(visibility);
-          }
         }
       }
 
       if (!mounted) return;
 
-      if (importedCount > 0) {
+      if (importedCount != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('設定をインポートしました（アカウント $importedCount 件）')),
         );
