@@ -9,6 +9,7 @@ import '../../data/models/announcement_model.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/announcements_badge_provider.dart';
+import '../../shared/providers/settings_provider.dart';
 import '../../shared/widgets/mfm_content.dart';
 import '../../shared/utils/format_utils.dart';
 import '../../shared/mixins/infinite_scroll_mixin.dart';
@@ -145,6 +146,8 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen>
       return const Center(child: Text('お知らせはありません'));
     }
 
+    final settings = ref.watch(settingsProvider);
+
     return RefreshIndicator(
       onRefresh: () =>
           ref.read(_announcementsProvider(accountId).notifier).refresh(),
@@ -183,7 +186,11 @@ class _AnnouncementsScreenState extends ConsumerState<AnnouncementsScreen>
                     ),
                   ),
                 Text(
-                  formatRelativeTime(a.createdAt),
+                  formatNoteDateTime(
+                    a.createdAt,
+                    relative: settings.dateTimeRelative,
+                    timezoneOffsetHours: settings.timezoneOffsetHours,
+                  ),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.outline,
                   ),
@@ -267,6 +274,7 @@ class _AnnouncementDetailScreenState
   @override
   Widget build(BuildContext context) {
     final a = widget.announcement;
+    final settings = ref.watch(settingsProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('お知らせ'),
@@ -298,7 +306,11 @@ class _AnnouncementDetailScreenState
               ),
             const SizedBox(height: 8),
             Text(
-              formatRelativeTime(a.createdAt),
+              formatNoteDateTime(
+                a.createdAt,
+                relative: settings.dateTimeRelative,
+                timezoneOffsetHours: settings.timezoneOffsetHours,
+              ),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.outline,
               ),

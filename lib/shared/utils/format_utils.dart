@@ -21,10 +21,14 @@ String formatYmdHm(DateTime d) => '${formatYmd(d)} ${formatHm(d)}';
 /// `yyyy/MM/dd HH:mm:ss`
 String formatYmdHms(DateTime d) => '${formatYmd(d)} ${formatHms(d)}';
 
-/// 現在時刻からの経過を「◯秒前 / ◯分前 / ◯時間前」で表す。
+/// 現在時刻からの経過を「たった今 / ◯秒前 / ◯分前 / ◯時間前」で表す。
 /// 24時間を超えたものは `M/D`（端末のローカル時刻）で表す。
 String formatRelativeTime(DateTime dt) {
   final diff = DateTime.now().difference(dt);
+  // createdAt はサーバー時刻で付与されるため、端末の時計がサーバーより遅れていると
+  // 直後に届いた通知・ノートが「未来」の時刻になり、差分が負になる。
+  // 時計のずれ自体はアプリ側で補正できないので、負の差分も「たった今」に含める。
+  if (diff.inSeconds < 1) return 'たった今';
   if (diff.inSeconds < 60) return '${diff.inSeconds}秒前';
   if (diff.inMinutes < 60) return '${diff.inMinutes}分前';
   if (diff.inHours < 24) return '${diff.inHours}時間前';

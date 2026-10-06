@@ -13,6 +13,7 @@ import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/notifications_badge_provider.dart';
 import '../../shared/providers/notifications_tab_visibility_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
+import '../../shared/providers/settings_provider.dart';
 import '../../shared/utils/emoji_utils.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
 import '../../shared/utils/format_utils.dart';
@@ -250,7 +251,7 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen>
 
 // ---- Tile ----
 
-class _NotificationTile extends StatelessWidget {
+class _NotificationTile extends ConsumerWidget {
   final NotificationModel notification;
   final EmojiResolver emojiResolver;
   final String? profileOwnerId;
@@ -262,8 +263,9 @@ class _NotificationTile extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final settings = ref.watch(settingsProvider);
     final n = notification;
 
     return InkWell(
@@ -457,7 +459,11 @@ class _NotificationTile extends StatelessWidget {
                   ],
                   const SizedBox(height: 2),
                   Text(
-                    formatRelativeTime(n.createdAt),
+                    formatNoteDateTime(
+                      n.createdAt,
+                      relative: settings.dateTimeRelative,
+                      timezoneOffsetHours: settings.timezoneOffsetHours,
+                    ),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.outline,
                     ),
