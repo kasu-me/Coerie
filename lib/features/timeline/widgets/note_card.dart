@@ -478,9 +478,8 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: GestureDetector(
-                          onTap: () => context.push(
-                            '/profile/${widget.renoteUser!.id}',
-                          ),
+                          onTap: () =>
+                              context.push('/profile/${widget.renoteUser!.id}'),
                           child: UserNameText(
                             widget.renoteUser!,
                             suffix: ' がリノート',
@@ -1709,43 +1708,52 @@ class _MediaGridState extends State<_MediaGrid> {
     if (!file.isSensitive || _revealedSensitiveIndexes.contains(globalIndex)) {
       return child;
     }
+    // サイズは child に決めさせる。StackFit.expand だと動画のように
+    // Column 直下（高さ無制限）で使われた際に h=Infinity が child へ伝播し、
+    // レイアウト例外でタイムライン全体がスクロール不能になる。
+    // loose ではなく passthrough なのは、グリッドのセル（tight 制約）内で
+    // 画像が縮まずセル全体を埋めるようにするため。
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: Stack(
-        fit: StackFit.expand,
+        fit: StackFit.passthrough,
         children: [
           child,
-          BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(color: Colors.black.withValues(alpha: 0.3)),
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Container(color: Colors.black.withValues(alpha: 0.3)),
+            ),
           ),
-          Center(
-            child: GestureDetector(
-              onTap: () =>
-                  setState(() => _revealedSensitiveIndexes.add(globalIndex)),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.visibility_off, color: Colors.white, size: 16),
-                    SizedBox(width: 6),
-                    Text(
-                      'センシティブ',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+          Positioned.fill(
+            child: Center(
+              child: GestureDetector(
+                onTap: () =>
+                    setState(() => _revealedSensitiveIndexes.add(globalIndex)),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.visibility_off, color: Colors.white, size: 16),
+                      SizedBox(width: 6),
+                      Text(
+                        'センシティブ',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
