@@ -9,6 +9,8 @@ import '../../shared/widgets/mfm_content.dart';
 import '../../data/models/user_model.dart';
 import '../../data/models/user_field_model.dart';
 import '../../data/models/note_model.dart';
+import '../../data/models/drive_file_model.dart';
+import '../../shared/widgets/image_viewer_screen.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/word_mute_provider.dart';
 import '../../shared/providers/account_provider.dart';
@@ -23,6 +25,10 @@ import '../../shared/widgets/error_view.dart';
 import '../../shared/widgets/user_avatar.dart';
 import '../../shared/widgets/user_name_text.dart';
 import '../../shared/providers/paged_notifier.dart';
+import '../../shared/providers/custom_emoji_provider.dart';
+import '../../shared/providers/settings_provider.dart';
+import '../../shared/utils/emoji_utils.dart';
+import '../../shared/utils/mention_navigation.dart';
 
 class _AppBarIcon extends StatelessWidget {
   final IconData icon;
@@ -415,6 +421,33 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
     );
   }
 
+  /// アイコン・バナーは DriveFile として取得できない（API は URL のみ返す）ため、
+  /// ビューアに渡す [DriveFileModel] をその場で組み立てる。
+  void _openImageViewer(String url, String kind) {
+    // URL 末尾はプロキシ経由だと `avatar.webp` 等の汎用名になり、保存時に
+    // ユーザー間で区別できないため、拡張子だけ流用してファイル名を作る。
+    final segments = Uri.tryParse(url)?.pathSegments ?? const <String>[];
+    final last = segments.isEmpty ? '' : segments.last;
+    final dot = last.lastIndexOf('.');
+    final ext = dot > 0 ? last.substring(dot) : '';
+    final fileName = '${widget.user.username}_$kind$ext';
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ImageViewerScreen(
+          files: [
+            DriveFileModel(
+              id: url,
+              name: fileName,
+              type: 'image/*',
+              url: url,
+              size: 0,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // ヘッダーの高さはプロフィールの内容で変わるので、レイアウト確定後に測り直す。
@@ -440,6 +473,17 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
     final user = widget.user;
     final activeAccount = ref.watch(activeAccountProvider);
     final isOwnProfile = activeAccount?.userId == widget.userId;
+    final mfmAnimation = ref.watch(
+      settingsProvider.select((s) => s.mfmAnimation),
+    );
+    // user.emojis は名前だけでなく自己紹介・フィールドで使われた絵文字も含む
+    // （Misskey がプロフィール更新時にそれらすべてから抽出して保存している）。
+    final userEmojiResolver = EmojiResolver(
+      noteEmojis: user.emojis,
+      instanceEmojis: ref.watch(customEmojiUrlMapProvider),
+    );
+    void onMentionTap(String username, String? host) =>
+        openMentionedUser(context, ref, username, host);
 
     final tabBar = TabBar(
       controller: _tabController,
@@ -923,6 +967,13 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                             ),
                           ),
                         ),
+                        // グラデーションより上に置かないとタップを拾えない
+                        if (user.bannerUrl != null)
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () =>
+                                _openImageViewer(user.bannerUrl!, 'banner'),
+                          ),
                       ],
                     ),
                   ),
@@ -936,10 +987,18 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            UserAvatar(
-                              avatarUrl: user.avatarUrl,
-                              radius: 36,
-                              iconSize: 36,
+                            GestureDetector(
+                              onTap: user.avatarUrl == null
+                                  ? null
+                                  : () => _openImageViewer(
+                                      user.avatarUrl!,
+                                      'avatar',
+                                    ),
+                              child: UserAvatar(
+                                avatarUrl: user.avatarUrl,
+                                radius: 36,
+                                iconSize: 36,
+                              ),
                             ),
                             const Spacer(),
                             if (!isOwnProfile)
@@ -994,7 +1053,13 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                         ),
                         if (user.description != null) ...[
                           const SizedBox(height: 8),
-                          Text(user.description!),
+                          MfmContent(
+                            text: user.description!,
+                            emojiResolver: userEmojiResolver,
+                            style: theme.textTheme.bodyMedium,
+                            enableAnimations: mfmAnimation,
+                            onMentionTap: onMentionTap,
+                          ),
                         ],
                         if (user.fields.isNotEmpty) ...[
                           const SizedBox(height: 8),
@@ -1016,8 +1081,11 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                         ),
                                         child: Align(
                                           alignment: Alignment.centerRight,
-                                          child: Text(
-                                            '${f.name}:',
+                                          // Misskey Web 版と同じく、項目名は絵文字以外の記法を解釈しない
+                                          child: MfmContent(
+                                            text: '${f.name}:',
+                                            emojiResolver: userEmojiResolver,
+                                            plain: true,
                                             style: theme.textTheme.bodySmall
                                                 ?.copyWith(
                                                   fontWeight: FontWeight.bold,
@@ -1031,7 +1099,10 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                         ),
                                         child: MfmContent(
                                           text: f.value,
+                                          emojiResolver: userEmojiResolver,
                                           style: theme.textTheme.bodyMedium,
+                                          enableAnimations: mfmAnimation,
+                                          onMentionTap: onMentionTap,
                                         ),
                                       ),
                                     ],
@@ -1387,9 +1458,15 @@ class _FollowUserTileState extends ConsumerState<_FollowUserTile> {
             ),
         ],
       ),
+      // 2行で省略するため、行数指定が効く plain モード（絵文字のみ解釈）で表示する
       subtitle: widget.user.description != null
-          ? Text(
-              widget.user.description!,
+          ? MfmContent(
+              text: widget.user.description!,
+              emojiResolver: EmojiResolver(
+                noteEmojis: widget.user.emojis,
+                instanceEmojis: ref.watch(customEmojiUrlMapProvider),
+              ),
+              plain: true,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodySmall,

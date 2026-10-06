@@ -19,7 +19,7 @@ class UserModel {
   final bool isMuted;
   final bool isLocked;
 
-  /// 名前に使われているカスタム絵文字の name→url マップ（Misskey API の emojis フィールド）。
+  /// 名前・自己紹介・フィールドに使われているカスタム絵文字の name→url マップ（Misskey API の emojis フィールド）。
   /// リモートユーザーの絵文字は接続先インスタンスの絵文字一覧で引けないため、これで解決する。
   final Map<String, String> emojis;
 

@@ -28,6 +28,7 @@ import '../../../core/router/app_router.dart';
 import '../../compose/emoji_picker_sheet.dart';
 import '../../../shared/providers/custom_emoji_provider.dart';
 import '../../../shared/utils/emoji_utils.dart';
+import '../../../shared/utils/mention_navigation.dart';
 import '../ogp_provider.dart';
 import '../timeline_provider.dart';
 import 'renote_visibility.dart';
@@ -209,20 +210,8 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
     });
   }
 
-  Future<void> _onMentionTap(String username, String? host) async {
-    final api = ref.read(misskeyApiProvider);
-    if (api == null) return;
-    try {
-      final user = await api.getUserByUsername(username, userHost: host);
-      if (mounted) context.push('/profile/${user.id}');
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('ユーザーが見つかりませんでした: @$username')));
-      }
-    }
-  }
+  void _onMentionTap(String username, String? host) =>
+      openMentionedUser(context, ref, username, host);
 
   Future<void> _handleVote(int idx) async {
     final api = ref.read(misskeyApiProvider);
