@@ -529,6 +529,7 @@ class _NotificationTile extends StatelessWidget {
     'createToken' => 'アクセストークンが作成されました',
     'exportCompleted' => 'ノートのエクスポートが完了しました',
     'chatRoomInvitationReceived' => 'ダイレクトメッセージのグループへ招待されました',
+    'achievementEarned' => '実績を獲得しました',
     _ => type,
   };
 
