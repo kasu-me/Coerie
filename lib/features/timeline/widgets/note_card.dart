@@ -484,11 +484,21 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                     ),
                     const SizedBox(width: 4),
                     Expanded(
-                      child: UserNameText(
-                        widget.renoteUser!,
-                        suffix: ' がリノート',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.tertiary,
+                      // ヘッダー行の空白部分までタップ領域にすると、ノート詳細を開くつもりの
+                      // タップを奪ってしまうため、ラベルの文字部分だけを反応させる
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: GestureDetector(
+                          onTap: () => context.push(
+                            '/profile/${widget.renoteUser!.id}',
+                          ),
+                          child: UserNameText(
+                            widget.renoteUser!,
+                            suffix: ' がリノート',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.tertiary,
+                            ),
+                          ),
                         ),
                       ),
                     ),
