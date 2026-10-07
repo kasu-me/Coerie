@@ -23,9 +23,19 @@ class EmojiPickerSheet extends ConsumerStatefulWidget {
 }
 
 class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   final _searchController = TextEditingController();
+  final _sheetController = DraggableScrollableController();
   String _query = '';
+
+  // 検索結果の絵文字をタップするとキーボード表示中のままシートが pop される。
+  // build() で MediaQuery の viewInsets に依存すると、その dismissal 中の
+  // キーボードアニメーションで非アクティブな要素が再ビルド対象になり
+  // アサーションが失敗する（プロフィール編集シートで発生した問題と同じ）。
+  // そのため didChangeMetrics でキーボード高さをローカル状態として持つ。
+  double _keyboardHeight = 0;
+
+  static const _maxChildSize = 0.9;
 
   // カスタム絵文字のカテゴリタブ用
   TabController? _customTabController;
@@ -39,14 +49,42 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
   void initState() {
     super.initState();
     _mainTabController = TabController(length: 2, vsync: this);
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
+    _sheetController.dispose();
     _customTabController?.dispose();
     _mainTabController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    if (!mounted) return;
+    final view = WidgetsBinding.instance.platformDispatcher.implicitView;
+    if (view == null) return;
+    final newHeight = view.viewInsets.bottom / view.devicePixelRatio;
+    if (newHeight != _keyboardHeight) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _keyboardHeight = newHeight);
+      });
+    }
+  }
+
+  // キーボード分だけシートの高さの基準が縮むため、初期サイズ(0.6)のままだと
+  // 一覧が1〜2行程度しか見えない。検索を始めた時点で最大まで広げておく。
+  void _expandSheet() {
+    if (!_sheetController.isAttached) return;
+    _sheetController.animateTo(
+      _maxChildSize,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+    );
   }
 
   void _buildCustomCategories(List<CustomEmojiModel> emojis) {
@@ -240,90 +278,96 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
     final emojisAsync = ref.watch(customEmojisProvider);
     final theme = Theme.of(context);
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      minChildSize: 0.4,
-      maxChildSize: 0.9,
-      expand: false,
-      builder: (_, scrollController) => SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.outlineVariant,
-                  borderRadius: BorderRadius.circular(2),
+    return Padding(
+      padding: EdgeInsets.only(bottom: _keyboardHeight),
+      child: DraggableScrollableSheet(
+        controller: _sheetController,
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: _maxChildSize,
+        expand: false,
+        builder: (_, scrollController) => SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Row(
-                children: [
-                  Text(
-                    '絵文字',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: TextField(
-                controller: _searchController,
-                decoration: const InputDecoration(
-                  hintText: '絵文字を検索...',
-                  prefixIcon: Icon(Icons.search),
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                onChanged: (v) => setState(() => _query = v.toLowerCase()),
-                onSubmitted: (v) {
-                  // 検索欄に絵文字一文字だけが入力され確定された場合は、
-                  // その絵文字をそのままリアクションとして返す
-                  if (isSingleEmoji(v)) {
-                    Navigator.pop(context, v.trim());
-                  }
-                },
-              ),
-            ),
-            TabBar(
-              controller: _mainTabController,
-              tabs: const [
-                Tab(text: 'カスタム'),
-                Tab(text: '通常'),
-              ],
-            ),
-            Expanded(
-              child: TabBarView(
-                controller: _mainTabController,
-                children: [
-                  emojisAsync.when(
-                    loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                    error: (e, _) => Center(
-                      child: Text(
-                        apiErrorMessage(e, fallback: '絵文字を読み込めませんでした'),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Row(
+                  children: [
+                    Text(
+                      '絵文字',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    data: (emojis) => _buildCustomTab(emojis, scrollController),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    hintText: '絵文字を検索...',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(),
+                    isDense: true,
                   ),
-                  _buildUnicodeTab(scrollController),
+                  onTap: _expandSheet,
+                  onChanged: (v) => setState(() => _query = v.toLowerCase()),
+                  onSubmitted: (v) {
+                    // 検索欄に絵文字一文字だけが入力され確定された場合は、
+                    // その絵文字をそのままリアクションとして返す
+                    if (isSingleEmoji(v)) {
+                      Navigator.pop(context, v.trim());
+                    }
+                  },
+                ),
+              ),
+              TabBar(
+                controller: _mainTabController,
+                tabs: const [
+                  Tab(text: 'カスタム'),
+                  Tab(text: '通常'),
                 ],
               ),
-            ),
-          ],
+              Expanded(
+                child: TabBarView(
+                  controller: _mainTabController,
+                  children: [
+                    emojisAsync.when(
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (e, _) => Center(
+                        child: Text(
+                          apiErrorMessage(e, fallback: '絵文字を読み込めませんでした'),
+                        ),
+                      ),
+                      data: (emojis) =>
+                          _buildCustomTab(emojis, scrollController),
+                    ),
+                    _buildUnicodeTab(scrollController),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
