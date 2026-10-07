@@ -9,6 +9,7 @@ class NotificationModel {
   final UserModel? user;
   final NoteModel? note;
   final String? reaction; // type == 'reaction' のとき
+  final String? achievement; // type == 'achievementEarned' のとき（実績ID）
 
   const NotificationModel({
     required this.id,
@@ -18,6 +19,7 @@ class NotificationModel {
     this.user,
     this.note,
     this.reaction,
+    this.achievement,
   });
 
   factory NotificationModel.fromJson(
@@ -36,6 +38,7 @@ class NotificationModel {
           ? NoteModel.fromJson(json['note'] as Map<String, dynamic>, host: host)
           : null,
       reaction: json['reaction'] as String?,
+      achievement: json['achievement'] as String?,
     );
   }
 }

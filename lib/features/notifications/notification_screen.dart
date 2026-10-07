@@ -4,6 +4,7 @@ import 'package:coerie/core/services/cache_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/constants/achievement_types.dart';
 import '../../core/streaming/streaming_service.dart';
 import '../../data/models/drive_file_model.dart';
 import '../../data/models/notification_model.dart';
@@ -441,6 +442,23 @@ class _NotificationTile extends ConsumerWidget {
                       );
                     },
                   ),
+                  if (n.type == 'achievementEarned' &&
+                      n.achievement != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      achievementTypes[n.achievement!]?.title ?? n.achievement!,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (achievementTypes[n.achievement!] case final a?)
+                      Text(
+                        a.description,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
+                  ],
                   if (n.note?.text != null) ...[
                     const SizedBox(height: 4),
                     Text(
