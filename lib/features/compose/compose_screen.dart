@@ -114,7 +114,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   bool _isPosting = false;
   bool _isUploadingMedia = false;
   bool _cwEnabled = false;
-  bool _isReplyToDirect = false;
   bool _showPreview = false;
   List<CustomEmojiModel> _emojiSuggestions = [];
   List<UserModel> _userSuggestions = [];
@@ -147,16 +146,10 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     _selectedAccount = ref.read(activeAccountProvider);
     // アカウント別のデフォルト公開範囲で初期化
     final accountId = _selectedAccount?.id ?? '';
-    _visibility =
-        widget.initialVisibility ??
-        ref.read(accountVisibilityProvider(accountId));
-
-    // 返信先がユーザー指定（specified）の場合は公開範囲を強制して永続化しない
-    if (_replyToNote != null &&
-        _replyToNote!.visibility == AppConstants.visibilitySpecified) {
-      _visibility = AppConstants.visibilitySpecified;
-      _isReplyToDirect = true;
-    }
+    _visibility = _clampVisibility(
+      widget.initialVisibility ??
+          ref.read(accountVisibilityProvider(accountId)),
+    );
 
     if (widget.initialText != null) {
       _textController.text = widget.initialText!;
@@ -363,11 +356,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       _renoteToNote = renote;
       if (reply == null) _replyId = null;
       if (renote == null) _renoteId = null;
-      if (reply != null &&
-          reply.visibility == AppConstants.visibilitySpecified) {
-        _isReplyToDirect = true;
-        _visibility = AppConstants.visibilitySpecified;
-      }
+      _visibility = _clampVisibility(_visibility);
     });
 
     final lost = [
@@ -1334,6 +1323,38 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     }
   }
 
+  /// 公開範囲を広い順に並べたもの。返信時の制限判定で順序を使う。
+  static const _visibilitiesWideToNarrow = [
+    AppConstants.visibilityPublic,
+    AppConstants.visibilityHome,
+    AppConstants.visibilityFollowers,
+    AppConstants.visibilitySpecified,
+  ];
+
+  /// 返信先より広い公開範囲は選択肢から外す。
+  /// サーバー（2026.7.0以降）は返信先より広い範囲を指定されるとエラーにせず
+  /// 黙って返信先の範囲まで狭めるため、選択肢に残すと画面で選んだ範囲と
+  /// 実際に投稿された範囲が食い違う。2026.6.0以前のサーバーでは
+  /// フォロワー限定への返信をホームで出せたが、意図と異なる範囲で出るより
+  /// 安全側に倒している。
+  List<String> get _allowedVisibilities {
+    final reply = _replyToNote;
+    if (reply == null) return _visibilitiesWideToNarrow;
+    final index = _visibilitiesWideToNarrow.indexOf(reply.visibility);
+    // 未知の公開範囲はサーバー側の挙動が読めないため制限しない
+    if (index <= 0) return _visibilitiesWideToNarrow;
+    return _visibilitiesWideToNarrow.sublist(index);
+  }
+
+  bool get _isVisibilityRestrictedByReply =>
+      _allowedVisibilities.length < _visibilitiesWideToNarrow.length;
+
+  String _clampVisibility(String visibility) {
+    if (!_isVisibilityRestrictedByReply) return visibility;
+    final allowed = _allowedVisibilities;
+    return allowed.contains(visibility) ? visibility : allowed.first;
+  }
+
   void _showVisibilityPicker() {
     showModalBottomSheet(
       context: context,
@@ -1350,33 +1371,28 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
             ),
-            ...(_isReplyToDirect
-                    ? AppConstants.visibilityLabels.entries.where(
-                        (entry) =>
-                            entry.key == AppConstants.visibilitySpecified,
-                      )
-                    : AppConstants.visibilityLabels.entries)
-                .map(
-                  (e) => ListTile(
-                    leading: Icon(visibilityIcon(e.key)),
-                    title: Text(e.value),
-                    trailing: _visibility == e.key
-                        ? const Icon(Icons.check, color: Colors.green)
-                        : null,
-                    onTap: () {
-                      setState(() => _visibility = e.key);
-                      // 返信先がユーザー指定の場合は変更を永続化しない
-                      if (!_isReplyToDirect) {
-                        final accountId =
-                            ref.read(activeAccountProvider)?.id ?? '';
-                        ref
-                            .read(accountVisibilityProvider(accountId).notifier)
-                            .setVisibility(e.key);
-                      }
-                      Navigator.pop(context);
-                    },
-                  ),
-                ),
+            ..._allowedVisibilities.map(
+              (v) => ListTile(
+                leading: Icon(visibilityIcon(v)),
+                title: Text(AppConstants.visibilityLabels[v]!),
+                trailing: _visibility == v
+                    ? const Icon(Icons.check, color: Colors.green)
+                    : null,
+                onTap: () {
+                  setState(() => _visibility = v);
+                  // 返信先に縛られた選択をデフォルトとして保存すると、
+                  // 以降の通常投稿まで狭い範囲になってしまうため永続化しない
+                  if (!_isVisibilityRestrictedByReply) {
+                    final accountId =
+                        ref.read(activeAccountProvider)?.id ?? '';
+                    ref
+                        .read(accountVisibilityProvider(accountId).notifier)
+                        .setVisibility(v);
+                  }
+                  Navigator.pop(context);
+                },
+              ),
+            ),
           ],
         ),
       ),
@@ -1416,10 +1432,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                   );
                   setState(() {
                     _selectedAccount = a;
-                    // 返信先がユーザー指定の場合は公開範囲を強制（永続化しない）
-                    _visibility = _isReplyToDirect
-                        ? AppConstants.visibilitySpecified
-                        : newVisibility;
+                    _visibility = _clampVisibility(newVisibility);
                   });
                   Navigator.pop(context);
                 },
