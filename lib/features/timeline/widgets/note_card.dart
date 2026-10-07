@@ -386,12 +386,10 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
         children: [
           Row(
             children: [
-              Text('リアクション:', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(width: 8),
               _ReactionEmojiImage(
                 reactionKey: reactionKey,
                 emojiResolver: emojiResolver,
-                size: 22,
+                size: 64,
                 fallbackStyle: Theme.of(context).textTheme.titleMedium,
               ),
             ],
