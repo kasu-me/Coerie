@@ -182,3 +182,36 @@ class FavoriteModel {
     );
   }
 }
+
+/// `users/reactions` の戻り値のラッパー（`{ id, createdAt, user, type, note }`）。
+///
+/// **ページングのカーソルには [NoteModel.id] ではなく、リアクションレコードの
+/// [id] を使うこと。** 理由は [FavoriteModel] と同じで、ノートの ID を渡すと
+/// 投稿日時を基準に切った別の窓が返り、2ページ目以降で重複・欠落が静かに起きる。
+class NoteReactionModel {
+  final String id;
+
+  /// リアクションのキー（Unicode 絵文字、または `:name@.:` / `:name@host:`）
+  final String type;
+  final NoteModel note;
+
+  const NoteReactionModel({
+    required this.id,
+    required this.type,
+    required this.note,
+  });
+
+  factory NoteReactionModel.fromJson(
+    Map<String, dynamic> json, {
+    String host = '',
+  }) {
+    return NoteReactionModel(
+      id: json['id'] as String,
+      type: json['type'] as String,
+      note: NoteModel.fromJson(
+        json['note'] as Map<String, dynamic>,
+        host: host,
+      ),
+    );
+  }
+}

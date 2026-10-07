@@ -46,6 +46,10 @@ import '../../../shared/widgets/user_name_text.dart';
 
 // ---- NoteCard ----
 
+/// [NoteCard.reactedBy] の型。[reaction] はリアクションのキー
+/// （Unicode 絵文字、または `:name@.:` / `:name@host:`）。
+typedef NoteReactedBy = ({UserModel user, String reaction});
+
 /// ノート1件を表示する。
 ///
 /// 引用なしリノートはラッパーではなく中身のノートを描画するため、
@@ -56,6 +60,10 @@ class NoteCard extends ConsumerWidget {
   final NoteModel note;
   final bool navigatable;
   final UserModel? pinnedByUser;
+
+  /// 「〇〇 がリアクション」ヘッダーに出すユーザーとリアクションのキー。
+  /// プロフィールのリアクション一覧で使う。
+  final NoteReactedBy? reactedBy;
   final VoidCallback? onPinnedChanged;
   final VoidCallback? onUnfavorited;
   final Widget? trailing;
@@ -64,6 +72,7 @@ class NoteCard extends ConsumerWidget {
     required this.note,
     this.navigatable = true,
     this.pinnedByUser,
+    this.reactedBy,
     this.onPinnedChanged,
     this.onUnfavorited,
     this.trailing,
@@ -82,6 +91,7 @@ class NoteCard extends ConsumerWidget {
         isMyRenote: activeAccount?.userId == note.user.id,
         renoteWrapperNoteId: note.id,
         renoteVisibility: note.visibility,
+        reactedBy: reactedBy,
       );
     }
 
@@ -89,6 +99,7 @@ class NoteCard extends ConsumerWidget {
       note: note,
       navigatable: navigatable,
       pinnedByUser: pinnedByUser,
+      reactedBy: reactedBy,
       onPinnedChanged: onPinnedChanged,
       onUnfavorited: onUnfavorited,
       trailing: trailing,
@@ -104,6 +115,7 @@ class _NoteCardBody extends ConsumerStatefulWidget {
   final String? renoteWrapperNoteId;
   final String? renoteVisibility;
   final UserModel? pinnedByUser;
+  final NoteReactedBy? reactedBy;
   final VoidCallback? onPinnedChanged;
   final VoidCallback? onUnfavorited;
   final Widget? trailing;
@@ -115,6 +127,7 @@ class _NoteCardBody extends ConsumerStatefulWidget {
     this.renoteWrapperNoteId,
     this.renoteVisibility,
     this.pinnedByUser,
+    this.reactedBy,
     this.onPinnedChanged,
     this.onUnfavorited,
     this.trailing,
@@ -449,7 +462,8 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
           12,
           widget.renoteUser != null ||
                   note.reply != null ||
-                  widget.pinnedByUser != null
+                  widget.pinnedByUser != null ||
+                  widget.reactedBy != null
               ? 4
               : 12,
           12,
@@ -478,6 +492,37 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                           color: theme.colorScheme.secondary,
                         ),
                       ),
+                    ),
+                  ],
+                ),
+              ),
+            // リアクションヘッダー
+            if (widget.reactedBy case final reactedBy?)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.add_reaction_outlined,
+                      size: 14,
+                      color: theme.colorScheme.secondary,
+                    ),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: UserNameText(
+                        reactedBy.user,
+                        suffix: ' がリアクション',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.secondary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    _ReactionEmojiImage(
+                      reactionKey: reactedBy.reaction,
+                      emojiResolver: emojiResolver,
+                      size: 16,
+                      fallbackStyle: theme.textTheme.bodySmall,
                     ),
                   ],
                 ),

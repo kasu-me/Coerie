@@ -352,6 +352,28 @@ class MisskeyApi {
     );
   }
 
+  /// 指定ユーザーがリアクションしたノートの一覧を取得する（users/reactions）
+  ///
+  /// [untilId] には [NoteReactionModel.id]（リアクションレコードのID）を渡すこと。
+  /// 自分以外のユーザーは、本人がリアクション一覧を公開しているローカルユーザー
+  /// でなければサーバーがエラー（REACTIONS_NOT_PUBLIC / IS_REMOTE_USER）を返す。
+  ///
+  /// サーバーは [limit] 件取得した後でブロック・ミュート関係のノートを除外する
+  /// ため、続きがあっても [limit] 件未満で返ることがある。
+  Future<List<NoteReactionModel>> getUserReactions({
+    required String userId,
+    int limit = 20,
+    String? untilId,
+  }) async {
+    final params = <String, dynamic>{'userId': userId, 'limit': limit};
+    if (untilId != null) params['untilId'] = untilId;
+    return _postList(
+      'users/reactions',
+      (j) => NoteReactionModel.fromJson(j, host: host),
+      params,
+    );
+  }
+
   Future<List<NoteModel>> getUserPinnedNotes(String userId) async {
     final user = await getUser(userId);
     if (user.pinnedNoteIds.isEmpty) return [];

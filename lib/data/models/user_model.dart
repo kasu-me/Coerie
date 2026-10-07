@@ -19,6 +19,11 @@ class UserModel {
   final bool isMuted;
   final bool isLocked;
 
+  /// リアクション一覧（`users/reactions`）を他人に公開しているか。
+  /// `users/show` などの詳細版レスポンスにしか含まれないため、
+  /// ノートに埋め込まれたユーザー等では常に false になる。
+  final bool publicReactions;
+
   /// 名前・自己紹介・フィールドに使われているカスタム絵文字の name→url マップ（Misskey API の emojis フィールド）。
   /// リモートユーザーの絵文字は接続先インスタンスの絵文字一覧で引けないため、これで解決する。
   final Map<String, String> emojis;
@@ -41,6 +46,7 @@ class UserModel {
     this.isBlocking = false,
     this.isMuted = false,
     this.isLocked = false,
+    this.publicReactions = false,
     this.emojis = const {},
   });
 
@@ -73,6 +79,7 @@ class UserModel {
       isBlocking: json['isBlocking'] as bool? ?? false,
       isMuted: json['isMuted'] as bool? ?? false,
       isLocked: json['isLocked'] as bool? ?? false,
+      publicReactions: json['publicReactions'] as bool? ?? false,
       emojis: parseEmojiMap(json['emojis']),
     );
   }
@@ -95,6 +102,7 @@ class UserModel {
     bool? isBlocking,
     bool? isMuted,
     bool? isLocked,
+    bool? publicReactions,
     Map<String, String>? emojis,
   }) {
     return UserModel(
@@ -115,6 +123,7 @@ class UserModel {
       isBlocking: isBlocking ?? this.isBlocking,
       isMuted: isMuted ?? this.isMuted,
       isLocked: isLocked ?? this.isLocked,
+      publicReactions: publicReactions ?? this.publicReactions,
       emojis: emojis ?? this.emojis,
     );
   }

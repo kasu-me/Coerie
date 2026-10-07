@@ -124,6 +124,52 @@ _NotesProviderKey _notesKeyForTab(String userId, int tabIndex) =>
       _ => (userId: userId, withFiles: false, withReplies: false),
     };
 
+// ---- リアクション一覧 ----
+class _ProfileReactionsNotifier extends PagedNotifier<NoteReactionModel> {
+  final Ref _ref;
+  final String userId;
+
+  _ProfileReactionsNotifier(this._ref, this.userId) {
+    fetch();
+  }
+
+  /// カーソルはノートIDではなくリアクションレコードのID。
+  /// 取り違えるとページングが壊れる（[NoteReactionModel] のコメント参照）。
+  @override
+  String cursorOf(NoteReactionModel item) => item.id;
+
+  @override
+  List<NoteReactionModel> mergeItems(List<NoteReactionModel> fetched) {
+    final filter = _ref.read(wordMuteFilterProvider);
+    if (filter.isEmpty) return fetched;
+    return fetched.where((r) => !filter.isMuted(r.note)).toList();
+  }
+
+  /// サーバーが件数で切った後にブロック・ミュート関係のノートを除外するため、
+  /// ページサイズ未満でも続きがあり得る。0件が返るまで読み進める。
+  @override
+  bool hasMoreAfter(List<NoteReactionModel> fetched) => fetched.isNotEmpty;
+
+  @override
+  Future<List<NoteReactionModel>> fetchPage({String? untilId}) async {
+    final api = _ref.read(misskeyApiProvider);
+    if (api == null) return const [];
+    return api.getUserReactions(
+      userId: userId,
+      limit: pageSize,
+      untilId: untilId,
+    );
+  }
+}
+
+final _profileReactionsProvider = StateNotifierProvider.autoDispose
+    .family<_ProfileReactionsNotifier, PagedState<NoteReactionModel>, String>(
+      (ref, userId) => _ProfileReactionsNotifier(ref, userId),
+    );
+
+/// リアクションタブの index（表示する場合は常に末尾）
+const _reactionsTabIndex = 3;
+
 // ---- フォロー/フォロワー リスト ----
 class _FollowListNotifier extends PagedNotifier<FollowingModel> {
   final Ref _ref;
@@ -244,6 +290,15 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
   /// 呼ばれるため、実際に切り替わったかの判定に使う。
   int _currentTab = 0;
 
+  /// リアクションタブを出すか。
+  ///
+  /// 他人のリアクション一覧は、本人が公開しているローカルユーザーの分しか
+  /// サーバーが返さない（リモートユーザーは公開設定に関わらずエラー）ため、
+  /// 開いてもエラーになるだけのタブは出さない。
+  /// TabController の length は途中で変えられないので initState で確定させる。
+  /// プロフィール再読込で公開設定が変わっても、画面を開き直すまで反映しない。
+  late final bool _showReactionsTab;
+
   late bool _isBlocking;
   late bool _isMuted;
   late bool _isFollowed;
@@ -252,8 +307,15 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this)
-      ..addListener(_onTabChanged);
+    final isOwnProfile =
+        ref.read(activeAccountProvider)?.userId == widget.userId;
+    final isLocalUser = widget.user.host == ref.read(misskeyApiProvider)?.host;
+    _showReactionsTab =
+        isOwnProfile || (isLocalUser && widget.user.publicReactions);
+    _tabController = TabController(
+      length: _showReactionsTab ? 4 : 3,
+      vsync: this,
+    )..addListener(_onTabChanged);
     _isBlocking = widget.user.isBlocking;
     _isMuted = widget.user.isMuted;
     _isFollowed = widget.user.isFollowed;
@@ -331,14 +393,18 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
     // 対応する投稿を失って意味をなさなくなる。
     _tabContentOffsets.clear();
     await Future.wait([
-      for (final i in _activatedTabs)
-        ref
-            .read(
-              _profileNotesProvider(_notesKeyForTab(widget.userId, i)).notifier,
-            )
-            .refresh(),
+      for (final i in _activatedTabs) _pagedNotifierForTab(i).refresh(),
     ]);
   }
+
+  PagedNotifier<Object> _pagedNotifierForTab(int tabIndex) =>
+      tabIndex == _reactionsTabIndex
+      ? ref.read(_profileReactionsProvider(widget.userId).notifier)
+      : ref.read(
+          _profileNotesProvider(
+            _notesKeyForTab(widget.userId, tabIndex),
+          ).notifier,
+        );
 
   Future<void> _toggleMute() async {
     final api = ref.read(misskeyApiProvider);
@@ -457,15 +523,15 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
 
     final theme = Theme.of(context);
     final tabIndex = _currentTab;
-    final notesState = ref.watch(
-      _profileNotesProvider(_notesKeyForTab(widget.userId, tabIndex)),
-    );
     // 表示していないタブも watch し続けて autoDispose を抑止する。
     // 破棄させるとタブを戻すたびに1ページ目から再取得となり、読み込み中の
     // プレースホルダー表示まで一覧が縮んでスクロール位置を保てなくなる。
     for (final i in _activatedTabs) {
-      if (i == tabIndex) continue;
-      ref.watch(_profileNotesProvider(_notesKeyForTab(widget.userId, i)));
+      if (i == _reactionsTabIndex) {
+        ref.watch(_profileReactionsProvider(widget.userId));
+      } else {
+        ref.watch(_profileNotesProvider(_notesKeyForTab(widget.userId, i)));
+      }
     }
     final pinnedAsync = ref.watch(pinnedNotesProvider(widget.userId));
     // ナビゲーションバーと投稿が重ならないよう、最下部に確保する余白
@@ -487,10 +553,16 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
 
     final tabBar = TabBar(
       controller: _tabController,
-      tabs: const [
-        Tab(text: '投稿'),
-        Tab(text: '投稿と返信'),
-        Tab(text: 'メディア'),
+      // 4タブを等幅で並べると、一般的なスマートフォンの幅では「リアクション」が
+      // 1タブの幅に収まらず末尾がフェードで切れる。スクロール可能にして各タブを
+      // ラベル幅にし、画面に収まる場合は中央に寄せる。
+      isScrollable: _showReactionsTab,
+      tabAlignment: _showReactionsTab ? TabAlignment.center : null,
+      tabs: [
+        const Tab(text: '投稿'),
+        const Tab(text: '投稿と返信'),
+        const Tab(text: 'メディア'),
+        if (_showReactionsTab) const Tab(text: 'リアクション'),
       ],
     );
 
@@ -524,13 +596,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
               if (n is ScrollUpdateNotification &&
                   n.metrics.axis == Axis.vertical &&
                   n.metrics.pixels >= n.metrics.maxScrollExtent - 300) {
-                ref
-                    .read(
-                      _profileNotesProvider(
-                        _notesKeyForTab(widget.userId, _currentTab),
-                      ).notifier,
-                    )
-                    .fetch(loadMore: true);
+                _pagedNotifierForTab(_currentTab).fetch(loadMore: true);
               }
               return false;
             },
@@ -1154,19 +1220,30 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                   ),
                 ),
                 // タブ内容
-                ..._buildNotesSlivers(
-                  notesState,
-                  switch (tabIndex) {
-                    1 => '投稿・返信がありません',
-                    2 => 'メディア付きの投稿がありません',
-                    _ => '投稿がありません',
-                  },
-                  pinnedNotes: tabIndex == 0
-                      ? (pinnedAsync.valueOrNull ?? [])
-                      : const [],
-                  bottomInset: bottomInset,
-                  placeholderHeight: placeholderHeight,
-                ),
+                if (tabIndex == _reactionsTabIndex)
+                  ..._buildReactionsSlivers(
+                    bottomInset: bottomInset,
+                    placeholderHeight: placeholderHeight,
+                  )
+                else
+                  ..._buildPagedSlivers(
+                    ref.watch(
+                      _profileNotesProvider(
+                        _notesKeyForTab(widget.userId, tabIndex),
+                      ),
+                    ),
+                    switch (tabIndex) {
+                      1 => '投稿・返信がありません',
+                      2 => 'メディア付きの投稿がありません',
+                      _ => '投稿がありません',
+                    },
+                    itemBuilder: (note) => NoteCard(note: note),
+                    pinnedNotes: tabIndex == 0
+                        ? (pinnedAsync.valueOrNull ?? [])
+                        : const [],
+                    bottomInset: bottomInset,
+                    placeholderHeight: placeholderHeight,
+                  ),
               ],
             ),
           ),
@@ -1239,9 +1316,28 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
     );
   }
 
-  List<Widget> _buildNotesSlivers(
-    PagedState<NoteModel> state,
+  List<Widget> _buildReactionsSlivers({
+    required double placeholderHeight,
+    double bottomInset = 0,
+  }) {
+    final state = ref.watch(_profileReactionsProvider(widget.userId));
+    return _buildPagedSlivers(
+      state,
+      // 投稿タブと違い、公開設定の変更などで取得自体が失敗し得るので理由を出す
+      state.error ?? 'リアクションした投稿がありません',
+      itemBuilder: (reaction) => NoteCard(
+        note: reaction.note,
+        reactedBy: (user: widget.user, reaction: reaction.type),
+      ),
+      placeholderHeight: placeholderHeight,
+      bottomInset: bottomInset,
+    );
+  }
+
+  List<Widget> _buildPagedSlivers<T>(
+    PagedState<T> state,
     String emptyMessage, {
+    required Widget Function(T item) itemBuilder,
     required double placeholderHeight,
     List<NoteModel> pinnedNotes = const [],
     double bottomInset = 0,
@@ -1289,7 +1385,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                     )
                   : const SizedBox.shrink();
             }
-            return NoteCard(note: state.items[i]);
+            return itemBuilder(state.items[i]);
           }, childCount: state.items.length + (state.hasMore ? 1 : 0)),
         ),
       // ナビゲーションバー・FAB と最後の投稿が重ならないようにする余白

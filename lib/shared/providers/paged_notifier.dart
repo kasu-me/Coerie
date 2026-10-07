@@ -56,6 +56,12 @@ abstract class PagedNotifier<T> extends StateNotifier<PagedState<T>> {
   /// 取得した [fetched] を state に載せる前に加工する。既定では素通し。
   List<T> mergeItems(List<T> fetched) => fetched;
 
+  /// [fetched]（[mergeItems] で加工する前の取得結果）の後に続きがありそうか。
+  ///
+  /// サーバーが件数で切った後に要素を間引くエンドポイントでは、続きがあっても
+  /// ページサイズ未満で返るため、0件になるまで続きありとみなすよう上書きする。
+  bool hasMoreAfter(List<T> fetched) => fetched.length >= pageSize;
+
   /// リクエスト世代。[refresh] のたびに増分する。
   ///
   /// [refresh] は state を作り直して `isLoading` を false に戻すため、
@@ -99,7 +105,7 @@ abstract class PagedNotifier<T> extends StateNotifier<PagedState<T>> {
       state = state.copyWith(
         isLoading: false,
         items: loadMore ? [...state.items, ...merged] : merged,
-        hasMore: fetched.length >= pageSize,
+        hasMore: hasMoreAfter(fetched),
       );
     } catch (e) {
       if (!_isCurrent(requestId)) return;
