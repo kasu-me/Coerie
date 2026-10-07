@@ -30,6 +30,8 @@ import '../../../shared/providers/custom_emoji_provider.dart';
 import '../../../shared/utils/emoji_utils.dart';
 import '../../../shared/utils/mention_navigation.dart';
 import '../ogp_provider.dart';
+import '../cw_expand_provider.dart';
+import '../sensitive_reveal_provider.dart';
 import '../timeline_provider.dart';
 import 'renote_visibility.dart';
 import 'renote_with_other_account_sheet.dart';
@@ -125,7 +127,6 @@ class _NoteCardBody extends ConsumerStatefulWidget {
 class _NoteCardState extends ConsumerState<_NoteCardBody> {
   late Map<String, int> _localReactions;
   String? _myReaction;
-  bool _cwExpanded = false;
   StreamSubscription<NoteUpdateEvent>? _noteUpdateSub;
   StreamSubscription<void>? _reconnectSub;
   // 購読時に取得した StreamingService をキャッシュする。
@@ -329,7 +330,6 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
     if (oldWidget.note.id != widget.note.id) {
       _localReactions = Map.from(widget.note.reactions);
       _myReaction = widget.note.myReaction;
-      _cwExpanded = false;
       _localPoll = widget.note.poll;
       // 購読し直し
       final streaming = ref.read(streamingServiceProvider);
@@ -386,10 +386,7 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
         children: [
           Row(
             children: [
-              Text(
-                'リアクション:',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+              Text('リアクション:', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(width: 8),
               _ReactionEmojiImage(
                 reactionKey: reactionKey,
@@ -425,6 +422,9 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
     final note = widget.note;
     final theme = Theme.of(context);
     final settings = ref.watch(settingsProvider);
+    final cwExpanded = ref.watch(
+      cwExpandProvider.select((ids) => ids.contains(note.id)),
+    );
     // インスタンスの絵文字マップとノート固有の絵文字を参照だけで束ねる。
     // マージした Map を作るとノート1枚の描画ごとに全カスタム絵文字を
     // 複製することになるため、リゾルバ経由で引く。
@@ -618,7 +618,8 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                 padding: const EdgeInsets.only(top: 8),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(6),
-                  onTap: () => setState(() => _cwExpanded = !_cwExpanded),
+                  onTap: () =>
+                      ref.read(cwExpandProvider.notifier).toggle(note.id),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -651,14 +652,14 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          _cwExpanded ? '折りたたむ' : '表示',
+                          cwExpanded ? '折りたたむ' : '表示',
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: theme.colorScheme.primary,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         Icon(
-                          _cwExpanded ? Icons.expand_less : Icons.expand_more,
+                          cwExpanded ? Icons.expand_less : Icons.expand_more,
                           size: 14,
                           color: theme.colorScheme.primary,
                         ),
@@ -669,7 +670,7 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
               ),
 
             // 本文（MFM レンダリング）
-            if (note.text != null && (note.cw == null || _cwExpanded))
+            if (note.text != null && (note.cw == null || cwExpanded))
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: settings.collapseNote
@@ -708,7 +709,7 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
               ),
 
             // OGPカード（本文にURLが含まれる場合）
-            if (note.text != null && (note.cw == null || _cwExpanded))
+            if (note.text != null && (note.cw == null || cwExpanded))
               Builder(
                 builder: (_) {
                   final url = MfmContent.extractFirstUrl(note.text!);
@@ -721,7 +722,7 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
               ),
 
             // 添付メディア（CWがある場合は展開時のみ表示）
-            if (note.files.isNotEmpty && (note.cw == null || _cwExpanded))
+            if (note.files.isNotEmpty && (note.cw == null || cwExpanded))
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: _MediaGrid(files: note.files),
@@ -1696,51 +1697,57 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-class _MediaGrid extends StatefulWidget {
+class _MediaGrid extends ConsumerWidget {
   final List<DriveFileModel> files;
 
   const _MediaGrid({required this.files});
 
-  @override
-  State<_MediaGrid> createState() => _MediaGridState();
-}
-
-class _MediaGridState extends State<_MediaGrid> {
-  final Set<int> _revealedSensitiveIndexes = {};
-
-  @override
-  void didUpdateWidget(_MediaGrid oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // ListView のウィジェット再利用で別ノートの添付に差し替わることがあるため、
-    // 添付ファイルが変わったら「表示」状態を持ち越さない
-    if (_revealedSensitiveIndexes.isNotEmpty &&
-        !_hasSameFiles(oldWidget.files, widget.files)) {
-      _revealedSensitiveIndexes.clear();
-    }
-  }
-
-  static bool _hasSameFiles(List<DriveFileModel> a, List<DriveFileModel> b) {
-    if (identical(a, b)) return true;
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i].id != b[i].id) return false;
-    }
-    return true;
-  }
-
   Widget _wrapSensitive({
+    required WidgetRef ref,
     required DriveFileModel file,
-    required int globalIndex,
+    required bool isRevealed,
     required Widget child,
   }) {
-    if (!file.isSensitive || _revealedSensitiveIndexes.contains(globalIndex)) {
-      return child;
+    if (!file.isSensitive) return child;
+    final notifier = ref.read(sensitiveRevealProvider.notifier);
+    if (isRevealed) {
+      return Stack(
+        fit: StackFit.passthrough,
+        children: [
+          child,
+          Positioned(
+            top: 6,
+            right: 6,
+            child: Tooltip(
+              message: 'ぼかす',
+              child: GestureDetector(
+                onTap: () => notifier.hide(file.id),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.visibility_off,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
     }
     // サイズは child に決めさせる。StackFit.expand だと動画のように
     // Column 直下（高さ無制限）で使われた際に h=Infinity が child へ伝播し、
     // レイアウト例外でタイムライン全体がスクロール不能になる。
     // loose ではなく passthrough なのは、グリッドのセル（tight 制約）内で
     // 画像が縮まずセル全体を埋めるようにするため。
+    // ぼかし面全体を opaque でタップ可能にしているのは、ぼかし面自体は
+    // ヒットテストされず、下の child（ビューア起動の GestureDetector）へ
+    // タップが素通りしてぼかしたまま開いてしまうのを防ぐため。
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: Stack(
@@ -1748,39 +1755,42 @@ class _MediaGridState extends State<_MediaGrid> {
         children: [
           child,
           Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(color: Colors.black.withValues(alpha: 0.3)),
-            ),
-          ),
-          Positioned.fill(
-            child: Center(
-              child: GestureDetector(
-                onTap: () =>
-                    setState(() => _revealedSensitiveIndexes.add(globalIndex)),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => notifier.reveal(file.id),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Icon(Icons.visibility_off, color: Colors.white, size: 16),
-                      SizedBox(width: 6),
-                      Text(
-                        'センシティブ',
-                        style: TextStyle(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  alignment: Alignment.center,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(
+                          Icons.visibility_off,
                           color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                          size: 16,
                         ),
-                      ),
-                    ],
+                        SizedBox(width: 6),
+                        Text(
+                          'センシティブ',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1792,9 +1802,9 @@ class _MediaGridState extends State<_MediaGrid> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final files = widget.files;
+  Widget build(BuildContext context, WidgetRef ref) {
     if (files.isEmpty) return const SizedBox.shrink();
+    final revealedIds = ref.watch(sensitiveRevealProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1802,11 +1812,7 @@ class _MediaGridState extends State<_MediaGrid> {
         // ── 画像グリッド ──
         Builder(
           builder: (_) {
-            final imageFiles = files
-                .asMap()
-                .entries
-                .where((e) => e.value.isImage)
-                .toList();
+            final imageFiles = files.where((f) => f.isImage).toList();
             if (imageFiles.isEmpty) return const SizedBox.shrink();
             final count = imageFiles.length.clamp(1, 4);
             return GridView.builder(
@@ -1821,38 +1827,30 @@ class _MediaGridState extends State<_MediaGrid> {
               ),
               itemCount: count,
               itemBuilder: (ctx, i) {
-                final entry = imageFiles[i];
-                final globalIdx = entry.key;
-                final file = entry.value;
-                final isRevealed = _revealedSensitiveIndexes.contains(
-                  globalIdx,
-                );
-                final imageWidget = ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: CachedNetworkImage(
-                    cacheManager: AppCacheManager(),
-                    imageUrl: file.thumbnailUrl ?? file.url,
-                    fit: BoxFit.cover,
-                  ),
-                );
-                if (file.isSensitive && !isRevealed) {
-                  return _wrapSensitive(
-                    file: file,
-                    globalIndex: globalIdx,
-                    child: imageWidget,
-                  );
-                }
-                return GestureDetector(
-                  onTap: () => Navigator.push(
-                    ctx,
-                    MaterialPageRoute<void>(
-                      builder: (_) => ImageViewerScreen(
-                        files: imageFiles.map((e) => e.value).toList(),
-                        initialIndex: i,
+                final file = imageFiles[i];
+                return _wrapSensitive(
+                  ref: ref,
+                  file: file,
+                  isRevealed: revealedIds.contains(file.id),
+                  child: GestureDetector(
+                    onTap: () => Navigator.push(
+                      ctx,
+                      MaterialPageRoute<void>(
+                        builder: (_) => ImageViewerScreen(
+                          files: imageFiles,
+                          initialIndex: i,
+                        ),
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CachedNetworkImage(
+                        cacheManager: AppCacheManager(),
+                        imageUrl: file.thumbnailUrl ?? file.url,
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ),
-                  child: imageWidget,
                 );
               },
             );
@@ -1860,14 +1858,13 @@ class _MediaGridState extends State<_MediaGrid> {
         ),
 
         // ── 動画 ──
-        ...files.asMap().entries.where((e) => e.value.isVideo).map((entry) {
-          final globalIdx = entry.key;
-          final f = entry.value;
+        ...files.where((f) => f.isVideo).map((f) {
           return Padding(
             padding: const EdgeInsets.only(top: 6),
             child: _wrapSensitive(
+              ref: ref,
               file: f,
-              globalIndex: globalIdx,
+              isRevealed: revealedIds.contains(f.id),
               child: GestureDetector(
                 onTap: () => Navigator.push(
                   context,
