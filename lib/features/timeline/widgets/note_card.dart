@@ -369,19 +369,36 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
       widget.note.id,
       reaction: reactionKey,
     );
+    // `@.`をリモート絵文字と同じく実ホスト名に置き換える。
+    // API にはローカル表記のまま渡す必要があるので、置換は表示用の文字列にだけ行う。
+    final host = ref.read(activeAccountProvider)?.host;
+    final displayKey = host != null && reactionKey.endsWith('@.:')
+        ? '${reactionKey.substring(0, reactionKey.length - 2)}$host:'
+        : reactionKey;
 
     await showUserListSheet(
       context,
-      title: Row(
+      // ホスト名を含むキーは長くなりやすく、1行に並べると閉じるボタンと衝突して
+      // はみ出すため、キーは2段目に分けて折り返せるようにしている。
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('リアクション:', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(width: 8),
-          _ReactionEmojiImage(
-            reactionKey: reactionKey,
-            emojiResolver: emojiResolver,
-            size: 22,
-            fallbackStyle: Theme.of(context).textTheme.titleMedium,
+          Row(
+            children: [
+              Text(
+                'リアクション:',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(width: 8),
+              _ReactionEmojiImage(
+                reactionKey: reactionKey,
+                emojiResolver: emojiResolver,
+                size: 22,
+                fallbackStyle: Theme.of(context).textTheme.titleMedium,
+              ),
+            ],
           ),
+          Text(displayKey, style: Theme.of(context).textTheme.titleSmall),
         ],
       ),
       usersFuture: usersFuture,
