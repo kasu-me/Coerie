@@ -27,10 +27,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   TabController? _tabController;
   int _tabCount = 0;
   int? _lastTabIndex;
+  // dispose 時は context から辿れないため、バナーを閉じる用に保持しておく
+  ScaffoldMessengerState? _messenger;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _messenger = ScaffoldMessenger.of(context);
     final accountId = ref.read(activeAccountProvider)?.id ?? '';
     final tabs = ref.read(accountTabsProvider(accountId));
     _syncTabController(tabs.length);
@@ -96,6 +99,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (tabs.length != _tabCount) {
       _syncTabController(tabs.length);
     }
+    // リアルタイム更新を OFF にした等で接続先が差し替わると、新しい
+    // サービスは初回接続成功時に connected を流さないため、旧サービスの
+    // serverDown バナーが閉じられずに残ってしまう。差し替え時点で閉じる。
+    ref.listen<StreamingService?>(streamingServiceProvider, (prev, next) {
+      if (prev != next) {
+        ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+      }
+    });
     // WebSocket 接続状態を監視：サーバーダウン時にバナー表示
     ref.listen<AsyncValue<StreamingStatus>>(streamingStatusProvider, (
       prev,
@@ -259,6 +270,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   void dispose() {
+    // アカウント切り替えでは routerProvider ごと作り直され、この画面は破棄される。
+    // バナーはアプリ共通の ScaffoldMessenger に残り続けるうえ、「再接続」ボタンは
+    // 破棄済みの ref を握っていて押しても何も起きないため、ここで閉じておく。
+    // 破棄処理中はツリーがロックされており、アクセシビリティ設定次第で
+    // hideCurrentMaterialBanner が同期的に setState するので次フレームへ逃がす。
+    final messenger = _messenger;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (messenger != null && messenger.mounted) {
+        messenger.hideCurrentMaterialBanner();
+      }
+    });
     _tabController?.dispose();
     super.dispose();
   }
