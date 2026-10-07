@@ -633,8 +633,10 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                         ),
                         const SizedBox(width: 6),
                         Expanded(
-                          child: Text(
-                            note.cw!,
+                          child: MfmContent(
+                            text: note.cw!,
+                            emojiResolver: emojiResolver,
+                            plain: true,
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
