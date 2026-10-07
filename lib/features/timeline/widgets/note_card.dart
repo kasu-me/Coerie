@@ -38,6 +38,7 @@ import '../../../shared/utils/visibility_utils.dart';
 import '../../../shared/widgets/user_list_sheet.dart';
 import '../../../shared/widgets/api_error_snack_bar.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
+import '../../../shared/widgets/custom_emoji_detail_sheet.dart';
 import '../../../shared/widgets/user_avatar.dart';
 import '../../../shared/widgets/user_name_text.dart';
 
@@ -432,6 +433,12 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
       noteEmojis: note.emojis,
       instanceEmojis: ref.watch(customEmojiUrlMapProvider),
     );
+    // 絵文字詳細は、ノート詳細画面で開いているノート（遷移しないカード）の
+    // 本文だけで出す仕様。引用ノート・CW・名前の絵文字は対象外。
+    final void Function(String, String)? onEmojiLongPress = widget.navigatable
+        ? null
+        : (name, url) =>
+              showCustomEmojiDetailSheet(context, name: name, url: url);
 
     // 投票の合計票数は選択肢ごとに変わらないため、ループの外で1度だけ求める
     final pollTotalVotes =
@@ -675,6 +682,7 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                           style: TextStyle(fontSize: settings.fontSize),
                           enableAnimations: settings.mfmAnimation,
                           onMentionTap: _onMentionTap,
+                          onEmojiLongPress: onEmojiLongPress,
                         ),
                       )
                     : MfmContent(
@@ -683,6 +691,7 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                         style: TextStyle(fontSize: settings.fontSize),
                         enableAnimations: settings.mfmAnimation,
                         onMentionTap: _onMentionTap,
+                        onEmojiLongPress: onEmojiLongPress,
                       ),
               ),
 

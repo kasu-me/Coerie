@@ -84,6 +84,9 @@ class MfmContent extends StatefulWidget {
   final bool enableAnimations;
   final void Function(String username, String? host)? onMentionTap;
 
+  /// カスタム絵文字の長押し時に呼ばれる。画像URLが解決できた絵文字だけが対象。
+  final void Function(String name, String url)? onEmojiLongPress;
+
   /// テキスト・絵文字だけを解釈する簡易モード（ユーザー名などの表示用）。
   ///
   /// Misskey Web 版の名前表示（`<Mfm :plain="true">`）と同じく、太字や
@@ -104,6 +107,7 @@ class MfmContent extends StatefulWidget {
     this.style,
     this.enableAnimations = false,
     this.onMentionTap,
+    this.onEmojiLongPress,
     this.plain = false,
     this.maxLines,
     this.overflow,
@@ -538,22 +542,30 @@ class _MfmContentState extends State<MfmContent> {
       final url = widget.emojiResolver.resolve(node.name);
       final emojiSize = style.fontSize ?? 20.0;
       if (url != null) {
+        Widget image = CachedNetworkImage(
+          cacheManager: AppCacheManager(),
+          imageUrl: url,
+          height: emojiSize,
+          fit: BoxFit.fitHeight,
+          alignment: Alignment.centerLeft,
+          fadeInDuration: Duration.zero,
+          placeholder: (_, _) =>
+              SizedBox(height: emojiSize, width: emojiSize * 0.9),
+          errorWidget: (_, _, _) => Text(':${node.name}:', style: style),
+        );
+        final onLongPress = widget.onEmojiLongPress;
+        if (onLongPress != null) {
+          image = GestureDetector(
+            onLongPress: () => onLongPress(node.name, url),
+            child: image,
+          );
+        }
         return [
           WidgetSpan(
             alignment: PlaceholderAlignment.middle,
             child: Transform.translate(
               offset: Offset(0, emojiSize * MfmContent._emojiOffsetSizeY),
-              child: CachedNetworkImage(
-                cacheManager: AppCacheManager(),
-                imageUrl: url,
-                height: emojiSize,
-                fit: BoxFit.fitHeight,
-                alignment: Alignment.centerLeft,
-                fadeInDuration: Duration.zero,
-                placeholder: (_, _) =>
-                    SizedBox(height: emojiSize, width: emojiSize * 0.9),
-                errorWidget: (_, _, _) => Text(':${node.name}:', style: style),
-              ),
+              child: image,
             ),
           ),
         ];
