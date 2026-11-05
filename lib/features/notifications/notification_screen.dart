@@ -16,6 +16,7 @@ import '../../shared/providers/notifications_tab_visibility_provider.dart';
 import '../../shared/providers/misskey_api_provider.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../../shared/utils/emoji_utils.dart';
+import '../../shared/widgets/reaction_image.dart';
 import '../../shared/widgets/scroll_to_top_fab.dart';
 import '../../shared/utils/format_utils.dart';
 import '../../shared/widgets/user_avatar.dart';
@@ -388,13 +389,10 @@ class _NotificationTile extends ConsumerWidget {
                               alignment: PlaceholderAlignment.middle,
                               child: Padding(
                                 padding: const EdgeInsets.only(left: 6),
-                                child: CachedNetworkImage(
-                                  cacheManager: AppCacheManager(),
+                                child: ReactionImage(
                                   imageUrl: imageUrl,
-                                  height: 16,
-                                  width: 16,
-                                  fit: BoxFit.contain,
-                                  errorWidget: (_, _, _) => Text(
+                                  size: 16,
+                                  fallback: Text(
                                     ' $reactionKey',
                                     style: const TextStyle(fontSize: 15),
                                   ),
@@ -410,13 +408,10 @@ class _NotificationTile extends ConsumerWidget {
                               alignment: PlaceholderAlignment.middle,
                               child: Padding(
                                 padding: const EdgeInsets.only(left: 6),
-                                child: CachedNetworkImage(
-                                  cacheManager: AppCacheManager(),
+                                child: ReactionImage(
                                   imageUrl: url,
-                                  height: 16,
-                                  width: 16,
-                                  fit: BoxFit.contain,
-                                  errorWidget: (_, _, _) => Text(
+                                  size: 16,
+                                  fallback: Text(
                                     ' $reactionKey',
                                     style: const TextStyle(fontSize: 15),
                                   ),

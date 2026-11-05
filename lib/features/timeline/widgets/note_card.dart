@@ -23,6 +23,7 @@ import '../../../shared/providers/settings_provider.dart';
 import 'package:coerie/features/profile/pinned_notes_provider.dart';
 import '../../../core/streaming/streaming_service.dart';
 import '../../../shared/widgets/mfm_content.dart';
+import '../../../shared/widgets/reaction_image.dart';
 import '../../../shared/widgets/report_abuse_sheet.dart';
 import '../../../core/router/app_router.dart';
 import '../../compose/emoji_picker_sheet.dart';
@@ -399,11 +400,13 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
         children: [
           Row(
             children: [
-              _ReactionEmojiImage(
-                reactionKey: reactionKey,
-                emojiResolver: emojiResolver,
-                size: 64,
-                fallbackStyle: Theme.of(context).textTheme.titleMedium,
+              Flexible(
+                child: _ReactionEmojiImage(
+                  reactionKey: reactionKey,
+                  emojiResolver: emojiResolver,
+                  size: 64,
+                  fallbackStyle: Theme.of(context).textTheme.titleMedium,
+                ),
               ),
             ],
           ),
@@ -518,11 +521,16 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    _ReactionEmojiImage(
-                      reactionKey: reactedBy.reaction,
-                      emojiResolver: emojiResolver,
-                      size: 16,
-                      fallbackStyle: theme.textTheme.bodySmall,
+                    // 絵文字も Flexible にすると、絵文字が小さくても名前の幅が
+                    // 行の半分までに制限されるため、固定の上限で名前の幅を確保する。
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 120),
+                      child: _ReactionEmojiImage(
+                        reactionKey: reactedBy.reaction,
+                        emojiResolver: emojiResolver,
+                        size: 16,
+                        fallbackStyle: theme.textTheme.bodySmall,
+                      ),
                     ),
                   ],
                 ),
@@ -1033,13 +1041,15 @@ class _ReactionChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Opacity(
-            opacity: isRemote ? 0.5 : 1.0,
-            child: _ReactionEmojiImage(
-              reactionKey: reactionKey,
-              emojiResolver: emojiResolver,
-              size: 18,
-              fallbackStyle: const TextStyle(fontSize: 14),
+          Flexible(
+            child: Opacity(
+              opacity: isRemote ? 0.5 : 1.0,
+              child: _ReactionEmojiImage(
+                reactionKey: reactionKey,
+                emojiResolver: emojiResolver,
+                size: 18,
+                fallbackStyle: const TextStyle(fontSize: 14),
+              ),
             ),
           ),
           const SizedBox(width: 3),
@@ -1091,13 +1101,10 @@ class _ReactionEmojiImage extends StatelessWidget {
         ? emojiResolver.resolve(inner)
         : null; // カスタム絵文字でなければ Unicode 絵文字として扱う
 
-    return CachedNetworkImage(
-      cacheManager: AppCacheManager(),
+    return ReactionImage(
       imageUrl: imageUrl ?? twemojiUrl(reactionKey),
-      height: size,
-      width: size,
-      fit: BoxFit.contain,
-      errorWidget: (_, _, _) => Text(reactionKey, style: fallbackStyle),
+      size: size,
+      fallback: Text(reactionKey, style: fallbackStyle),
     );
   }
 }
