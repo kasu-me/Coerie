@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -100,12 +99,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _importFromFile() async {
-    FilePickerResult? result;
+    PlatformFile? picked;
     try {
-      result = await FilePicker.platform.pickFiles(
+      picked = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['json'],
-        withData: true,
       );
     } catch (e) {
       if (mounted) {
@@ -116,19 +114,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    if (result == null || result.files.isEmpty) return;
+    if (picked == null) return;
 
-    final bytes = result.files.first.bytes;
-    final path = result.files.first.path;
     String jsonStr;
     try {
-      if (bytes != null) {
-        jsonStr = utf8.decode(bytes);
-      } else if (path != null) {
-        jsonStr = await File(path).readAsString();
-      } else {
-        throw const AppException('ファイルを読み込めませんでした');
-      }
+      jsonStr = utf8.decode(await picked.readAsBytes());
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

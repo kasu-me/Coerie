@@ -501,9 +501,9 @@ class _DriveScreenState extends ConsumerState<DriveScreen>
   }
 
   Future<void> _pickAndUploadFile() async {
-    final result = await FilePicker.platform.pickFiles();
-    if (result == null || result.files.isEmpty) return;
-    final path = result.files.single.path;
+    final picked = await FilePicker.pickFile();
+    if (picked == null) return;
+    final path = picked.path;
     if (path == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -516,8 +516,7 @@ class _DriveScreenState extends ConsumerState<DriveScreen>
     try {
       setState(() => _isUploading = true);
       final file = File(path);
-      final name = result.files.single.name;
-      await api.uploadFile(file, name: name, folderId: _currentFolderId);
+      await api.uploadFile(file, name: picked.name, folderId: _currentFolderId);
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,

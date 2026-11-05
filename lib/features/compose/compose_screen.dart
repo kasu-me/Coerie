@@ -594,24 +594,19 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     }
 
     if (source == _MediaSource.audio) {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.audio,
-        allowMultiple: true,
-      );
-      if (result != null && result.files.isNotEmpty) {
-        final selected = result.files
-            .where((pf) => pf.path != null)
-            .take(remaining)
-            .map((pf) => _LocalMedia(XFile(pf.path!)))
-            .toList();
-        if (selected.isNotEmpty) {
-          setState(() {
-            for (final m in selected) {
-              _applyDefaultCompression(m);
-            }
-            _attachedMedia.addAll(selected);
-          });
-        }
+      final result = await FilePicker.pickFiles(type: FileType.audio);
+      final selected = result
+          .where((pf) => pf.path != null)
+          .take(remaining)
+          .map((pf) => _LocalMedia(XFile(pf.path!)))
+          .toList();
+      if (selected.isNotEmpty) {
+        setState(() {
+          for (final m in selected) {
+            _applyDefaultCompression(m);
+          }
+          _attachedMedia.addAll(selected);
+        });
       }
       return;
     }

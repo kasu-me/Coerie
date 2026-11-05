@@ -99,6 +99,7 @@ String apiErrorMessage(
     case DioExceptionType.connectionTimeout:
     case DioExceptionType.sendTimeout:
     case DioExceptionType.receiveTimeout:
+    case DioExceptionType.transformTimeout:
       return 'サーバーの応答がありません。時間をおいて再試行してください';
     case DioExceptionType.connectionError:
       return _networkMessage;

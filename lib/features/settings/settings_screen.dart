@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -253,20 +252,19 @@ class SettingsScreen extends ConsumerWidget {
     final jsonBytes = Uint8List.fromList(utf8.encode(jsonStr));
 
     try {
-      final savePath = await FilePicker.platform.saveFile(
+      final savedUri = await FilePicker.saveFile(
         dialogTitle: '設定のエクスポート先を選択',
         fileName: defaultName,
-        type: FileType.custom,
-        allowedExtensions: ['json'],
+        mimeType: 'application/json',
         bytes: jsonBytes,
       );
 
-      if (savePath == null) return;
+      if (savedUri == null) return;
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('保存しました: $savePath'),
+            content: Text('保存しました: ${Uri.decodeFull(savedUri.path)}'),
             duration: const Duration(seconds: 4),
           ),
         );
@@ -302,20 +300,19 @@ class SettingsScreen extends ConsumerWidget {
     final jsonBytes = Uint8List.fromList(utf8.encode(jsonStr));
 
     try {
-      final savePath = await FilePicker.platform.saveFile(
+      final savedUri = await FilePicker.saveFile(
         dialogTitle: '設定のエクスポート先を選択',
         fileName: defaultName,
-        type: FileType.custom,
-        allowedExtensions: ['json'],
+        mimeType: 'application/json',
         bytes: jsonBytes,
       );
 
-      if (savePath == null) return;
+      if (savedUri == null) return;
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('保存しました: $savePath'),
+            content: Text('保存しました: ${Uri.decodeFull(savedUri.path)}'),
             duration: const Duration(seconds: 4),
           ),
         );
@@ -330,12 +327,11 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   Future<void> _importSettings(BuildContext context, WidgetRef ref) async {
-    FilePickerResult? result;
+    PlatformFile? picked;
     try {
-      result = await FilePicker.platform.pickFiles(
+      picked = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['json'],
-        withData: true,
       );
     } catch (e) {
       if (context.mounted) {
@@ -346,19 +342,11 @@ class SettingsScreen extends ConsumerWidget {
       return;
     }
 
-    if (result == null || result.files.isEmpty) return;
+    if (picked == null) return;
 
-    final bytes = result.files.first.bytes;
-    final path = result.files.first.path;
     String jsonStr;
     try {
-      if (bytes != null) {
-        jsonStr = utf8.decode(bytes);
-      } else if (path != null) {
-        jsonStr = await File(path).readAsString();
-      } else {
-        throw const FormatException('ファイルを読み込めませんでした');
-      }
+      jsonStr = utf8.decode(await picked.readAsBytes());
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(

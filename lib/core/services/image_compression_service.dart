@@ -40,14 +40,21 @@ class ImageCompressionService {
     // minWidth/minHeight に最大解像度を指定すると、
     // scale = max(1, min(srcW/minW, srcH/minH)) で縮小率が計算される。
     // 両辺が maxDim 以下の場合は scale=1 でリサイズされない。
-    final result = await FlutterImageCompress.compressAndGetFile(
-      file.absolute.path,
-      outPath,
-      format: format,
-      quality: quality,
-      minWidth: maxDim,
-      minHeight: maxDim,
-    );
+    final XFile? result;
+    try {
+      result = await FlutterImageCompress.compressAndGetFile(
+        file.absolute.path,
+        outPath,
+        format: format,
+        quality: quality,
+        minWidth: maxDim,
+        minHeight: maxDim,
+      );
+    } on CompressError {
+      // flutter_image_compress 2.5 以降、ネイティブ側の失敗は null ではなく
+      // CompressError になった。圧縮できない画像でも投稿自体は止めず元画像を送る。
+      return file;
+    }
 
     return result != null ? File(result.path) : file;
   }
