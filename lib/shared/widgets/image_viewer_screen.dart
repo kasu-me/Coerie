@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/services/cache_service.dart';
@@ -100,8 +101,28 @@ class _ImageViewerScreenState extends State<ImageViewerScreen>
 
     return Scaffold(
       backgroundColor: Colors.black,
+      // AppBar の分だけ画像が下にずれないよう、本文を画面全体に広げて中央に置く。
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.transparent,
+        // 透過色からは明暗を推定できず、ステータスバーのアイコンが画像に埋もれうるため明示する。
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+        // 明るい画像と重なっても白いアイコンが読めるよう、アイコンの高さまで濃さを保ち、
+        // 帯の境界が目立たないよう AppBar の下端で透明にする。
+        flexibleSpace: const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0x99000000),
+                Color(0x80000000),
+                Colors.transparent,
+              ],
+              stops: [0, 0.8, 1],
+            ),
+          ),
+        ),
         iconTheme: const IconThemeData(color: Colors.white),
         title: titleText == null
             ? null
