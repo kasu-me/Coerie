@@ -7,6 +7,7 @@ import '../../core/errors/api_error_message.dart';
 import '../../data/models/custom_emoji_model.dart';
 import '../../shared/providers/custom_emoji_provider.dart';
 import '../../shared/utils/emoji_utils.dart';
+import '../../shared/widgets/custom_emoji_detail_sheet.dart';
 
 /// サーバーのカスタム絵文字と通常の Unicode 絵文字をまとめて選択できるピッカー。
 /// カスタム絵文字は :name: 形式（例: :party_popper:）、
@@ -130,8 +131,14 @@ class _EmojiPickerSheetState extends ConsumerState<EmojiPickerSheet>
         final url = emoji.url;
         return Tooltip(
           message: ':$name:',
+          // 既定の長押し表示は詳細シートを開く長押しと競合するため無効にする
+          triggerMode: TooltipTriggerMode.manual,
           child: InkWell(
             onTap: () => Navigator.pop(context, ':$name:'),
+            onLongPress: url == null
+                ? null
+                : () =>
+                      showCustomEmojiDetailSheet(context, name: name, url: url),
             borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.all(4),

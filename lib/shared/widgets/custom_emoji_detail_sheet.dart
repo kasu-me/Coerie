@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:coerie/core/services/cache_service.dart';
 import 'package:flutter/material.dart';
@@ -8,13 +10,14 @@ import '../providers/custom_emoji_provider.dart';
 
 /// カスタム絵文字の詳細（画像・名前・タグ）を表示するボトムシート。
 ///
-/// [url] は本文の描画で実際に解決されたURLを渡すこと。ローカル絵文字か
+/// [url] は呼び出し元の描画で実際に解決されたURLを渡すこと。ローカル絵文字か
 /// どうかの判定に使う（[_CustomEmojiDetailSheet] 参照）。
 Future<void> showCustomEmojiDetailSheet(
   BuildContext context, {
   required String name,
   required String url,
 }) {
+  final overlay = Overlay.of(context, rootOverlay: true);
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -26,18 +29,75 @@ Future<void> showCustomEmojiDetailSheet(
         onCopy: () async {
           Navigator.pop(sheetCtx);
           await Clipboard.setData(ClipboardData(text: ':$name:'));
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('絵文字名をコピーしました'),
-                duration: Duration(seconds: 1),
-              ),
-            );
-          }
+          _showCopiedNotice(overlay);
         },
       ),
     ),
   );
+}
+
+/// SnackBar は呼び出し元画面の Scaffold に描画されるため、絵文字ピッカーの
+/// ようなモーダルの上から詳細を開くと、ピッカーの裏に隠れて見えない。
+/// どこから開いても見えるよう、ルートの Overlay に出している。
+void _showCopiedNotice(OverlayState overlay) {
+  if (!overlay.mounted) return;
+  final entry = OverlayEntry(builder: (_) => const _CopiedNotice());
+  overlay.insert(entry);
+  Timer(const Duration(seconds: 1), () {
+    entry.remove();
+    entry.dispose();
+  });
+}
+
+class _CopiedNotice extends StatelessWidget {
+  const _CopiedNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      // ルートの Overlay には Scaffold のキーボード回避が効かない。
+      // サジェストから開いた場合は、シートを閉じるとキーボードが戻ってくる。
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SafeArea(
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: IgnorePointer(
+            child: Semantics(
+              liveRegion: true,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 150),
+                builder: (_, opacity, child) =>
+                    Opacity(opacity: opacity, child: child),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Material(
+                    color: theme.colorScheme.inverseSurface,
+                    elevation: 6,
+                    borderRadius: BorderRadius.circular(4),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      child: Text(
+                        '絵文字名をコピーしました',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onInverseSurface,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _CustomEmojiDetailSheet extends ConsumerWidget {

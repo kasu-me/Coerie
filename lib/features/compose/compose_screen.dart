@@ -36,6 +36,7 @@ import '../../shared/providers/custom_emoji_provider.dart';
 import '../draft/draft_provider.dart';
 import 'emoji_picker_sheet.dart';
 import '../../shared/utils/emoji_utils.dart';
+import '../../shared/widgets/custom_emoji_detail_sheet.dart';
 import '../../shared/widgets/mfm_content.dart';
 import '../../shared/widgets/user_avatar.dart';
 
@@ -2359,6 +2360,13 @@ class _EmojiSuggestBar extends ConsumerWidget {
           final url = urlMap[name] ?? emoji.url;
           return InkWell(
             onTap: () => onSelect(name),
+            onLongPress: url == null
+                ? null
+                : () => showCustomEmojiDetailSheet(
+                    context,
+                    name: name,
+                    url: url,
+                  ),
             borderRadius: BorderRadius.circular(8),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
