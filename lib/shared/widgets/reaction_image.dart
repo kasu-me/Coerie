@@ -37,6 +37,10 @@ class ReactionImage extends StatelessWidget {
         imageUrl: imageUrl,
         height: size,
         fit: BoxFit.contain,
+        // 未指定だと CachedNetworkImage は空の Container() を置き、親の最大幅いっぱいに
+        // 広がる（高さや幅を指定していてもプレースホルダーには適用されない）。
+        // 読み込み完了後もフェードアウトが終わるまで残るので、枠と同じ大きさに固定する。
+        placeholder: (_, _) => SizedBox.square(dimension: size),
         errorWidget: (_, _, _) => fallback,
       ),
     );
