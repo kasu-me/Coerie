@@ -8,7 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/custom_emoji_provider.dart';
 
-/// カスタム絵文字の詳細（画像・名前・タグ）を表示するボトムシート。
+/// カスタム絵文字の詳細（画像・名前・カテゴリ・タグ）を表示するボトムシート。
 ///
 /// [url] は呼び出し元の描画で実際に解決されたURLを渡すこと。ローカル絵文字か
 /// どうかの判定に使う（[_CustomEmojiDetailSheet] 参照）。
@@ -118,10 +118,10 @@ class _CustomEmojiDetailSheet extends ConsumerWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
 
-    // タグ（aliases）は接続先インスタンスの絵文字一覧からしか引けない。
+    // カテゴリとタグ（aliases）は接続先インスタンスの絵文字一覧からしか引けない。
     // リモート投稿の絵文字はローカルに同名の別絵文字があり得るため、
     // 名前だけでなくURLまで一致したものだけをローカル絵文字とみなし、
-    // それ以外はタグ欄自体を出さない（Web版もリモート絵文字の詳細は出さない）。
+    // それ以外は両欄とも出さない（Web版もリモート絵文字の詳細は出さない）。
     final localEmoji = ref
         .watch(customEmojisProvider)
         .whenOrNull(
@@ -175,6 +175,15 @@ class _CustomEmojiDetailSheet extends ConsumerWidget {
               ),
             ],
           ),
+          if (localEmoji != null) ...[
+            const SizedBox(height: 8),
+            Text('カテゴリ', style: labelStyle),
+            const SizedBox(height: 4),
+            Text(
+              localEmoji.category.isEmpty ? '未分類' : localEmoji.category,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ],
           if (tags != null) ...[
             const SizedBox(height: 8),
             Text('タグ', style: labelStyle),
