@@ -81,6 +81,7 @@ class NoteModel {
     int? renoteCount,
     PollModel? poll,
     Object? isFavorited = _sentinel,
+    NoteModel? renote,
   }) => NoteModel(
     id: id,
     createdAt: createdAt,
@@ -98,7 +99,7 @@ class NoteModel {
     emojis: emojis,
     reactionEmojis: reactionEmojis,
     reply: reply,
-    renote: renote,
+    renote: renote ?? this.renote,
     url: url,
     uri: uri,
     localOnly: localOnly,

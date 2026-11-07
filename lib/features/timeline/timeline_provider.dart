@@ -40,6 +40,29 @@ class TimelineState {
   );
 }
 
+/// このデバイスから行ったリアクション操作の結果。
+class NoteReactionChange {
+  final String noteId;
+  final Map<String, int> reactions;
+  final String? myReaction;
+
+  const NoteReactionChange({
+    required this.noteId,
+    required this.reactions,
+    required this.myReaction,
+  });
+}
+
+/// 直近のリアクション操作を全タイムラインへ知らせる。
+///
+/// NoteCard は新着の挿入で作り直されるたびに、タイムラインが保持するノートから
+/// 状態を初期化する。保持側へ書き戻さないと、付けたリアクションが次の更新で
+/// 表示から消えてしまう。タブはリスト・アンテナ等を含めて動的に増減し、
+/// 種別を列挙して呼ぶと未生成のタブまで取得が走るため、各 Notifier に購読させる。
+final noteReactionChangeProvider = StateProvider<NoteReactionChange?>(
+  (ref) => null,
+);
+
 final timelineProvider =
     StateNotifierProviderFamily<TimelineNotifier, TimelineState, String>(
       (ref, timelineType) => TimelineNotifier(ref, timelineType),
@@ -112,6 +135,9 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
       if (visible.length != state.notes.length) {
         state = state.copyWith(notes: _syncNotes(visible));
       }
+    });
+    _ref.listen<NoteReactionChange?>(noteReactionChangeProvider, (prev, next) {
+      if (next != null) _applyReactionChange(next);
     });
     // ストリーミングサービスの削除イベントを購読
     _subscribeNoteUpdates(_ref.read(streamingServiceProvider));
@@ -398,6 +424,30 @@ class TimelineNotifier extends StateNotifier<TimelineState> {
     } catch (_) {
       return [];
     }
+  }
+
+  /// 保持中のノート（リノートの中身を含む）へリアクション操作の結果を反映する。
+  void _applyReactionChange(NoteReactionChange change) {
+    NoteModel apply(NoteModel note) => note.copyWith(
+      reactions: change.reactions,
+      myReaction: change.myReaction,
+    );
+
+    var found = false;
+    final updated = state.notes.map((note) {
+      if (note.id == change.noteId) {
+        found = true;
+        return apply(note);
+      }
+      if (note.renote?.id == change.noteId) {
+        found = true;
+        return note.copyWith(renote: apply(note.renote!));
+      }
+      return note;
+    }).toList();
+    if (!found) return;
+    // copyWith は error を省略すると消すため、エラー表示中でも維持されるよう渡す。
+    state = state.copyWith(notes: updated, error: state.error);
   }
 
   void removeNote(String noteId) {

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:coerie/core/services/cache_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -153,14 +154,25 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
   // このデバイスから送信したリアクション操作に対する WebSocket エコーの待ち数。
   // 0 のときに届いたイベントは別端末からの操作として反映する。
   int _pendingLocalEvents = 0;
+  // リアクション操作は、この State が破棄された後も完了まで走ることがある
+  // （_handleReaction 参照）。破棄後は ref も context も使えないため控えておく。
+  late final ProviderContainer _container;
+  ScaffoldMessengerState? _messenger;
 
   @override
   void initState() {
     super.initState();
+    _container = ProviderScope.containerOf(context, listen: false);
     _localReactions = Map.from(widget.note.reactions);
     _myReaction = widget.note.myReaction;
     _localPoll = widget.note.poll;
     WidgetsBinding.instance.addPostFrameCallback((_) => _subscribeNote());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _messenger = ScaffoldMessenger.maybeOf(context);
   }
 
   void _subscribeNote() {
@@ -211,6 +223,10 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
         _pendingLocalEvents--;
         return;
       }
+      // 破棄済みのカードが送信した操作のエコーは、作り直された後のカードに届く。
+      // その操作は書き戻しで反映済みのことがあるため、重ねて数えない。
+      if (event.type == 'reacted' && event.reaction == _myReaction) return;
+      if (event.type == 'unreacted' && _myReaction == null) return;
     }
 
     setState(() {
@@ -270,23 +286,62 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
     }
   }
 
+  /// ピッカーが返す `:name:` を、サーバーが返すキーの形式 `:name@.:` に揃える。
+  ///
+  /// 表記が違うままだと、同じ絵文字のチップが2つに分かれ、自分のリアクションの
+  /// エコーとの照合もできない。
+  static String _toReactionKey(String reaction) =>
+      reaction.length > 2 &&
+          reaction.startsWith(':') &&
+          reaction.endsWith(':') &&
+          !reaction.contains('@')
+      ? '${reaction.substring(0, reaction.length - 1)}@.:'
+      : reaction;
+
   // リアクション Chip またはピッカーからのリアクション操作を一元処理
+  //
+  // ピッカーを開いている間やAPIの応答待ちの間に、新着の挿入でカードが作り直されて
+  // この State が破棄されることがある。操作自体は完了させる必要があるので、
+  // ここでは ref と context に頼らず、後続のカードへは書き戻し経由で結果を渡す。
   Future<void> _handleReaction(String reaction) async {
-    final api = ref.read(misskeyApiProvider);
+    final container = _container;
+    final api = container.read(misskeyApiProvider);
     if (api == null) return;
+    final accountId = container.read(activeAccountProvider)?.id;
+    final noteId = widget.note.id;
+    final key = _toReactionKey(reaction);
+
+    void commit(VoidCallback change) {
+      if (mounted) {
+        setState(change);
+      } else {
+        change();
+      }
+      // 応答待ちの間にアカウントが切り替わった場合、同じサーバーの別アカウントの
+      // タイムラインに自分のリアクションとして書き込まないようにする。
+      if (container.read(activeAccountProvider)?.id != accountId) return;
+      container
+          .read(noteReactionChangeProvider.notifier)
+          .state = NoteReactionChange(
+        noteId: noteId,
+        reactions: Map.of(_localReactions),
+        myReaction: _myReaction,
+      );
+    }
+
     try {
       if (_myReaction != null) {
         // すでにリアクション済み
-        if (_myReaction == reaction) {
+        if (_myReaction == key) {
           // 同じリアクション → 削除
           _pendingLocalEvents++;
           try {
-            await api.deleteReaction(widget.note.id);
+            await api.deleteReaction(noteId);
           } catch (e) {
             _pendingLocalEvents--;
             rethrow;
           }
-          setState(() {
+          commit(() {
             _decrementReaction(_myReaction!);
             _myReaction = null;
           });
@@ -295,44 +350,50 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
           final old = _myReaction!;
           _pendingLocalEvents++;
           try {
-            await api.deleteReaction(widget.note.id);
+            await api.deleteReaction(noteId);
           } catch (e) {
             _pendingLocalEvents--;
             rethrow;
           }
-          setState(() {
+          commit(() {
             _decrementReaction(old);
             _myReaction = null;
           });
           _pendingLocalEvents++;
           try {
-            await api.createReaction(widget.note.id, reaction);
+            await api.createReaction(noteId, reaction);
           } catch (e) {
             _pendingLocalEvents--;
             rethrow;
           }
-          setState(() {
-            _incrementReaction(reaction);
-            _myReaction = reaction;
+          commit(() {
+            _incrementReaction(key);
+            _myReaction = key;
           });
         }
       } else {
         // 未リアクション → 追加
         _pendingLocalEvents++;
         try {
-          await api.createReaction(widget.note.id, reaction);
+          await api.createReaction(noteId, reaction);
         } catch (e) {
           _pendingLocalEvents--;
           rethrow;
         }
-        setState(() {
-          _incrementReaction(reaction);
-          _myReaction = reaction;
+        commit(() {
+          _incrementReaction(key);
+          _myReaction = key;
         });
       }
     } catch (e) {
       if (mounted) {
         showApiErrorSnackBar(context, e, fallback: 'リアクションに失敗しました');
+      } else {
+        _messenger?.showSnackBar(
+          SnackBar(
+            content: Text(apiErrorMessage(e, fallback: 'リアクションに失敗しました')),
+          ),
+        );
       }
     }
   }
@@ -356,6 +417,11 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
             .where((e) => e.noteId == widget.note.id)
             .listen(_onNoteUpdate);
       }
+    } else if (oldWidget.note.myReaction != widget.note.myReaction ||
+        !mapEquals(oldWidget.note.reactions, widget.note.reactions)) {
+      // 破棄済みのカードや別タブの同じノートで行った操作の結果が、書き戻しで届いた場合
+      _localReactions = Map.from(widget.note.reactions);
+      _myReaction = widget.note.myReaction;
     }
   }
 
@@ -1631,14 +1697,17 @@ class _ActionBarState extends ConsumerState<_ActionBar> {
 
   Future<void> _pickReaction() async {
     final isRemoteNote = widget.note.uri != null;
+    final onReaction = widget.onReaction;
     final name = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => EmojiPickerSheet(isRemoteNote: isRemoteNote),
     );
-    if (name == null || !mounted) return;
-    await widget.onReaction(name);
+    // シートを開いている間に新着が挿入されると、カードが作り直されてこの State は
+    // 破棄される。ユーザーの選択は有効なので、mounted では打ち切らない。
+    if (name == null) return;
+    await onReaction(name);
   }
 
   Future<void> _showRenoteUsers() async {
