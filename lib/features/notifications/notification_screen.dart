@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/achievement_types.dart';
 import '../../core/streaming/streaming_service.dart';
-import '../../data/models/drive_file_model.dart';
+import '../../data/models/note_model.dart';
 import '../../data/models/notification_model.dart';
 import '../profile/follow_requests_sheet.dart';
 import '../../shared/providers/custom_emoji_provider.dart';
@@ -269,12 +269,13 @@ class _NotificationTile extends ConsumerWidget {
     final theme = Theme.of(context);
     final settings = ref.watch(settingsProvider);
     final n = notification;
+    final previewNote = _previewNote;
 
     return InkWell(
       onTap: () {
         const noteTypes = {'mention', 'reply', 'renote', 'quote', 'reaction'};
-        if (n.note != null && noteTypes.contains(n.type)) {
-          context.push('/note/${n.note!.id}', extra: n.note);
+        if (previewNote != null && noteTypes.contains(n.type)) {
+          context.push('/note/${previewNote.id}', extra: previewNote);
         } else if (n.type == 'receiveFollowRequest') {
           if (profileOwnerId != null && profileOwnerId!.isNotEmpty) {
             showModalBottomSheet(
@@ -454,10 +455,10 @@ class _NotificationTile extends ConsumerWidget {
                         ),
                       ),
                   ],
-                  if (n.note?.text != null) ...[
+                  if (previewNote?.text != null) ...[
                     const SizedBox(height: 4),
                     Text(
-                      n.note!.text!,
+                      previewNote!.text!,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -465,10 +466,10 @@ class _NotificationTile extends ConsumerWidget {
                       ),
                     ),
                   ],
-                  if (n.note != null &&
-                      n.note!.files.any((f) => f.isImage)) ...[
+                  if (previewNote != null &&
+                      previewNote.files.any((f) => f.isImage)) ...[
                     const SizedBox(height: 6),
-                    _buildImagePreviews(context, n.note!.files),
+                    _buildImagePreviews(context, previewNote),
                   ],
                   const SizedBox(height: 2),
                   Text(
@@ -490,8 +491,18 @@ class _NotificationTile extends ConsumerWidget {
     );
   }
 
-  Widget _buildImagePreviews(BuildContext context, List<DriveFileModel> files) {
-    final imageFiles = files.where((f) => f.isImage).take(4).toList();
+  /// 通知に添えて表示・遷移する対象ノート。
+  ///
+  /// renote 通知の `note` はリノートそのもの（本文・添付なし）で、
+  /// 自分の元ノートは `note.renote` に入っているため、そちらを使う。
+  NoteModel? get _previewNote {
+    final note = notification.note;
+    if (notification.type == 'renote') return note?.renote ?? note;
+    return note;
+  }
+
+  Widget _buildImagePreviews(BuildContext context, NoteModel note) {
+    final imageFiles = note.files.where((f) => f.isImage).take(4).toList();
     if (imageFiles.isEmpty) return const SizedBox.shrink();
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -500,14 +511,7 @@ class _NotificationTile extends ConsumerWidget {
           for (int i = 0; i < imageFiles.length; i++) ...[
             if (i > 0) const SizedBox(width: 4),
             GestureDetector(
-              onTap: () {
-                if (notification.note != null) {
-                  context.push(
-                    '/note/${notification.note!.id}',
-                    extra: notification.note,
-                  );
-                }
-              },
+              onTap: () => context.push('/note/${note.id}', extra: note),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(6),
                 child: SizedBox(
