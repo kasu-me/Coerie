@@ -94,7 +94,11 @@ class UserListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: UserAvatar(avatarUrl: user.avatarUrl, iconSize: 20),
+      leading: UserAvatar(
+        avatarUrl: user.avatarUrl,
+        iconSize: 20,
+        decorations: user.avatarDecorations,
+      ),
       // 表示名が空のときのフォールバックは displayName に一本化している。
       title: UserNameText(user),
       subtitle: Text(user.acct, overflow: TextOverflow.ellipsis),

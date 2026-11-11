@@ -311,6 +311,7 @@ class _NotificationTile extends ConsumerWidget {
                 children: [
                   UserAvatar(
                     avatarUrl: n.user?.avatarUrl,
+                    decorations: n.user?.avatarDecorations ?? const [],
                     radius: 22,
                     iconSize: 20,
                   ),

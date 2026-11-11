@@ -1,3 +1,4 @@
+import 'avatar_decoration_model.dart';
 import 'user_field_model.dart';
 
 class UserModel {
@@ -28,6 +29,8 @@ class UserModel {
   /// リモートユーザーの絵文字は接続先インスタンスの絵文字一覧で引けないため、これで解決する。
   final Map<String, String> emojis;
 
+  final List<AvatarDecorationModel> avatarDecorations;
+
   const UserModel({
     required this.id,
     required this.name,
@@ -48,6 +51,7 @@ class UserModel {
     this.isLocked = false,
     this.publicReactions = false,
     this.emojis = const {},
+    this.avatarDecorations = const [],
   });
 
   String get acct => host.isEmpty ? '@$username' : '@$username@$host';
@@ -81,6 +85,7 @@ class UserModel {
       isLocked: json['isLocked'] as bool? ?? false,
       publicReactions: json['publicReactions'] as bool? ?? false,
       emojis: parseEmojiMap(json['emojis']),
+      avatarDecorations: parseAvatarDecorations(json['avatarDecorations']),
     );
   }
 
@@ -104,6 +109,7 @@ class UserModel {
     bool? isLocked,
     bool? publicReactions,
     Map<String, String>? emojis,
+    List<AvatarDecorationModel>? avatarDecorations,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -125,6 +131,7 @@ class UserModel {
       isLocked: isLocked ?? this.isLocked,
       publicReactions: publicReactions ?? this.publicReactions,
       emojis: emojis ?? this.emojis,
+      avatarDecorations: avatarDecorations ?? this.avatarDecorations,
     );
   }
 }

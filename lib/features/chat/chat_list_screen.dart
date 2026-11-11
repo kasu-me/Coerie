@@ -487,6 +487,7 @@ class _ConversationTile extends StatelessWidget {
     return ListTile(
       leading: UserAvatar(
         avatarUrl: avatarUrl,
+        decorations: user?.avatarDecorations ?? const [],
         radius: 24,
         foreground: true,
         backgroundColor: theme.colorScheme.surfaceContainerHighest,
@@ -651,6 +652,7 @@ class _NewDmSheetState extends ConsumerState<_NewDmSheet> {
                   return ListTile(
                     leading: UserAvatar(
                       avatarUrl: user.avatarUrl,
+                      decorations: user.avatarDecorations,
                       foreground: true,
                     ),
                     title: UserNameText(user),

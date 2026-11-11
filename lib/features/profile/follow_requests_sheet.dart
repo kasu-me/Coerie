@@ -145,7 +145,10 @@ class _FollowRequestsSheetState extends ConsumerState<FollowRequestsSheet> {
                       itemBuilder: (context, i) {
                         final u = _requests[i];
                         return ListTile(
-                          leading: UserAvatar(avatarUrl: u.avatarUrl),
+                          leading: UserAvatar(
+                            avatarUrl: u.avatarUrl,
+                            decorations: u.avatarDecorations,
+                          ),
                           title: UserNameText(
                             u,
                             style: const TextStyle(fontWeight: FontWeight.bold),

@@ -405,7 +405,11 @@ class _GalleryDetailScreenState extends ConsumerState<GalleryDetailScreen> {
                   onTap: () => _openUser(post.userId),
                   child: Row(
                     children: [
-                      UserAvatar(avatarUrl: post.user?.avatarUrl, radius: 18),
+                      UserAvatar(
+                        avatarUrl: post.user?.avatarUrl,
+                        radius: 18,
+                        decorations: post.user?.avatarDecorations ?? const [],
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(

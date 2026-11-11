@@ -684,6 +684,7 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                   onTap: () => context.push('/profile/${note.user.id}'),
                   child: UserAvatar(
                     avatarUrl: note.user.avatarUrl,
+                    decorations: note.user.avatarDecorations,
                     radius: settings.avatarRadius,
                     iconSize: settings.avatarRadius,
                   ),

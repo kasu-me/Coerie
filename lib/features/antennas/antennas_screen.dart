@@ -502,6 +502,7 @@ class _AntennaEditSheetState extends ConsumerState<_AntennaEditSheet> {
                             avatarUrl: user.avatarUrl,
                             radius: 16,
                             iconSize: 16,
+                            decorations: user.avatarDecorations,
                           ),
                           title: UserNameText(user),
                           subtitle: Text(

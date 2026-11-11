@@ -259,7 +259,10 @@ class _UserMuteTab extends ConsumerWidget {
                   final mutee = list[i];
 
                   return ListTile(
-                    leading: UserAvatar(avatarUrl: mutee.avatarUrl),
+                    leading: UserAvatar(
+                      avatarUrl: mutee.avatarUrl,
+                      decorations: mutee.avatarDecorations,
+                    ),
                     title: Text(mutee.name),
                     subtitle: Text(mutee.acct),
                     onTap: () => context.push('/profile/${mutee.id}'),
@@ -331,7 +334,10 @@ class _UserBlockTab extends ConsumerWidget {
                   final blockee = list[i];
 
                   return ListTile(
-                    leading: UserAvatar(avatarUrl: blockee.avatarUrl),
+                    leading: UserAvatar(
+                      avatarUrl: blockee.avatarUrl,
+                      decorations: blockee.avatarDecorations,
+                    ),
                     title: Text(blockee.name),
                     subtitle: Text(blockee.acct),
                     onTap: () => context.push('/profile/${blockee.id}'),

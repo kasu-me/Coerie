@@ -1062,6 +1062,7 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                                     ),
                               child: UserAvatar(
                                 avatarUrl: user.avatarUrl,
+                                decorations: user.avatarDecorations,
                                 radius: 36,
                                 iconSize: 36,
                               ),
@@ -1528,7 +1529,10 @@ class _FollowUserTileState extends ConsumerState<_FollowUserTile> {
 
     return ListTile(
       onTap: () => Navigator.pop(context, widget.user.id),
-      leading: UserAvatar(avatarUrl: widget.user.avatarUrl),
+      leading: UserAvatar(
+        avatarUrl: widget.user.avatarUrl,
+        decorations: widget.user.avatarDecorations,
+      ),
       title: Row(
         children: [
           Expanded(

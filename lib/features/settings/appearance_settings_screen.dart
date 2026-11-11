@@ -56,14 +56,16 @@ class AppearanceSettingsScreen extends ConsumerWidget {
             ),
           ),
 
-          // --- アイコンサイズ ---
-          SectionHeader('アイコンサイズ'),
+          // --- アイコン ---
+          SectionHeader('アイコン'),
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 16, 16),
+            padding: const EdgeInsets.fromLTRB(24, 8, 16, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${(settings.avatarRadius * 2).toStringAsFixed(0)}px'),
+                Text(
+                  'サイズ: ${(settings.avatarRadius * 2).toStringAsFixed(0)}px',
+                ),
                 Slider(
                   min: 12,
                   max: 40,
@@ -79,6 +81,16 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                 ),
               ],
             ),
+          ),
+          const Divider(indent: 16, endIndent: 16),
+          SwitchListTile(
+            secondary: const Icon(Icons.auto_awesome_outlined),
+            title: const Text('アイコンデコレーションを表示'),
+            subtitle: const Text('ユーザーがアイコンに付けている装飾を重ねて表示する'),
+            value: settings.showAvatarDecorations,
+            onChanged: (v) => ref
+                .read(settingsProvider.notifier)
+                .setShowAvatarDecorations(v),
           ),
         ],
       ),

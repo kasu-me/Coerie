@@ -75,6 +75,7 @@ class AppSettingsModel {
   final bool mfmAnimation; // MFMアニメーションを有効にする（デフォルト: false=静的表示）
   final bool collapseNote; // 長い投稿を省略表示する（デフォルト: true）
   final double avatarRadius; // タイムラインのユーザーアイコンの半径（デフォルト: 20.0）
+  final bool showAvatarDecorations; // アイコンデコレーションを表示する（デフォルト: true）
   final ImageCompressionLevel
   defaultImageCompressionLevel; // 画像アップロード時のデフォルト圧縮レベル
   final String renoteVisibility; // リノート時の公開範囲（デフォルト: 'same_as_last_post'）
@@ -97,6 +98,7 @@ class AppSettingsModel {
     this.mfmAnimation = false,
     this.collapseNote = true,
     this.avatarRadius = 20.0,
+    this.showAvatarDecorations = true,
     this.defaultImageCompressionLevel = ImageCompressionLevel.none,
     this.renoteVisibility = 'same_as_last_post',
     this.hiddenDrawerButtons = const [],
@@ -118,6 +120,7 @@ class AppSettingsModel {
     bool? mfmAnimation,
     bool? collapseNote,
     double? avatarRadius,
+    bool? showAvatarDecorations,
     ImageCompressionLevel? defaultImageCompressionLevel,
     String? renoteVisibility,
     List<String>? hiddenDrawerButtons,
@@ -139,6 +142,7 @@ class AppSettingsModel {
     mfmAnimation: mfmAnimation ?? this.mfmAnimation,
     collapseNote: collapseNote ?? this.collapseNote,
     avatarRadius: avatarRadius ?? this.avatarRadius,
+    showAvatarDecorations: showAvatarDecorations ?? this.showAvatarDecorations,
     defaultImageCompressionLevel:
         defaultImageCompressionLevel ?? this.defaultImageCompressionLevel,
     renoteVisibility: renoteVisibility ?? this.renoteVisibility,
@@ -163,6 +167,7 @@ class AppSettingsModel {
     'mfmAnimation': mfmAnimation,
     'collapseNote': collapseNote,
     'avatarRadius': avatarRadius,
+    'showAvatarDecorations': showAvatarDecorations,
     'defaultImageCompressionLevel': defaultImageCompressionLevel.index,
     'renoteVisibility': renoteVisibility,
     'hiddenDrawerButtons': hiddenDrawerButtons,
@@ -187,6 +192,7 @@ class AppSettingsModel {
         mfmAnimation: json['mfmAnimation'] as bool? ?? false,
         collapseNote: json['collapseNote'] as bool? ?? true,
         avatarRadius: (json['avatarRadius'] as num?)?.toDouble() ?? 20.0,
+        showAvatarDecorations: json['showAvatarDecorations'] as bool? ?? true,
         defaultImageCompressionLevel: ImageCompressionLevel
             .values[(json['defaultImageCompressionLevel'] as int?) ?? 0],
         renoteVisibility:

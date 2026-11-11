@@ -15,6 +15,7 @@ import '../../shared/utils/emoji_utils.dart';
 import '../../shared/utils/format_utils.dart';
 import '../../shared/widgets/api_error_snack_bar.dart';
 import '../../shared/widgets/confirm_dialog.dart';
+import '../../shared/widgets/user_avatar.dart';
 import '../../shared/widgets/user_name_text.dart';
 import 'providers/pages_provider.dart';
 import 'widgets/page_block_view.dart';
@@ -530,17 +531,11 @@ class _AuthorRow extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircleAvatar(
+            UserAvatar(
+              avatarUrl: user.avatarUrl,
               radius: 14,
-              backgroundImage: user.avatarUrl != null
-                  ? CachedNetworkImageProvider(
-                      user.avatarUrl!,
-                      cacheManager: AppCacheManager(),
-                    )
-                  : null,
-              child: user.avatarUrl == null
-                  ? const Icon(Icons.person, size: 16)
-                  : null,
+              iconSize: 16,
+              decorations: user.avatarDecorations,
             ),
             const SizedBox(width: 8),
             Flexible(

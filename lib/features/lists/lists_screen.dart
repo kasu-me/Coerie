@@ -507,6 +507,7 @@ class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
                           dense: true,
                           leading: UserAvatar(
                             avatarUrl: user.avatarUrl,
+                            decorations: user.avatarDecorations,
                             radius: 16,
                             iconSize: 16,
                           ),
@@ -637,7 +638,11 @@ class _ListMembersSheetState extends ConsumerState<_ListMembersSheet> {
         final user = membership.user;
         if (user == null) return const SizedBox.shrink();
         return ListTile(
-          leading: UserAvatar(avatarUrl: user.avatarUrl, radius: 20),
+          leading: UserAvatar(
+            avatarUrl: user.avatarUrl,
+            radius: 20,
+            decorations: user.avatarDecorations,
+          ),
           title: UserNameText(user),
           subtitle: Text(user.acct, style: Theme.of(ctx).textTheme.bodySmall),
           trailing: IconButton(

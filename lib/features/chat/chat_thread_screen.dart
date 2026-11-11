@@ -553,6 +553,8 @@ class _MessageBubble extends StatelessWidget {
                                 context.push('/profile/${message.fromUserId}'),
                       child: UserAvatar(
                         avatarUrl: message.senderAvatarUrl ?? fallbackAvatarUrl,
+                        decorations:
+                            message.fromUser?.avatarDecorations ?? const [],
                         radius: 16,
                         foreground: true,
                         backgroundColor:
@@ -830,6 +832,7 @@ class _RoomMembersSheet extends ConsumerWidget {
                       return ListTile(
                         leading: UserAvatar(
                           avatarUrl: u.avatarUrl,
+                          decorations: u.avatarDecorations,
                           foreground: true,
                           backgroundColor:
                               theme.colorScheme.surfaceContainerHighest,
