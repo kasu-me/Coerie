@@ -399,12 +399,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       _poll = {
         'choices': poll.choices,
         'multiple': poll.multiple,
-        if (hours > 0) ...{
-          'expiresAt': DateTime.now()
-              .add(Duration(hours: hours))
-              .toIso8601String(),
-          'expiresHours': hours,
-        },
+        if (hours > 0) 'expiresHours': hours,
       };
     }
 
@@ -421,12 +416,16 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     }
   }
 
-  /// 予約投稿に添える投票。
+  /// API に送る投票（通常投稿・予約投稿共通）。
   ///
-  /// 期限は絶対日時ではなく「投稿されてから何ms後」で送る。投票エディタの
-  /// 期限は編集時点からの時間で決まるため、絶対日時にすると予約日時までの
-  /// 待ち時間だけ投票期間が削られ、予約日時より前なら投稿時に締切済みになる。
-  Map<String, dynamic>? _pollForSchedule() {
+  /// 期限は絶対日時（expiresAt）ではなく「投稿されてから何ms後」
+  /// （expiredAfter）で送る。
+  /// - 予約投稿: 絶対日時にすると予約日時までの待ち時間だけ投票期間が削られ、
+  ///   予約日時より前なら投稿時に締切済みになる。
+  /// - 通常投稿: notes/create の expiresAt は UNIX ミリ秒の数値しか受け付けず、
+  ///   端末時計がサーバーとずれていると期限もずれる。expiredAfter ならサーバー
+  ///   側の作成時刻を基準に計算される。
+  Map<String, dynamic>? _pollForRequest() {
     final poll = _poll;
     if (poll == null) return null;
     final hours = poll['expiresHours'] as int? ?? 0;
@@ -1273,7 +1272,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
             fileIds: fileIds,
             replyId: _replyId,
             renoteId: _renoteId,
-            poll: _pollForSchedule(),
+            poll: _pollForRequest(),
             channelId: _selectedChannelId,
             localOnly: original.localOnly,
             reactionAcceptance: original.reactionAcceptance,
@@ -1290,7 +1289,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
             fileIds: fileIds,
             replyId: _replyId,
             renoteId: _renoteId,
-            poll: _pollForSchedule(),
+            poll: _pollForRequest(),
             channelId: _selectedChannelId,
           );
           doneMessage = '${formatYmdWeekdayHm(scheduledAt)} に予約しました';
@@ -1312,7 +1311,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           replyId: _replyId,
           renoteId: _renoteId,
           visibleUserIds: visibleUserIds,
-          poll: _poll,
+          poll: _pollForRequest(),
           channelId: _selectedChannelId,
         );
       }
@@ -1434,13 +1433,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     bool multiple = existing != null
         ? (existing['multiple'] as bool? ?? false)
         : false;
-    int expiresHours = 0;
-    if (existing != null && existing['expiresAt'] is String) {
-      try {
-        final dt = DateTime.parse(existing['expiresAt'] as String);
-        expiresHours = dt.difference(DateTime.now()).inHours.clamp(0, 9999);
-      } catch (_) {}
-    }
+    int expiresHours = existing?['expiresHours'] as int? ?? 0;
 
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
@@ -1576,9 +1569,6 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                                   'multiple': multiple,
                                 };
                                 if (expiresHours > 0) {
-                                  out['expiresAt'] = DateTime.now()
-                                      .add(Duration(hours: expiresHours))
-                                      .toIso8601String();
                                   out['expiresHours'] = expiresHours;
                                 }
                                 Navigator.pop(ctx, out);
