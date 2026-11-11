@@ -273,9 +273,19 @@ class _NotificationTile extends ConsumerWidget {
 
     return InkWell(
       onTap: () {
-        const noteTypes = {'mention', 'reply', 'renote', 'quote', 'reaction'};
+        const noteTypes = {
+          'mention',
+          'reply',
+          'renote',
+          'quote',
+          'reaction',
+          'scheduledNotePosted',
+        };
         if (previewNote != null && noteTypes.contains(n.type)) {
           context.push('/note/${previewNote.id}', extra: previewNote);
+        } else if (n.type == 'scheduledNotePostFailed') {
+          // 失敗した予約はサーバーに残っており、一覧から日時を直して再予約できる。
+          context.push('/scheduled-notes');
         } else if (n.type == 'receiveFollowRequest') {
           if (profileOwnerId != null && profileOwnerId!.isNotEmpty) {
             showModalBottomSheet(
@@ -562,6 +572,8 @@ class _NotificationTile extends ConsumerWidget {
     'exportCompleted' => 'ノートのエクスポートが完了しました',
     'chatRoomInvitationReceived' => 'ダイレクトメッセージのグループへ招待されました',
     'achievementEarned' => '実績を獲得しました',
+    'scheduledNotePosted' => '予約投稿が投稿されました',
+    'scheduledNotePostFailed' => '予約投稿の投稿に失敗しました',
     _ => type,
   };
 
@@ -575,6 +587,8 @@ class _NotificationTile extends ConsumerWidget {
     'login' => Icons.login,
     'createToken' => Icons.vpn_key,
     'exportCompleted' => Icons.file_download_done,
+    'scheduledNotePosted' => Icons.schedule_send,
+    'scheduledNotePostFailed' => Icons.error_outline,
     _ => Icons.notifications_outlined,
   };
 
@@ -582,6 +596,7 @@ class _NotificationTile extends ConsumerWidget {
     'follow' || 'followRequestAccepted' => Colors.green,
     'reaction' => Colors.orange,
     'renote' || 'quote' => theme.colorScheme.tertiary,
+    'scheduledNotePostFailed' => theme.colorScheme.error,
     _ => theme.colorScheme.primary,
   };
 }

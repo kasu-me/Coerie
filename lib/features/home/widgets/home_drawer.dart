@@ -10,6 +10,7 @@ import '../../../shared/providers/is_locked_provider.dart';
 import '../../../shared/providers/settings_provider.dart';
 import '../../../data/models/drawer_button_type.dart';
 import '../../profile/follow_requests_sheet.dart';
+import '../../scheduled_notes/scheduled_notes_provider.dart';
 import '../../../shared/widgets/user_avatar.dart';
 
 class HomeDrawer extends ConsumerWidget {
@@ -168,6 +169,27 @@ class HomeDrawer extends ConsumerWidget {
                         onTap: () {
                           Navigator.of(context).pop();
                           context.push('/drafts');
+                        },
+                      ),
+                    // 予約投稿を使えないサーバー（旧バージョン・ロールで上限0）では
+                    // 開いても何もできないため出さない。
+                    if (isVisible(DrawerButtonKey.scheduledNotes) &&
+                        activeAccount != null &&
+                        (ref
+                                    .watch(
+                                      scheduledNoteLimitProvider(
+                                        activeAccount.id,
+                                      ),
+                                    )
+                                    .valueOrNull ??
+                                0) >
+                            0)
+                      ListTile(
+                        leading: const Icon(Icons.schedule_send),
+                        title: const Text('予約投稿'),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          context.push('/scheduled-notes');
                         },
                       ),
                     if (isVisible(DrawerButtonKey.clips))

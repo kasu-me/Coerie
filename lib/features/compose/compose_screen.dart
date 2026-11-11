@@ -23,19 +23,23 @@ import '../../data/models/custom_emoji_model.dart';
 import '../../data/models/draft_local_file_model.dart';
 import '../../data/models/draft_model.dart';
 import '../../data/models/drive_file_model.dart';
+import '../../data/models/note_draft_model.dart';
 import '../../data/models/note_model.dart';
 import '../../data/models/user_model.dart';
 import '../../data/remote/misskey_api.dart';
 import '../../shared/providers/account_provider.dart';
 import '../../shared/providers/mention_history_provider.dart';
 import '../../shared/providers/account_visibility_provider.dart';
+import '../../shared/utils/format_utils.dart';
 import '../../shared/utils/media_type_utils.dart';
 import '../../shared/utils/visibility_utils.dart';
 import '../../shared/providers/settings_provider.dart';
 import '../../shared/providers/custom_emoji_provider.dart';
 import '../draft/draft_provider.dart';
+import '../scheduled_notes/scheduled_notes_provider.dart';
 import 'emoji_picker_sheet.dart';
 import '../../shared/utils/emoji_utils.dart';
+import '../../shared/widgets/confirm_dialog.dart';
 import '../../shared/widgets/custom_emoji_detail_sheet.dart';
 import '../../shared/widgets/mfm_content.dart';
 import '../../shared/widgets/user_avatar.dart';
@@ -78,6 +82,12 @@ class ComposeScreen extends ConsumerStatefulWidget {
   final String? initialChannelId;
   final bool initialIsSensitive;
 
+  /// 編集する予約投稿。指定時は予約投稿の編集画面として開く。
+  ///
+  /// サーバーには下書きを1件だけ取得する API が無いため、ID ではなく
+  /// 一覧で取得済みの内容をそのまま受け取る。
+  final NoteDraftModel? scheduledDraft;
+
   const ComposeScreen({
     super.key,
     this.draftId,
@@ -92,6 +102,7 @@ class ComposeScreen extends ConsumerStatefulWidget {
     this.initialCw,
     this.initialChannelId,
     this.initialIsSensitive = false,
+    this.scheduledDraft,
   });
 
   @override
@@ -132,6 +143,18 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   String? _selectedChannelId;
   String? _selectedChannelName;
   Map<String, dynamic>? _poll;
+
+  /// 予約日時（端末のローカル時刻）。null なら即時投稿。
+  DateTime? _scheduledAt;
+
+  /// 編集中の予約投稿のサーバー上のID。
+  ///
+  /// 「今すぐ投稿」に切り替えた際は投稿前に予約を削除し、ここを null にする。
+  /// その後の投稿が失敗してから予約し直した場合に、消えた予約を update しようと
+  /// せず新規作成に回すため。
+  String? _scheduledDraftId;
+
+  bool get _isEditingScheduled => widget.scheduledDraft != null;
 
   @override
   void initState() {
@@ -200,14 +223,21 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           );
         }
         if (draft != null) {
-          await _restoreNoteRefs(draft);
+          await _restoreNoteRefs(
+            replyId: draft.replyId,
+            renoteId: draft.renoteId,
+          );
         }
       });
     }
 
+    final scheduled = widget.scheduledDraft;
+    if (scheduled != null) _loadScheduledDraft(scheduled);
+
     // 初期チャネルが渡されていれば名前を取得して表示
-    _selectedChannelId = widget.initialChannelId;
-    if (_selectedChannelId != null) {
+    _selectedChannelId = widget.initialChannelId ?? scheduled?.channelId;
+    _selectedChannelName = scheduled?.channelName;
+    if (_selectedChannelId != null && _selectedChannelName == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         final account = _selectedAccount;
         if (account == null) return;
@@ -236,6 +266,19 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
 
   Future<void> _handleCancel() async {
     final settings = ref.read(settingsProvider);
+    if (_isEditingScheduled) {
+      // 予約投稿の編集はローカル下書きに逃がさない。予約はサーバーに残って
+      // いるので、閉じても変更が失われるだけで予約そのものは消えない。
+      final discard = await confirmAction(
+        context,
+        ref,
+        title: '変更を破棄',
+        message: '予約投稿の変更を保存せずに閉じますか？',
+        confirmLabel: '破棄',
+      );
+      if (discard && mounted) context.pop();
+      return;
+    }
     if ((_textController.text.trim().isEmpty && _attachedMedia.isEmpty) ||
         !settings.confirmDestructive) {
       context.pop();
@@ -245,6 +288,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('内容が変更されています。下書き保存しますか？'),
+        content: _scheduledAt != null ? const Text('予約日時は下書きに保存されません。') : null,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -323,6 +367,87 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           );
   }
 
+  /// 編集する予約投稿の内容を画面に読み込む。initState から呼ぶ。
+  void _loadScheduledDraft(NoteDraftModel draft) {
+    _scheduledDraftId = draft.id;
+    _scheduledAt = draft.scheduledAt;
+    _textController.text = draft.text ?? '';
+    if (draft.cw != null && draft.cw!.isNotEmpty) {
+      _cwController.text = draft.cw!;
+      _cwEnabled = true;
+    }
+    _attachedMedia.addAll(draft.files.map(_DriveMedia.new));
+    _replyId = draft.replyId;
+    _replyToNote = draft.reply;
+    _renoteId = draft.renoteId;
+    _renoteToNote = draft.renote;
+    // 予約投稿は作成したアカウントに属するため、アカウント別の既定値ではなく
+    // 予約時の公開範囲をそのまま使う。
+    _visibility = _clampVisibility(draft.visibility);
+
+    final poll = draft.poll;
+    if (poll != null) {
+      // 投票エディタは「現在から何時間後」で期限を扱うため、その形に揃える。
+      // 絶対日時で期限を持つ予約（Misskey Web で作成したもの）は、
+      // 予約日時からの時間に換算する。
+      final after =
+          poll.expiredAfter ??
+          (poll.expiresAt != null && draft.scheduledAt != null
+              ? poll.expiresAt!.difference(draft.scheduledAt!)
+              : null);
+      final hours = after == null ? 0 : (after.inMinutes / 60).ceil();
+      _poll = {
+        'choices': poll.choices,
+        'multiple': poll.multiple,
+        if (hours > 0) ...{
+          'expiresAt': DateTime.now()
+              .add(Duration(hours: hours))
+              .toIso8601String(),
+          'expiresHours': hours,
+        },
+      };
+    }
+
+    // 一覧の応答に返信先/引用元の本体が含まれなかった場合だけ取り直す。
+    final missingReply = draft.replyId != null && draft.reply == null;
+    final missingRenote = draft.renoteId != null && draft.renote == null;
+    if (missingReply || missingRenote) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _restoreNoteRefs(
+          replyId: missingReply ? draft.replyId : null,
+          renoteId: missingRenote ? draft.renoteId : null,
+        );
+      });
+    }
+  }
+
+  /// 予約投稿に添える投票。
+  ///
+  /// 期限は絶対日時ではなく「投稿されてから何ms後」で送る。投票エディタの
+  /// 期限は編集時点からの時間で決まるため、絶対日時にすると予約日時までの
+  /// 待ち時間だけ投票期間が削られ、予約日時より前なら投稿時に締切済みになる。
+  Map<String, dynamic>? _pollForSchedule() {
+    final poll = _poll;
+    if (poll == null) return null;
+    final hours = poll['expiresHours'] as int? ?? 0;
+    return {
+      'choices': poll['choices'],
+      'multiple': poll['multiple'] as bool? ?? false,
+      if (hours > 0) 'expiredAfter': hours * 60 * 60 * 1000,
+    };
+  }
+
+  /// 公開範囲「指定ユーザー」で送る宛先。
+  ///
+  /// 返信時は返信相手、予約投稿の編集時は予約時の宛先を引き継ぐ。それ以外は
+  /// 宛先を指定する UI が無いため送らない（自分だけが見られるノートになる）。
+  List<String>? get _visibleUserIdsForPost {
+    if (_visibility != AppConstants.visibilitySpecified) return null;
+    final reply = _replyToNote;
+    if (reply != null) return [reply.user.id];
+    return widget.scheduledDraft?.visibleUserIds;
+  }
+
   /// 下書きに保存されている返信先/引用元のノートを取得し直す。
   ///
   /// 下書きにはIDしか持たせていない。ノート本体を写しておくと、返信先が
@@ -331,8 +456,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   /// 取得できない場合（削除済み・権限なし・別インスタンスのアカウントで
   /// 開いた）は、投稿時に弾かれる無効なIDを抱え込まないよう関係を外し、
   /// 通常の投稿として編集を続けられるようにする。
-  Future<void> _restoreNoteRefs(DraftModel draft) async {
-    if (draft.replyId == null && draft.renoteId == null) return;
+  Future<void> _restoreNoteRefs({String? replyId, String? renoteId}) async {
+    if (replyId == null && renoteId == null) return;
     final account = _selectedAccount;
     // アカウントが無ければそもそも投稿できないので、関係は外さず何もしない。
     if (account == null) return;
@@ -340,29 +465,34 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     final api = MisskeyApi(host: account.host, token: account.token);
     NoteModel? reply;
     NoteModel? renote;
-    if (draft.replyId != null) {
+    if (replyId != null) {
       try {
-        reply = await api.getNote(draft.replyId!);
+        reply = await api.getNote(replyId);
       } catch (_) {}
     }
-    if (draft.renoteId != null) {
+    if (renoteId != null) {
       try {
-        renote = await api.getNote(draft.renoteId!);
+        renote = await api.getNote(renoteId);
       } catch (_) {}
     }
     if (!mounted) return;
 
     setState(() {
-      _replyToNote = reply;
-      _renoteToNote = renote;
-      if (reply == null) _replyId = null;
-      if (renote == null) _renoteId = null;
+      // 引数に無い側（予約投稿で取得済みのもの）は触らない。
+      if (replyId != null) {
+        _replyToNote = reply;
+        if (reply == null) _replyId = null;
+      }
+      if (renoteId != null) {
+        _renoteToNote = renote;
+        if (renote == null) _renoteId = null;
+      }
       _visibility = _clampVisibility(_visibility);
     });
 
     final lost = [
-      if (draft.replyId != null && reply == null) '返信先',
-      if (draft.renoteId != null && renote == null) '引用元',
+      if (replyId != null && reply == null) '返信先',
+      if (renoteId != null && renote == null) '引用元',
     ];
     if (lost.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -409,6 +539,14 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           renoteAcct: _renoteToNote?.user.acct,
         );
     if (!mounted) return;
+
+    // ローカル下書きは予約日時を持てない（DraftModel を拡張すると既存端末の
+    // Hive データとの互換対応が要るため見送った）。黙って落とさないよう伝える。
+    if (_scheduledAt != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('予約日時は下書きに保存されません')));
+    }
 
     // 保存先がメモリ上のみに落ちている場合、box.put() は成功し一覧にも出るが
     // 再起動で全部消える。保存できたと誤解させないよう明示する。
@@ -1032,7 +1170,36 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     if (account == null) return;
     final api = MisskeyApi(host: account.host, token: account.token);
 
+    final scheduledAt = _scheduledAt;
+    // アップロードしてから弾かれると無駄になるため、送信前に確かめる。
+    // 投稿に失敗した予約を開き直した場合もここで日時の指定し直しを促す。
+    if (scheduledAt != null && !scheduledAt.isAfter(DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('予約日時が過ぎています。日時を指定し直してください')),
+      );
+      return;
+    }
+
+    // 予約完了の案内は pop 後の画面に出すため、先に取り出しておく。
+    final messenger = ScaffoldMessenger.of(context);
+
     setState(() => _isPosting = true);
+
+    // 予約日時を決めた後に、予約投稿を使えないサーバーのアカウントへ
+    // 切り替えられることがある。
+    if (scheduledAt != null && !_isEditingScheduled) {
+      final limit = await ref.read(
+        scheduledNoteLimitProvider(account.id).future,
+      );
+      if (!mounted) return;
+      if (limit <= 0) {
+        setState(() => _isPosting = false);
+        messenger.showSnackBar(
+          const SnackBar(content: Text('このアカウントでは予約投稿を利用できません')),
+        );
+        return;
+      }
+    }
 
     try {
       // メディアを先にアップロード（端末のファイルのみアップロード、ドライブはIDをそのまま使用）
@@ -1083,25 +1250,72 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         setState(() => _isUploadingMedia = false);
       }
 
-      List<String>? visibleUserIds;
-      if (_visibility == AppConstants.visibilitySpecified &&
-          _replyToNote != null) {
-        visibleUserIds = [_replyToNote!.user.id];
-      }
+      final text = _textController.text.trim().isEmpty
+          ? null
+          : _textController.text;
+      final cw = _cwEnabled && _cwController.text.isNotEmpty
+          ? _cwController.text
+          : null;
+      final visibleUserIds = _visibleUserIdsForPost;
+      String? doneMessage;
 
-      await api.createNote(
-        text: _textController.text.trim().isEmpty ? null : _textController.text,
-        cw: _cwEnabled && _cwController.text.isNotEmpty
-            ? _cwController.text
-            : null,
-        visibility: _visibility,
-        fileIds: fileIds,
-        replyId: _replyId,
-        renoteId: _renoteId,
-        visibleUserIds: visibleUserIds,
-        poll: _poll,
-        channelId: _selectedChannelId,
-      );
+      if (scheduledAt != null) {
+        final draftId = _scheduledDraftId;
+        final original = widget.scheduledDraft;
+        if (draftId != null && original != null) {
+          await api.updateScheduledNote(
+            draftId: draftId,
+            scheduledAt: scheduledAt,
+            text: text,
+            cw: cw,
+            visibility: _visibility,
+            visibleUserIds: visibleUserIds ?? const [],
+            fileIds: fileIds,
+            replyId: _replyId,
+            renoteId: _renoteId,
+            poll: _pollForSchedule(),
+            channelId: _selectedChannelId,
+            localOnly: original.localOnly,
+            reactionAcceptance: original.reactionAcceptance,
+            hashtag: original.hashtag,
+          );
+          doneMessage = '予約投稿を更新しました（${formatYmdWeekdayHm(scheduledAt)}）';
+        } else {
+          await api.createScheduledNote(
+            scheduledAt: scheduledAt,
+            text: text,
+            cw: cw,
+            visibility: _visibility,
+            visibleUserIds: visibleUserIds ?? const [],
+            fileIds: fileIds,
+            replyId: _replyId,
+            renoteId: _renoteId,
+            poll: _pollForSchedule(),
+            channelId: _selectedChannelId,
+          );
+          doneMessage = '${formatYmdWeekdayHm(scheduledAt)} に予約しました';
+        }
+      } else {
+        // 予約を「今すぐ投稿」に切り替えた場合。予約を残したまま投稿すると
+        // 予約日時にもう一度投稿されてしまうため、先に予約を消す。消せなければ
+        // （サーバーが既に投稿した等）二重投稿を避けるため投稿もしない。
+        final draftId = _scheduledDraftId;
+        if (draftId != null) {
+          await api.deleteNoteDraft(draftId);
+          _scheduledDraftId = null;
+        }
+        await api.createNote(
+          text: text,
+          cw: cw,
+          visibility: _visibility,
+          fileIds: fileIds,
+          replyId: _replyId,
+          renoteId: _renoteId,
+          visibleUserIds: visibleUserIds,
+          poll: _poll,
+          channelId: _selectedChannelId,
+        );
+      }
 
       // 画面を閉じた後も走らせたいので、ref に触るのは pop の前に済ませる。
       // 履歴記録の失敗や遅延で投稿完了を待たせないため、あえて await しない。
@@ -1118,7 +1332,11 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         await ref.read(draftProvider.notifier).deleteDraft(_currentDraftId!);
       }
 
-      if (mounted) context.pop();
+      // 予約投稿の管理画面から開いた場合に一覧を更新させるため、結果を返す。
+      if (mounted) context.pop(true);
+      if (doneMessage != null) {
+        messenger.showSnackBar(SnackBar(content: Text(doneMessage)));
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -1127,7 +1345,9 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(apiErrorMessage(e, fallback: '投稿に失敗しました')),
+            content: Text(
+              _postErrorMessage(e, account.id, scheduled: scheduledAt != null),
+            ),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
@@ -1135,6 +1355,71 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     } finally {
       if (mounted) setState(() => _isPosting = false);
     }
+  }
+
+  String _postErrorMessage(
+    Object error,
+    String accountId, {
+    required bool scheduled,
+  }) {
+    if (apiErrorCode(error) == 'TOO_MANY_SCHEDULED_NOTES') {
+      final limit = ref.read(scheduledNoteLimitProvider(accountId)).valueOrNull;
+      if (limit != null && limit > 0) {
+        return '予約投稿は最大$limit件までです。予約投稿の一覧から不要な予約を削除してください';
+      }
+    }
+    return apiErrorMessage(
+      error,
+      fallback: scheduled ? '予約に失敗しました' : '投稿に失敗しました',
+    );
+  }
+
+  /// 予約日時を日付→時刻の順に選ばせる。過去の日時は受け付けない。
+  Future<void> _pickScheduledAt() async {
+    final now = DateTime.now();
+    // 初回は「次の正時の1時間後」（10:20 なら 12:00）を出す。現在時刻から
+    // 始めると分の端数を毎回直すことになり、次の正時だと近すぎて使いにくい。
+    final initial =
+        _scheduledAt ??
+        DateTime(
+          now.year,
+          now.month,
+          now.day,
+          now.hour,
+        ).add(const Duration(hours: 2));
+    final initialDate = initial.isBefore(now) ? now : initial;
+
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(now.year, now.month, now.day),
+      // サーバー側に上限は無いが、入力ミスで遠い未来に飛ばさないよう1年に絞る。
+      lastDate: now.add(const Duration(days: 365)),
+      helpText: '予約日を選択',
+    );
+    if (date == null || !mounted) return;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialDate),
+      helpText: '予約時刻を選択',
+    );
+    if (time == null || !mounted) return;
+
+    final picked = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+    if (!picked.isAfter(DateTime.now())) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('過去の日時は指定できません')));
+      return;
+    }
+    setState(() => _scheduledAt = picked);
   }
 
   Future<void> _showPollEditor() async {
@@ -1379,8 +1664,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                   // 返信先に縛られた選択をデフォルトとして保存すると、
                   // 以降の通常投稿まで狭い範囲になってしまうため永続化しない
                   if (!_isVisibilityRestrictedByReply) {
-                    final accountId =
-                        ref.read(activeAccountProvider)?.id ?? '';
+                    final accountId = ref.read(activeAccountProvider)?.id ?? '';
                     ref
                         .read(accountVisibilityProvider(accountId).notifier)
                         .setVisibility(v);
@@ -1398,6 +1682,14 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   void _showAccountSwitcher(BuildContext context, WidgetRef ref) {
     final accounts = ref.read(accountProvider);
     if (accounts.length <= 1) return; // 1アカウントのみなら何もしない
+    // 予約投稿は作成したアカウントのサーバーに保存されており、別アカウントへ
+    // 付け替える API は無い。
+    if (_isEditingScheduled) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('予約投稿の編集中はアカウントを切り替えられません')));
+      return;
+    }
     showModalBottomSheet(
       context: context,
       useSafeArea: true,
@@ -1555,6 +1847,13 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   Widget build(BuildContext context) {
     final account = _selectedAccount ?? ref.read(activeAccountProvider);
     final theme = Theme.of(context);
+    final scheduleLimit = account == null
+        ? 0
+        : ref.watch(scheduledNoteLimitProvider(account.id)).valueOrNull ?? 0;
+    // 予約済みのものを編集している・日時を決めた後にアカウントを切り替えた
+    // 場合は、取り消せるようボタンを残す。
+    final showScheduleButton =
+        scheduleLimit > 0 || _isEditingScheduled || _scheduledAt != null;
 
     return PopScope(
       canPop: false,
@@ -1571,12 +1870,16 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               child: const Text('キャンセル', softWrap: false),
             ),
             leadingWidth: 110,
+            title: _isEditingScheduled ? const Text('予約投稿を編集') : null,
             actions: [
-              TextButton.icon(
-                onPressed: _saveDraft,
-                icon: const Icon(Icons.save_outlined, size: 18),
-                label: const Text('下書き保存'),
-              ),
+              // 予約投稿の編集内容は端末の下書きへは保存しない（予約は
+              // サーバーに残っているため、二重に管理させない）。
+              if (!_isEditingScheduled)
+                TextButton.icon(
+                  onPressed: _saveDraft,
+                  icon: const Icon(Icons.save_outlined, size: 18),
+                  label: const Text('下書き保存'),
+                ),
             ],
           ),
           body: Column(
@@ -2053,6 +2356,16 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                   ),
                 ),
 
+              // 予約日時
+              if (_scheduledAt != null)
+                _ScheduledAtChip(
+                  scheduledAt: _scheduledAt!,
+                  onTap: _isPosting ? null : _pickScheduledAt,
+                  onDeleted: _isPosting
+                      ? null
+                      : () => setState(() => _scheduledAt = null),
+                ),
+
               // アップロード中インジケーター
               if (_isUploadingMedia)
                 LinearProgressIndicator(
@@ -2170,7 +2483,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                               width: 14,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('投稿'),
+                          : Text(_scheduledAt != null ? '予約' : '投稿'),
                     ),
                   ],
                 ),
@@ -2230,6 +2543,19 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                         onPressed: _isPosting ? null : _showPollEditor,
                       ),
 
+                      // 予約投稿
+                      if (showScheduleButton)
+                        IconButton(
+                          icon: Icon(
+                            Icons.schedule,
+                            color: _scheduledAt != null
+                                ? theme.colorScheme.primary
+                                : null,
+                          ),
+                          tooltip: '予約投稿',
+                          onPressed: _isPosting ? null : _pickScheduledAt,
+                        ),
+
                       // MFMプレビュートグル
                       IconButton(
                         icon: Icon(
@@ -2280,6 +2606,53 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---- 予約日時チップ ----
+
+/// 入力欄の下に出す予約日時。タップで日時を変更、✕で予約を外して即時投稿に戻す。
+///
+/// 日時は端末のローカル時刻で表示する。設定の「タイムゾーン」に合わせないのは、
+/// 日時ピッカーの入力が端末のローカル時刻で、入力と表示を食い違わせないため。
+class _ScheduledAtChip extends StatelessWidget {
+  final DateTime scheduledAt;
+  final VoidCallback? onTap;
+  final VoidCallback? onDeleted;
+
+  const _ScheduledAtChip({
+    required this.scheduledAt,
+    required this.onTap,
+    required this.onDeleted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // 投稿に失敗した予約を開き直したときなど、日時が過ぎていることがある。
+    final isPast = !scheduledAt.isAfter(DateTime.now());
+    final color = isPast ? theme.colorScheme.error : theme.colorScheme.primary;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: InputChip(
+          avatar: Icon(Icons.schedule, size: 18, color: color),
+          label: Text(
+            isPast
+                ? '予約: ${formatYmdWeekdayHm(scheduledAt)}（日時を過ぎています）'
+                : '予約: ${formatYmdWeekdayHm(scheduledAt)}',
+            style: theme.textTheme.bodySmall?.copyWith(color: color),
+          ),
+          tooltip: '予約日時を変更',
+          onPressed: onTap,
+          onDeleted: onDeleted,
+          deleteButtonTooltipMessage: '予約を解除',
+          shape: StadiumBorder(side: BorderSide(color: color)),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
       ),
     );
@@ -2357,11 +2730,8 @@ class _EmojiSuggestBar extends ConsumerWidget {
             onTap: () => onSelect(name),
             onLongPress: url == null
                 ? null
-                : () => showCustomEmojiDetailSheet(
-                    context,
-                    name: name,
-                    url: url,
-                  ),
+                : () =>
+                      showCustomEmojiDetailSheet(context, name: name, url: url),
             borderRadius: BorderRadius.circular(8),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

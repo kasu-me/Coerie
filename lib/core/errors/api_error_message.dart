@@ -46,6 +46,15 @@ const Map<String, String> _messageByCode = {
   'ALREADY_FAVORITED': 'すでにお気に入りに登録されています',
   'NOT_FAVORITED': 'お気に入りに登録されていません',
 
+  // 予約投稿（サーバー側下書き）
+  // 上限件数を含めた文言は投稿画面側で組み立てる。ここは件数が取れなかったときの受け皿。
+  'TOO_MANY_SCHEDULED_NOTES': '予約投稿の上限件数に達しています',
+  // 予約投稿もサーバー側の下書きとして数えられるため、Misskey Web で保存した
+  // 下書きが多いとこちらに当たる。
+  'TOO_MANY_DRAFTS': 'サーバーに保存できる下書きの上限に達しているため予約できません',
+  'SCHEDULED_AT_MUST_BE_IN_FUTURE': '予約日時には未来の日時を指定してください',
+  'NO_SUCH_NOTE_DRAFT': '予約投稿が見つかりませんでした。すでに投稿・削除された可能性があります',
+
   // ノート・ユーザー
   'NO_SUCH_NOTE': 'ノートが見つかりませんでした',
   'NO_SUCH_USER': 'ユーザーが見つかりませんでした',

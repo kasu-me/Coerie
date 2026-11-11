@@ -18,6 +18,12 @@ String formatHms(DateTime d) => '${formatHm(d)}:${_p2(d.second)}';
 /// `yyyy/MM/dd HH:mm`
 String formatYmdHm(DateTime d) => '${formatYmd(d)} ${formatHm(d)}';
 
+/// `yyyy/MM/dd(曜) HH:mm`。予約日時のように、曜日で見当を付けたい日時に使う。
+String formatYmdWeekdayHm(DateTime d) {
+  const weekdays = ['月', '火', '水', '木', '金', '土', '日'];
+  return '${formatYmd(d)}(${weekdays[d.weekday - 1]}) ${formatHm(d)}';
+}
+
 /// `yyyy/MM/dd HH:mm:ss`
 String formatYmdHms(DateTime d) => '${formatYmd(d)} ${formatHms(d)}';
 

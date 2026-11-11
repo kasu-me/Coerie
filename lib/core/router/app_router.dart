@@ -18,6 +18,8 @@ import '../../features/home/home_screen.dart';
 import '../../features/compose/compose_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../features/draft/draft_screen.dart';
+import '../../features/scheduled_notes/scheduled_notes_screen.dart';
+import '../../data/models/note_draft_model.dart';
 import '../../features/settings/appearance_settings_screen.dart';
 import '../../features/settings/timeline_settings_screen.dart';
 import '../../features/settings/image_posting_settings_screen.dart';
@@ -91,6 +93,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           final renoteId = extra?['renoteId'] as String?;
           final renoteToNote = extra?['renoteToNote'] as NoteModel?;
           final initialChannelId = extra?['channelId'] as String?;
+          final scheduledDraft = extra?['scheduledDraft'] as NoteDraftModel?;
           return ComposeScreen(
             draftId: draftId,
             replyId: replyId,
@@ -104,12 +107,17 @@ final routerProvider = Provider<GoRouter>((ref) {
             initialCw: initialCw,
             initialIsSensitive: initialIsSensitive,
             initialChannelId: initialChannelId,
+            scheduledDraft: scheduledDraft,
           );
         },
       ),
       GoRoute(
         path: '/drafts',
         builder: (context, state) => const DraftScreen(),
+      ),
+      GoRoute(
+        path: '/scheduled-notes',
+        builder: (context, state) => const ScheduledNotesScreen(),
       ),
       GoRoute(
         path: '/drive',

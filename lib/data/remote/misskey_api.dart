@@ -11,6 +11,7 @@ import '../../data/models/custom_emoji_model.dart';
 import '../../data/models/drive_file_model.dart';
 import '../../data/models/drive_folder_model.dart';
 import '../../data/models/muted_word_model.dart';
+import '../../data/models/note_draft_model.dart';
 import '../../data/models/note_model.dart';
 import '../../data/models/note_state_model.dart';
 import '../../data/models/page_model.dart';
@@ -173,6 +174,161 @@ class MisskeyApi {
       ),
       params,
     );
+  }
+
+  // ---- 予約投稿 ----
+  //
+  // Misskey の予約投稿は「isActuallyScheduled の立ったサーバー側下書き」として
+  // 保存され、指定日時にサーバーが投稿する。端末側で時刻を待って notes/create を
+  // 叩く方式は、アプリが止められていると投稿されないため採用していない。
+
+  /// 予約投稿を一覧で取得する。予約日時の早い順に並べて返す。
+  ///
+  /// API の並びは作成順でしか取れないため、全件を取り切ってから並べ替える。
+  /// 予約件数はロールポリシー（既定1件）で抑えられており、全件取得しても軽い。
+  Future<List<NoteDraftModel>> getScheduledNotes() async {
+    const pageSize = 100;
+    final result = <NoteDraftModel>[];
+    String? untilId;
+    while (true) {
+      final page = await _postList(
+        'notes/drafts/list',
+        (j) => NoteDraftModel.fromJson(j, host: host),
+        {'limit': pageSize, 'scheduled': true, 'untilId': ?untilId},
+      );
+      result.addAll(page);
+      if (page.length < pageSize) break;
+      untilId = page.last.id;
+    }
+    final far = DateTime.fromMillisecondsSinceEpoch(8640000000000000);
+    result.sort(
+      (a, b) => (a.scheduledAt ?? far).compareTo(b.scheduledAt ?? far),
+    );
+    return result;
+  }
+
+  Future<NoteDraftModel> createScheduledNote({
+    required DateTime scheduledAt,
+    String? text,
+    String? cw,
+    String visibility = 'public',
+    List<String> visibleUserIds = const [],
+    List<String> fileIds = const [],
+    String? replyId,
+    String? renoteId,
+    Map<String, dynamic>? poll,
+    String? channelId,
+  }) => _postOne(
+    'notes/drafts/create',
+    (j) => NoteDraftModel.fromJson(
+      j['createdDraft'] as Map<String, dynamic>,
+      host: host,
+    ),
+    _scheduledNoteParams(
+      scheduledAt: scheduledAt,
+      text: text,
+      cw: cw,
+      visibility: visibility,
+      visibleUserIds: visibleUserIds,
+      fileIds: fileIds,
+      replyId: replyId,
+      renoteId: renoteId,
+      poll: poll,
+      channelId: channelId,
+    ),
+  );
+
+  /// 予約投稿の内容と日時を差し替える。
+  ///
+  /// サーバーは省略した項目を「変更なし」ではなく null として上書きするため、
+  /// 投稿画面で扱わない項目（[localOnly] など）も元の値を渡すこと。
+  Future<NoteDraftModel> updateScheduledNote({
+    required String draftId,
+    required DateTime scheduledAt,
+    String? text,
+    String? cw,
+    String visibility = 'public',
+    List<String> visibleUserIds = const [],
+    List<String> fileIds = const [],
+    String? replyId,
+    String? renoteId,
+    Map<String, dynamic>? poll,
+    String? channelId,
+    bool localOnly = false,
+    String? reactionAcceptance,
+    String? hashtag,
+  }) => _postOne(
+    'notes/drafts/update',
+    (j) => NoteDraftModel.fromJson(
+      j['updatedDraft'] as Map<String, dynamic>,
+      host: host,
+    ),
+    {
+      'draftId': draftId,
+      ..._scheduledNoteParams(
+        scheduledAt: scheduledAt,
+        text: text,
+        cw: cw,
+        visibility: visibility,
+        visibleUserIds: visibleUserIds,
+        fileIds: fileIds,
+        replyId: replyId,
+        renoteId: renoteId,
+        poll: poll,
+        channelId: channelId,
+      ),
+      'localOnly': localOnly,
+      'reactionAcceptance': reactionAcceptance,
+      'hashtag': hashtag,
+    },
+  );
+
+  /// サーバー側の下書きを削除する。予約投稿の取り消しに使う。
+  Future<void> deleteNoteDraft(String draftId) =>
+      _post('notes/drafts/delete', {'draftId': draftId});
+
+  /// 予約投稿の作成・更新で共通のパラメータ。
+  ///
+  /// update が省略項目を null で上書きするため、空の項目も null として明示的に送る。
+  /// cw は空文字だと minLength 違反になるので null に寄せる。
+  Map<String, dynamic> _scheduledNoteParams({
+    required DateTime scheduledAt,
+    required String? text,
+    required String? cw,
+    required String visibility,
+    required List<String> visibleUserIds,
+    required List<String> fileIds,
+    required String? replyId,
+    required String? renoteId,
+    required Map<String, dynamic>? poll,
+    required String? channelId,
+  }) => {
+    'text': (text == null || text.isEmpty) ? null : text,
+    'cw': (cw == null || cw.isEmpty) ? null : cw,
+    'visibility': visibility,
+    'visibleUserIds': visibleUserIds,
+    'fileIds': fileIds,
+    'replyId': replyId,
+    'renoteId': renoteId,
+    'poll': poll,
+    'channelId': channelId,
+    'scheduledAt': scheduledAt.millisecondsSinceEpoch,
+    'isActuallyScheduled': true,
+  };
+
+  /// 予約投稿できる件数の上限（ロールポリシー `scheduledNoteLimit`）を取得する。
+  ///
+  /// 予約投稿に対応していないサーバー（ポリシーにキーが無い）では 0 を返す。
+  /// 通信失敗などで判定できなかった場合は null を返す。0 と区別するのは、
+  /// 一時的な失敗で「非対応」と確定させてしまわないため。
+  Future<int?> fetchScheduledNoteLimit() async {
+    final policies = await _fetchPolicies();
+    if (policies == null) {
+      // _fetchPolicies は失敗結果も使い回すため、次回は取り直させる。
+      _policiesFuture = null;
+      return null;
+    }
+    return (policies['scheduledNoteLimit'] as num?)?.toInt() ?? 0;
   }
 
   // ---- 投票 ----

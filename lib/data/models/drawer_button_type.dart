@@ -10,6 +10,7 @@ enum DrawerButtonKey {
   directMessages,
   drive,
   drafts,
+  scheduledNotes,
   clips,
   lists,
   antennas,
@@ -63,6 +64,11 @@ const List<DrawerButtonInfo> kCustomizableDrawerButtons = [
     icon: Icons.edit_note,
   ),
   DrawerButtonInfo(
+    key: DrawerButtonKey.scheduledNotes,
+    label: '予約投稿',
+    icon: Icons.schedule_send,
+  ),
+  DrawerButtonInfo(
     key: DrawerButtonKey.clips,
     label: 'クリップ',
     icon: Icons.bookmark_outline,
@@ -78,7 +84,11 @@ const List<DrawerButtonInfo> kCustomizableDrawerButtons = [
     label: 'お気に入り',
     icon: Icons.star_outline,
   ),
-  DrawerButtonInfo(key: DrawerButtonKey.channels, label: 'チャンネル', icon: Icons.tv),
+  DrawerButtonInfo(
+    key: DrawerButtonKey.channels,
+    label: 'チャンネル',
+    icon: Icons.tv,
+  ),
   DrawerButtonInfo(
     key: DrawerButtonKey.pages,
     label: 'ページ',
