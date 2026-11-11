@@ -574,6 +574,7 @@ class _NotificationTile extends ConsumerWidget {
     'achievementEarned' => '実績を獲得しました',
     'scheduledNotePosted' => '予約投稿が投稿されました',
     'scheduledNotePostFailed' => '予約投稿の投稿に失敗しました',
+    'pollEnded' => 'アンケートの結果が出ました',
     _ => type,
   };
 
