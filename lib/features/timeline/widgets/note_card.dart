@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/account_model.dart';
+import '../../../data/models/channel_model.dart';
 import '../../../data/models/clip_model.dart';
 import '../../../data/models/drive_file_model.dart';
 import '../../../data/models/note_model.dart';
@@ -37,6 +38,7 @@ import '../sensitive_reveal_provider.dart';
 import '../timeline_provider.dart';
 import 'renote_visibility.dart';
 import 'renote_with_other_account_sheet.dart';
+import '../../../shared/utils/color_utils.dart';
 import '../../../shared/utils/format_utils.dart';
 import '../../../shared/utils/visibility_utils.dart';
 import '../../../shared/widgets/user_list_sheet.dart';
@@ -69,6 +71,11 @@ class NoteCard extends ConsumerWidget {
   final VoidCallback? onPinnedChanged;
   final VoidCallback? onUnfavorited;
   final Widget? trailing;
+
+  /// 表示中のチャンネルタイムラインのチャンネルID。
+  /// そのチャンネルのタイムラインでは全ノートが同じチャンネルなので、
+  /// このチャンネルのノートにだけチャンネルラベルを出さない。
+  final String? contextChannelId;
   const NoteCard({
     super.key,
     required this.note,
@@ -78,6 +85,7 @@ class NoteCard extends ConsumerWidget {
     this.onPinnedChanged,
     this.onUnfavorited,
     this.trailing,
+    this.contextChannelId,
   });
 
   @override
@@ -94,6 +102,7 @@ class NoteCard extends ConsumerWidget {
         renoteWrapperNoteId: note.id,
         renoteVisibility: note.visibility,
         reactedBy: reactedBy,
+        contextChannelId: contextChannelId,
       );
     }
 
@@ -105,6 +114,7 @@ class NoteCard extends ConsumerWidget {
       onPinnedChanged: onPinnedChanged,
       onUnfavorited: onUnfavorited,
       trailing: trailing,
+      contextChannelId: contextChannelId,
     );
   }
 }
@@ -121,6 +131,7 @@ class _NoteCardBody extends ConsumerStatefulWidget {
   final VoidCallback? onPinnedChanged;
   final VoidCallback? onUnfavorited;
   final Widget? trailing;
+  final String? contextChannelId;
   const _NoteCardBody({
     required this.note,
     this.navigatable = true,
@@ -133,6 +144,7 @@ class _NoteCardBody extends ConsumerStatefulWidget {
     this.onPinnedChanged,
     this.onUnfavorited,
     this.trailing,
+    this.contextChannelId,
   });
 
   @override
@@ -497,6 +509,41 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
     }
   }
 
+  Widget _buildChannelLabel(BuildContext context, ChannelModel channel) {
+    final theme = Theme.of(context);
+    final color =
+        channelColorFromHex(channel.color) ?? theme.colorScheme.secondary;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          Icon(Icons.tv, size: 14, color: color),
+          const SizedBox(width: 4),
+          Expanded(
+            // 行の空白部分のタップはノート詳細へ通すため
+            // ラベルの文字部分だけを反応させる
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: GestureDetector(
+                // ノートに埋め込まれた channel は関係フィールドを含まないが、
+                // 詳細画面は表示直後に channels/show で取り直すため、
+                // 名前を先に出す目的で初期データとして渡す
+                onTap: () =>
+                    context.push('/channels/${channel.id}', extra: channel),
+                child: Text(
+                  channel.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(color: color),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final note = widget.note;
@@ -523,6 +570,9 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
     // 投票の合計票数は選択肢ごとに変わらないため、ループの外で1度だけ求める
     final pollTotalVotes =
         _localPoll?.choices.fold<int>(0, (p, e) => p + e.votes) ?? 0;
+
+    final showChannelLabel =
+        note.channel != null && note.channel!.id != widget.contextChannelId;
 
     final card = Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -921,6 +971,9 @@ class _NoteCardState extends ConsumerState<_NoteCardBody> {
                   }),
                 ),
               ),
+
+            // チャンネルラベル（Web版と同じく本文・添付類の下、リアクションの上）
+            if (showChannelLabel) _buildChannelLabel(context, note.channel!),
 
             // リアクション（ローカル状態から表示）
             if (_localReactions.isNotEmpty)

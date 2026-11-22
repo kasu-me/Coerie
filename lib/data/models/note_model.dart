@@ -1,4 +1,5 @@
 import '../../core/constants/app_constants.dart';
+import 'channel_model.dart';
 import 'drive_file_model.dart';
 import 'user_model.dart';
 import 'poll_model.dart';
@@ -37,6 +38,13 @@ class NoteModel {
   /// このノートが現在のユーザーにとってお気に入り登録済みかどうか
   final bool? isFavorited;
 
+  /// チャンネルに投稿されたノートの場合、そのチャンネル。
+  ///
+  /// ノートに埋め込まれる channel は id / name / color 等の最小限の項目だけで、
+  /// 閲覧者との関係（isFollowing 等）は含まれない。関係が必要な場合は
+  /// `channels/show` で取り直すこと。
+  final ChannelModel? channel;
+
   const NoteModel({
     required this.id,
     required this.createdAt,
@@ -58,6 +66,7 @@ class NoteModel {
     this.localOnly = false,
     this.poll,
     this.isFavorited,
+    this.channel,
   });
 
   /// [viewerUserId] のユーザーがこのノートをリノートできるか。
@@ -107,6 +116,7 @@ class NoteModel {
     isFavorited: identical(isFavorited, _sentinel)
         ? this.isFavorited
         : isFavorited as bool?,
+    channel: channel,
   );
 
   factory NoteModel.fromJson(Map<String, dynamic> json, {String host = ''}) {
@@ -151,6 +161,9 @@ class NoteModel {
           ? PollModel.fromJson(json['poll'] as Map<String, dynamic>)
           : null,
       isFavorited: json['isFavorited'] as bool?,
+      channel: json['channel'] is Map<String, dynamic>
+          ? ChannelModel.fromJson(json['channel'] as Map<String, dynamic>)
+          : null,
     );
   }
 }

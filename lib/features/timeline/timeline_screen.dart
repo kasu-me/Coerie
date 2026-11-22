@@ -204,6 +204,10 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
   Widget build(BuildContext context) {
     super.build(context);
 
+    final channelId = widget.timelineType.startsWith('channel:')
+        ? widget.timelineType.substring(8)
+        : null;
+
     // アカウント切り替え時にUIをリセットする
     ref.listen(activeAccountProvider, (prev, next) {
       if (prev?.id != next?.id) {
@@ -356,6 +360,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen>
             return NoteCard(
               key: ValueKey(state.notes[index].id),
               note: state.notes[index],
+              contextChannelId: channelId,
             );
           },
         ),
