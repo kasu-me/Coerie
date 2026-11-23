@@ -31,9 +31,9 @@ List<DraftAttachment> _mergedAttachments(DraftModel draft) {
 
 /// 「何に対する下書きか」を示す行。
 ///
-/// 返信と引用は同時に成立しうるため、両方あるときは並べて出す。表示する
-/// acct は下書き保存時に写したもので、相手が改名しても追従しない（一覧で
-/// ノートを引き直すと下書きの件数だけ通信が発生するため）。
+/// 返信・引用・チャンネルは同時に成立しうるため、該当するものを並べて出す。
+/// 表示する acct・チャンネル名は下書き保存時に写したもので、改名には追従
+/// しない（一覧で引き直すと下書きの件数だけ通信が発生するため）。
 class _DraftRelationLine extends StatelessWidget {
   final DraftModel draft;
   const _DraftRelationLine(this.draft);
@@ -64,6 +64,10 @@ class _DraftRelationLine extends StatelessWidget {
     if (draft.replyId != null) add(Icons.reply, draft.replyAcct ?? '返信');
     if (draft.renoteId != null) {
       add(Icons.format_quote, draft.renoteAcct ?? '引用');
+    }
+    if (draft.channelId != null) {
+      final name = draft.channelName;
+      add(Icons.tag, name == null || name.isEmpty ? 'チャンネル' : name);
     }
     return Row(children: children);
   }
@@ -99,7 +103,9 @@ class DraftScreen extends ConsumerWidget {
                 final draft = drafts[index];
                 final attachments = _mergedAttachments(draft);
                 final hasRelation =
-                    draft.replyId != null || draft.renoteId != null;
+                    draft.replyId != null ||
+                    draft.renoteId != null ||
+                    draft.channelId != null;
                 return Dismissible(
                   key: Key(draft.id),
                   direction: DismissDirection.endToStart,

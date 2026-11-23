@@ -36,6 +36,8 @@ class DraftNotifier extends StateNotifier<List<DraftModel>> {
     String? replyAcct,
     String? renoteId,
     String? renoteAcct,
+    String? channelId,
+    String? channelName,
   }) async {
     final box = HiveService.draftsBox;
     final id = existingId ?? const Uuid().v4();
@@ -52,6 +54,8 @@ class DraftNotifier extends StateNotifier<List<DraftModel>> {
       replyAcct: replyAcct,
       renoteId: renoteId,
       renoteAcct: renoteAcct,
+      channelId: channelId,
+      channelName: channelName,
     );
     await box.put(id, draft);
     _load();
@@ -101,6 +105,8 @@ class DraftNotifier extends StateNotifier<List<DraftModel>> {
         replyAcct: draft.replyAcct,
         renoteId: draft.renoteId,
         renoteAcct: draft.renoteAcct,
+        channelId: draft.channelId,
+        channelName: draft.channelName,
       ),
     );
     _load();

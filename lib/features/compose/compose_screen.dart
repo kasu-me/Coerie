@@ -215,6 +215,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
             _attachedMedia.addAll(_restoreAttachedMedia(draft));
             _replyId = draft.replyId;
             _renoteId = draft.renoteId;
+            _selectedChannelId = draft.channelId;
+            _selectedChannelName = draft.channelName;
           });
         }
         if (removed > 0) {
@@ -223,9 +225,10 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           );
         }
         if (draft != null) {
-          await _restoreNoteRefs(
+          await _restoreDraftRefs(
             replyId: draft.replyId,
             renoteId: draft.renoteId,
+            channelId: draft.channelId,
           );
         }
       });
@@ -408,7 +411,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     final missingRenote = draft.renoteId != null && draft.renote == null;
     if (missingReply || missingRenote) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _restoreNoteRefs(
+        _restoreDraftRefs(
           replyId: missingReply ? draft.replyId : null,
           renoteId: missingRenote ? draft.renoteId : null,
         );
@@ -447,7 +450,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     return widget.scheduledDraft?.visibleUserIds;
   }
 
-  /// 下書きに保存されている返信先/引用元のノートを取得し直す。
+  /// 下書きに保存されている返信先/引用元のノートと投稿先チャンネルを取得し直す。
   ///
   /// 下書きにはIDしか持たせていない。ノート本体を写しておくと、返信先が
   /// 編集・削除されても古い内容を見せ続けることになるため。
@@ -455,8 +458,12 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
   /// 取得できない場合（削除済み・権限なし・別インスタンスのアカウントで
   /// 開いた）は、投稿時に弾かれる無効なIDを抱え込まないよう関係を外し、
   /// 通常の投稿として編集を続けられるようにする。
-  Future<void> _restoreNoteRefs({String? replyId, String? renoteId}) async {
-    if (replyId == null && renoteId == null) return;
+  Future<void> _restoreDraftRefs({
+    String? replyId,
+    String? renoteId,
+    String? channelId,
+  }) async {
+    if (replyId == null && renoteId == null && channelId == null) return;
     final account = _selectedAccount;
     // アカウントが無ければそもそも投稿できないので、関係は外さず何もしない。
     if (account == null) return;
@@ -464,6 +471,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     final api = MisskeyApi(host: account.host, token: account.token);
     NoteModel? reply;
     NoteModel? renote;
+    ChannelModel? channel;
     if (replyId != null) {
       try {
         reply = await api.getNote(replyId);
@@ -472,6 +480,14 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     if (renoteId != null) {
       try {
         renote = await api.getNote(renoteId);
+      } catch (_) {}
+    }
+    if (channelId != null) {
+      try {
+        final ch = await api.getChannel(channelId);
+        // notes/create はアーカイブ済みチャンネルへの投稿を noSuchChannel で
+        // 弾くため、取得できても投稿先としては使えない。
+        if (!ch.isArchived) channel = ch;
       } catch (_) {}
     }
     if (!mounted) return;
@@ -486,12 +502,18 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         _renoteToNote = renote;
         if (renote == null) _renoteId = null;
       }
+      // 検証中にユーザーが別のチャンネルを選び直していたら上書きしない。
+      if (channelId != null && _selectedChannelId == channelId) {
+        _selectedChannelId = channel?.id;
+        _selectedChannelName = channel?.name;
+      }
       _visibility = _clampVisibility(_visibility);
     });
 
     final lost = [
       if (replyId != null && reply == null) '返信先',
       if (renoteId != null && renote == null) '引用元',
+      if (channelId != null && channel == null) 'チャンネル',
     ];
     if (lost.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -536,6 +558,8 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
           replyAcct: _replyToNote?.user.acct,
           renoteId: _renoteId,
           renoteAcct: _renoteToNote?.user.acct,
+          channelId: _selectedChannelId,
+          channelName: _selectedChannelName,
         );
     if (!mounted) return;
 

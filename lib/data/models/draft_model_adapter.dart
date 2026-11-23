@@ -63,6 +63,10 @@ class DraftModelAdapter extends TypeAdapter<DraftModel> {
     final renoteId = _readNullableString(reader);
     final renoteAcct = _readNullableString(reader);
 
+    // 第7世代: 投稿先チャンネル。旧レコードには後続バイトが無いので null で読む。
+    final channelId = _readNullableString(reader);
+    final channelName = _readNullableString(reader);
+
     return DraftModel(
       id: id,
       text: text,
@@ -76,6 +80,8 @@ class DraftModelAdapter extends TypeAdapter<DraftModel> {
       replyAcct: replyAcct,
       renoteId: renoteId,
       renoteAcct: renoteAcct,
+      channelId: channelId,
+      channelName: channelName,
     );
   }
 
@@ -97,6 +103,8 @@ class DraftModelAdapter extends TypeAdapter<DraftModel> {
     writer.writeString(obj.replyAcct ?? '');
     writer.writeString(obj.renoteId ?? '');
     writer.writeString(obj.renoteAcct ?? '');
+    writer.writeString(obj.channelId ?? '');
+    writer.writeString(obj.channelName ?? '');
   }
 
   /// 末尾に追加された nullable な文字列を読む。

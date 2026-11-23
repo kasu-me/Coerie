@@ -32,6 +32,13 @@ class DraftModel {
   /// 引用元ユーザーの acct。用途は [replyAcct] と同じ。
   final String? renoteAcct;
 
+  /// 投稿先チャンネルのID。
+  final String? channelId;
+
+  /// 投稿先チャンネルの名前。用途は [replyAcct] と同じで、改名には追従しない
+  /// （投稿画面で開いたときに取得し直す）。
+  final String? channelName;
+
   DraftModel({
     required this.id,
     required this.text,
@@ -45,5 +52,7 @@ class DraftModel {
     this.replyAcct,
     this.renoteId,
     this.renoteAcct,
+    this.channelId,
+    this.channelName,
   });
 }

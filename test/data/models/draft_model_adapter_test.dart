@@ -71,6 +71,29 @@ Uint8List writeGeneration5Format(DraftModel obj) {
   return writer.toBytes();
 }
 
+/// 第6世代（返信先/引用元まで）のバイト列を再現する。
+///
+/// [writeLegacyFormat] と同じく過去に書き込まれたデータのスナップショットで
+/// あり、**現行 write() に合わせて書き換えないこと。**
+Uint8List writeGeneration6Format(DraftModel obj) {
+  final writer = BinaryWriterImpl(Hive);
+  writer.writeString(obj.id);
+  writer.writeString(obj.text);
+  writer.writeString(obj.visibility);
+  writer.writeInt(obj.savedAt.millisecondsSinceEpoch);
+  writer.writeStringList(obj.files.map((f) => jsonEncode(f.toJson())).toList());
+  writer.writeString(obj.cw ?? '');
+  writer.writeInt(obj.isSensitive ? 1 : 0);
+  writer.writeStringList(
+    obj.localFiles.map((f) => jsonEncode(f.toJson())).toList(),
+  );
+  writer.writeString(obj.replyId ?? '');
+  writer.writeString(obj.replyAcct ?? '');
+  writer.writeString(obj.renoteId ?? '');
+  writer.writeString(obj.renoteAcct ?? '');
+  return writer.toBytes();
+}
+
 DraftModel readWithCurrentAdapter(Uint8List bytes) =>
     DraftModelAdapter().read(BinaryReaderImpl(bytes, Hive));
 
@@ -454,6 +477,88 @@ void main() {
       expect(
         current.sublist(0, generation5.length),
         equals(generation5),
+        reason: '既存フィールドのバイト表現が変わっている（末尾追加以外の変更）',
+      );
+    });
+
+    final sampleWithReply = DraftModel(
+      id: sample.id,
+      text: sample.text,
+      visibility: sample.visibility,
+      savedAt: sample.savedAt,
+      files: sample.files,
+      cw: sample.cw,
+      isSensitive: sample.isSensitive,
+      replyId: '9abc',
+      replyAcct: '@alice@misskey.io',
+    );
+
+    test('第6世代（返信先/引用元まで）のレコードを読むとチャンネルは null になる', () {
+      final decoded = readWithCurrentAdapter(
+        writeGeneration6Format(sampleWithReply),
+      );
+
+      expectSampleCore(decoded);
+      expect(decoded.replyId, '9abc');
+      expect(decoded.replyAcct, '@alice@misskey.io');
+      expect(decoded.channelId, isNull);
+      expect(decoded.channelName, isNull);
+    });
+
+    test('現行アダプター同士の往復でチャンネルが保たれる', () {
+      final sampleWithChannel = DraftModel(
+        id: sample.id,
+        text: sample.text,
+        visibility: sample.visibility,
+        savedAt: sample.savedAt,
+        channelId: '9ch1',
+        channelName: '雑談チャンネル',
+      );
+
+      final writer = BinaryWriterImpl(Hive);
+      DraftModelAdapter().write(writer, sampleWithChannel);
+
+      final decoded = readWithCurrentAdapter(writer.toBytes());
+
+      expectSampleCore(decoded);
+      expect(decoded.channelId, '9ch1');
+      expect(decoded.channelName, '雑談チャンネル');
+    });
+
+    test('チャンネルを持たない下書きは往復しても null のまま', () {
+      final writer = BinaryWriterImpl(Hive);
+      DraftModelAdapter().write(writer, sample);
+
+      final decoded = readWithCurrentAdapter(writer.toBytes());
+
+      expect(decoded.channelId, isNull);
+      expect(decoded.channelName, isNull);
+    });
+
+    test('チャンネルを持つ場合も現行アダプターの書き出しは第6世代形式を接頭辞として保持する', () {
+      final sampleWithChannel = DraftModel(
+        id: sampleWithReply.id,
+        text: sampleWithReply.text,
+        visibility: sampleWithReply.visibility,
+        savedAt: sampleWithReply.savedAt,
+        files: sampleWithReply.files,
+        cw: sampleWithReply.cw,
+        isSensitive: sampleWithReply.isSensitive,
+        replyId: sampleWithReply.replyId,
+        replyAcct: sampleWithReply.replyAcct,
+        channelId: '9ch1',
+        channelName: '雑談チャンネル',
+      );
+
+      final writer = BinaryWriterImpl(Hive);
+      DraftModelAdapter().write(writer, sampleWithChannel);
+      final current = writer.toBytes();
+      final generation6 = writeGeneration6Format(sampleWithReply);
+
+      expect(current.length, greaterThanOrEqualTo(generation6.length));
+      expect(
+        current.sublist(0, generation6.length),
+        equals(generation6),
         reason: '既存フィールドのバイト表現が変わっている（末尾追加以外の変更）',
       );
     });
