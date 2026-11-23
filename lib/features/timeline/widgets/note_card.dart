@@ -1987,7 +1987,7 @@ class _MediaGrid extends ConsumerWidget {
           builder: (_) {
             final imageFiles = files.where((f) => f.isImage).toList();
             if (imageFiles.isEmpty) return const SizedBox.shrink();
-            final count = imageFiles.length.clamp(1, 4);
+            final count = imageFiles.length;
             return GridView.builder(
               shrinkWrap: true,
               padding: EdgeInsets.zero,

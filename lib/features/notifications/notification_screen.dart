@@ -513,7 +513,7 @@ class _NotificationTile extends ConsumerWidget {
   }
 
   Widget _buildImagePreviews(BuildContext context, NoteModel note) {
-    final imageFiles = note.files.where((f) => f.isImage).take(4).toList();
+    final imageFiles = note.files.where((f) => f.isImage).toList();
     if (imageFiles.isEmpty) return const SizedBox.shrink();
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
