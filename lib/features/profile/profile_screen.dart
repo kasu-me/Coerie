@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -1759,9 +1761,27 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet>
       // widget tree mutations during transient metric changes.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
+        final expanded = newHeight > _keyboardHeight;
         setState(() => _keyboardHeight = newHeight);
+        if (expanded) {
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => _scrollFocusedFieldIntoView(),
+          );
+        }
       });
     }
+  }
+
+  // TextField は viewInsets の変化時に自動でカーソル位置までスクロールするが、
+  // didChangeMetrics が余白の反映を1フレーム遅らせるため、その判定は縮む前の
+  // 表示領域を基準に行われる。インセットが段階的に変化しない端末ではこれだけだと
+  // 入力中の欄が隠れたままになる。
+  void _scrollFocusedFieldIntoView() {
+    if (!mounted) return;
+    final box = FocusManager.instance.primaryFocus?.context?.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return;
+    // 枠線まで見えるよう、TextField.scrollPadding の既定値と同じだけ広げる
+    box.showOnScreen(rect: (Offset.zero & box.size).inflate(20));
   }
 
   Future<void> _save() async {
@@ -1811,75 +1831,91 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet>
         16,
         16,
         16,
-        16 + _keyboardHeight + bottomSafe,
+        // viewInsets はナビゲーションバー領域を含むため、合計ではなく大きい方を採る
+        16 + math.max(_keyboardHeight, bottomSafe),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('プロフィールを編集', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: '名前',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _descController,
-            decoration: const InputDecoration(
-              labelText: '自己紹介',
-              border: OutlineInputBorder(),
-            ),
-            maxLines: 4,
-          ),
-          const SizedBox(height: 12),
-          Text('追加情報', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 8),
-          ..._fields.asMap().entries.map((entry) {
-            final i = entry.key;
-            final e = entry.value;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Row(
+          // 追加情報の件数によってはキーボード表示時に収まらない。保存ボタンは
+          // 入力中でもスクロールせずに押せるよう、スクロール領域の外に置く。
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(
-                    width: 140,
-                    child: TextField(
-                      controller: e.nameController,
-                      decoration: const InputDecoration(
-                        labelText: '項目',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
+                  Text(
+                    'プロフィールを編集',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      labelText: '名前',
+                      border: OutlineInputBorder(),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: e.valueController,
-                      decoration: const InputDecoration(
-                        labelText: '値',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _descController,
+                    decoration: const InputDecoration(
+                      labelText: '自己紹介',
+                      border: OutlineInputBorder(),
                     ),
+                    maxLines: 4,
                   ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () => _removeFieldAt(i),
-                    icon: const Icon(Icons.delete_outline),
-                    tooltip: '削除',
+                  const SizedBox(height: 12),
+                  Text('追加情報', style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  ..._fields.asMap().entries.map((entry) {
+                    final i = entry.key;
+                    final e = entry.value;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 140,
+                            child: TextField(
+                              controller: e.nameController,
+                              decoration: const InputDecoration(
+                                labelText: '項目',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: e.valueController,
+                              decoration: const InputDecoration(
+                                labelText: '値',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            onPressed: () => _removeFieldAt(i),
+                            icon: const Icon(Icons.delete_outline),
+                            tooltip: '削除',
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                  FilledButton.tonal(
+                    onPressed: _addField,
+                    child: const Text('フィールドを追加'),
                   ),
                 ],
               ),
-            );
-          }),
-          FilledButton.tonal(
-            onPressed: _addField,
-            child: const Text('フィールドを追加'),
+            ),
           ),
           const SizedBox(height: 12),
           FilledButton(
