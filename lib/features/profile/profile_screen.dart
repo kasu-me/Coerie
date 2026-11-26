@@ -1749,6 +1749,18 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet>
 
   void _addField() => setState(() => _fields.add(_FieldEntry()));
   void _removeFieldAt(int i) => setState(() => _fields.removeAt(i));
+  void _reorderField(int oldIndex, int newIndex) =>
+      setState(() => _fields.insert(newIndex, _fields.removeAt(oldIndex)));
+
+  // ドラッグ中の行は Overlay 側で作り直され、元の行の FocusNode は破棄される。
+  // フォーカスを残したままだと直前に入力していた別の欄へ移り、キーボードが
+  // 開いたままになるため、先に外しておく。
+  void _onReorderStart(int _) => FocusScope.of(context).unfocus();
+
+  // SliverReorderableList は ReorderableListView と違い、浮かせた行に Material を
+  // 付けない。TextField は Material の祖先を必須とするため自前で包む。
+  Widget _buildDragProxy(Widget child, int _, Animation<double> animation) =>
+      Material(elevation: 4, child: child);
 
   @override
   void didChangeMetrics() {
@@ -1823,6 +1835,59 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet>
     }
   }
 
+  Widget _buildFieldRow(int i) {
+    final e = _fields[i];
+    return Padding(
+      key: ObjectKey(e),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          ReorderableDragStartListener(
+            index: i,
+            // 色を持たせないと余白部分がヒットテストを通らず、アイコンの
+            // 実寸でしかつまめない
+            child: const ColoredBox(
+              color: Colors.transparent,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(0, 12, 8, 12),
+                child: Icon(Icons.drag_handle, semanticLabel: '並び替え'),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: TextField(
+              controller: e.nameController,
+              decoration: const InputDecoration(
+                labelText: '項目',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 3,
+            child: TextField(
+              controller: e.valueController,
+              decoration: const InputDecoration(
+                labelText: '値',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: () => _removeFieldAt(i),
+            icon: const Icon(Icons.delete_outline),
+            tooltip: '削除',
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomSafe = MediaQuery.viewPaddingOf(context).bottom;
@@ -1841,80 +1906,62 @@ class _EditProfileSheetState extends ConsumerState<_EditProfileSheet>
           // 追加情報の件数によってはキーボード表示時に収まらない。保存ボタンは
           // 入力中でもスクロールせずに押せるよう、スクロール領域の外に置く。
           Flexible(
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'プロフィールを編集',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: '名前',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _descController,
-                    decoration: const InputDecoration(
-                      labelText: '自己紹介',
-                      border: OutlineInputBorder(),
-                    ),
-                    maxLines: 4,
-                  ),
-                  const SizedBox(height: 12),
-                  Text('追加情報', style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 8),
-                  ..._fields.asMap().entries.map((entry) {
-                    final i = entry.key;
-                    final e = entry.value;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 140,
-                            child: TextField(
-                              controller: e.nameController,
-                              decoration: const InputDecoration(
-                                labelText: '項目',
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: e.valueController,
-                              decoration: const InputDecoration(
-                                labelText: '値',
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            onPressed: () => _removeFieldAt(i),
-                            icon: const Icon(Icons.delete_outline),
-                            tooltip: '削除',
-                          ),
-                        ],
+            // SingleChildScrollView に ReorderableListView を入れ子にすると、端まで
+            // ドラッグしても外側が自動スクロールしないため、スクロールを一本化する。
+            child: CustomScrollView(
+              shrinkWrap: true,
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'プロフィールを編集',
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                    );
-                  }),
-                  FilledButton.tonal(
-                    onPressed: _addField,
-                    child: const Text('フィールドを追加'),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          labelText: '名前',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _descController,
+                        decoration: const InputDecoration(
+                          labelText: '自己紹介',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 4,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        '追加情報',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 4),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                SliverReorderableList(
+                  itemCount: _fields.length,
+                  onReorderItem: _reorderField,
+                  onReorderStart: _onReorderStart,
+                  proxyDecorator: _buildDragProxy,
+                  itemBuilder: (context, i) => _buildFieldRow(i),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: FilledButton.tonal(
+                      onPressed: _addField,
+                      child: const Text('フィールドを追加'),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
