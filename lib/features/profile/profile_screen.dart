@@ -1187,7 +1187,10 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                               _CountChip(count: user.notesCount!, label: '投稿'),
                               const SizedBox(width: 16),
                             ],
-                            if (user.followingCount != null) ...[
+                            if (user.followingCount != null &&
+                                user.canViewFollowing(
+                                  isMe: isOwnProfile,
+                                )) ...[
                               _TappableCountChip(
                                 count: user.followingCount!,
                                 label: 'フォロー',
@@ -1196,7 +1199,8 @@ class _ProfileBodyState extends ConsumerState<_ProfileBody>
                               ),
                               const SizedBox(width: 16),
                             ],
-                            if (user.followersCount != null)
+                            if (user.followersCount != null &&
+                                user.canViewFollowers(isMe: isOwnProfile))
                               _TappableCountChip(
                                 count: user.followersCount!,
                                 label: 'フォロワー',

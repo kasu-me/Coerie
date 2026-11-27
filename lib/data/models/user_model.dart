@@ -31,6 +31,14 @@ class UserModel {
 
   final List<AvatarDecorationModel> avatarDecorations;
 
+  /// フォロー／フォロワー一覧の公開範囲（'public' / 'followers' / 'private'）。
+  /// `users/show` などの詳細版レスポンスにしか含まれないため、それ以外では null。
+  ///
+  /// 非公開の相手でも API は `followingCount` / `followersCount` を null ではなく
+  /// 0 で返してくるため、件数だけでは「本当に0人」と「非公開」を区別できない。
+  final String? followingVisibility;
+  final String? followersVisibility;
+
   const UserModel({
     required this.id,
     required this.name,
@@ -52,7 +60,29 @@ class UserModel {
     this.publicReactions = false,
     this.emojis = const {},
     this.avatarDecorations = const [],
+    this.followingVisibility,
+    this.followersVisibility,
   });
+
+  /// フォロー一覧・件数を閲覧できるか。サーバー側（UserEntityService）の判定に合わせている。
+  /// モデレーターは非公開でも閲覧できるが、Coerie は自分がモデレーターかを
+  /// 取得していないため考慮しない（その場合は非公開扱いで隠れるだけで実害はない）。
+  bool canViewFollowing({required bool isMe}) =>
+      _canViewFollowList(followingVisibility, isMe: isMe);
+
+  /// フォロワー一覧・件数を閲覧できるか。判定方法は [canViewFollowing] と同じ。
+  bool canViewFollowers({required bool isMe}) =>
+      _canViewFollowList(followersVisibility, isMe: isMe);
+
+  bool _canViewFollowList(String? visibility, {required bool isMe}) {
+    if (isMe) return true;
+    return switch (visibility) {
+      'private' => false,
+      'followers' => isFollowing,
+      // 'public' のほか、公開範囲を含まない簡易版レスポンスや未知の値は従来どおり表示する
+      _ => true,
+    };
+  }
 
   String get acct => host.isEmpty ? '@$username' : '@$username@$host';
 
@@ -86,6 +116,14 @@ class UserModel {
       publicReactions: json['publicReactions'] as bool? ?? false,
       emojis: parseEmojiMap(json['emojis']),
       avatarDecorations: parseAvatarDecorations(json['avatarDecorations']),
+      // 2023.12 より前の Misskey はフォロー／フォロワーを分けず ffVisibility の1項目だった。
+      // 接続先サーバーが古い場合に備えてフォールバックする。
+      followingVisibility:
+          json['followingVisibility'] as String? ??
+          json['ffVisibility'] as String?,
+      followersVisibility:
+          json['followersVisibility'] as String? ??
+          json['ffVisibility'] as String?,
     );
   }
 
@@ -110,6 +148,8 @@ class UserModel {
     bool? publicReactions,
     Map<String, String>? emojis,
     List<AvatarDecorationModel>? avatarDecorations,
+    String? followingVisibility,
+    String? followersVisibility,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -132,6 +172,8 @@ class UserModel {
       publicReactions: publicReactions ?? this.publicReactions,
       emojis: emojis ?? this.emojis,
       avatarDecorations: avatarDecorations ?? this.avatarDecorations,
+      followingVisibility: followingVisibility ?? this.followingVisibility,
+      followersVisibility: followersVisibility ?? this.followersVisibility,
     );
   }
 }
